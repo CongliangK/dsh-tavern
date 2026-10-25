@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "dc5495a47207506913f5292130a871ec21be51a4",
-  "releaseSequence": 900,
+  "revision": "d7e321ce674f428035bba36287e1ea8d7aaa5512",
+  "releaseSequence": 901,
   "version": "3.1.0",
   "files": [
     {
@@ -1391,8 +1391,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/incremental-json-state.js",
-      "sha256": "a38747e5d80b09d74b90c70c6f69bd6e1d5b0351181a95f9ee4979265d4b120f",
-      "size": 12658
+      "sha256": "cd352d522d7997374aec9dabec3b96d056533625eaa4789f2909c01d65f63f13",
+      "size": 13637
     },
     {
       "path": "tavern-plugin/lib/domain/incremental-reply-view.js",
@@ -1576,8 +1576,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/native-conversation-storage.js",
-      "sha256": "a81ccec0bffc6ae5f339d46baf75c6cc41009c21173ef7633193a8bda6d846d2",
-      "size": 42833
+      "sha256": "031a1a536956bfeaaaec5d6a0fa7a83cda710ae3eb601391b512cbc74e0d880c",
+      "size": 42931
     },
     {
       "path": "tavern-plugin/lib/domain/native-opening.js",
@@ -4631,9 +4631,9 @@
     }
   ],
   "archive": {
-    "commit": "76e712d967553c7ec3e21df096b37538e8e3a0f3",
+    "commit": "9162457e7bd2f6e27a19cf52b7a369b12edd01ff",
     "path": "runtime.zip",
-    "sha256": "fef7694f0e973d79f35fd44fbe1969e29dae48284105e8ba9cb1b4dedc6bc32d",
-    "size": 10075132
+    "sha256": "ea75099c4f49bee812743e7ce753633529ebfb4f68d9e3ed8cc89e286897e716",
+    "size": 10075547
   }
 }
