@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "59f33c92a35921d215107f34bb9e57a094a61b90",
-  "releaseSequence": 898,
+  "revision": "832a9d16f52edc73942721c7df3a6f07d20472ed",
+  "releaseSequence": 899,
   "version": "3.1.0",
   "files": [
     {
@@ -186,8 +186,8 @@
     },
     {
       "path": "bin/import-user-home.mjs",
-      "sha256": "f5d144875c8a597f260e4cf9c5a9dfb93646a09df90f12d19437e7cfa35baad0",
-      "size": 10123
+      "sha256": "14fb74d219374c8193a2f0b433f98b4825c9184f6c12cea56a1049a82d4d3597",
+      "size": 10758
     },
     {
       "path": "bin/installation-process.mjs",
@@ -1016,8 +1016,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/chat-journal-store.js",
-      "sha256": "11681ce22b2145d8dc30cb1a37a32f7d6b80d91caff345c32472c5f0df609ef1",
-      "size": 41830
+      "sha256": "874fe56597af68213a62285889d3a3a3882499be3cc7e3ad5922036d592d5a65",
+      "size": 42088
     },
     {
       "path": "tavern-plugin/lib/domain/chat-persistence.js",
@@ -1106,8 +1106,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/conversation-page-store.js",
-      "sha256": "808447a88ebdb3b271b577d94d103c1ae5f59ae4a60f8b3dc052ecabe2d84f6f",
-      "size": 32446
+      "sha256": "a9a280538545ded0708fa98814c49e4b4563619ee33dc20f43c70c802e8f394f",
+      "size": 40388
     },
     {
       "path": "tavern-plugin/lib/domain/conversation-retention.js",
@@ -1576,8 +1576,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/native-conversation-storage.js",
-      "sha256": "c04e7a34ebd5b28ae6512e8895107ab32c2e2a37abbffd86f39bc32338241c70",
-      "size": 42663
+      "sha256": "a81ccec0bffc6ae5f339d46baf75c6cc41009c21173ef7633193a8bda6d846d2",
+      "size": 42833
     },
     {
       "path": "tavern-plugin/lib/domain/native-opening.js",
@@ -1936,8 +1936,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/save-maintenance.js",
-      "sha256": "471bd8151e70307c6512ea5b65283cca81ef55bfd02cf3fa5850b040e79906e6",
-      "size": 6750
+      "sha256": "33743c388ca36f4aca185b84936f2249dff609d9a239cd1b47589def3c7a06e2",
+      "size": 6882
     },
     {
       "path": "tavern-plugin/lib/domain/save-upgrade.js",
@@ -4631,9 +4631,9 @@
     }
   ],
   "archive": {
-    "commit": "b8cc7a1432767ad510ebaed3f7c4c740e1e90c96",
+    "commit": "e3160162e6116c247e5951a69c0c11b31aec55df",
     "path": "runtime.zip",
-    "sha256": "d431d0cf499ec15dbafb27c69dc0bc81d3f3728781751451a649b5190f1de9a2",
-    "size": 10072415
+    "sha256": "dee0b1c394584573d2d74dccc4e31ed8f29c0e38601889fa6f240aa0a0f989f1",
+    "size": 10075132
   }
 }
