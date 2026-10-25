@@ -94,7 +94,7 @@ export function registerTavernHttpRoutes({
     ctx.effect(() => webServer.register({
       kind: 'prefix',
       path: '/api/dsh-tavern',
-      handler: handleTavernRequest
+      handler: (req, res) => handleTavernRequest(req, res, true)
     }), 'dsh-tavern: web route')
     if (assetLibrary) ctx.effect(() => webServer.register({
       kind: 'prefix',
@@ -105,7 +105,7 @@ export function registerTavernHttpRoutes({
   // In-process callers (the server script runtime) share these exact routes.
   exposeHandler?.(handleTavernRequest)
 
-  async function handleTavernRequest(req, res) {
+  async function handleTavernRequest(req, res, external = false) {
       {
         const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname)
         const cachedAssetMatch = /^\/api\/dsh-tavern\/remote-assets\/([0-9a-f]{64})(?:\/[^/]*)?$/i.exec(pathname)
@@ -156,16 +156,32 @@ export function registerTavernHttpRoutes({
           return
         }
         const readsCachedAsset = req.method === 'GET' && cachedAssetMatch
-        const localOrOpaqueOrigin = origin === undefined || origin === '' || origin === 'null' || /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)
+        // Compare authority under either HTTP scheme: TLS may terminate at the proxy.
+        // External operation requests also pass DSH's trusted-Host and session checks below.
+        const sameHostOrigin = typeof origin === 'string' && origin !== ''
+          && (origin === 'http://' + req.headers.host || origin === 'https://' + req.headers.host)
+        const localOrOpaqueOrigin = origin === undefined || origin === '' || origin === 'null' || sameHostOrigin || /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)
         if (readsStaticAsset && !localOrOpaqueOrigin) {
           res.writeHead(403)
           res.end('forbidden')
           return
         }
-        if (!readsCachedAsset && !readsStaticAsset && !readsOfficialMvu && !readsFullTemplate && !readsRuntimeAsset && !readsClientAsset && !readsPluginAsset && !sceneSameOrigin && typeof origin === 'string' && origin !== '' && !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
+        if (!readsCachedAsset && !readsStaticAsset && !readsOfficialMvu && !readsFullTemplate && !readsRuntimeAsset && !readsClientAsset && !readsPluginAsset && !sceneSameOrigin && typeof origin === 'string' && origin !== '' && !sameHostOrigin && !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
           res.writeHead(403)
           res.end('forbidden')
           return
+        }
+        // Capability-protected resource routes return above; sandbox-readable assets
+        // keep their existing policy. Never expose the in-process caller's trust to HTTP.
+        const readsSandboxAsset = readsCachedAsset || readsStaticAsset || readsOfficialMvu || readsFullTemplate || readsRuntimeAsset || readsClientAsset || readsPluginAsset
+        if (external && !readsSandboxAsset) {
+          const connection = ctx.get('connection')
+          const rejection = typeof connection?.requestRejection === 'function' ? connection.requestRejection(req) : 503
+          if (rejection !== undefined) {
+            res.writeHead(rejection, { 'Cache-Control': 'no-store' })
+            res.end(rejection === 401 ? 'authentication required' : rejection === 503 ? 'authentication unavailable' : 'forbidden')
+            return
+          }
         }
         if (req.method === 'GET' && pathname === '/api/dsh-tavern/runtime-generation') {
           res.writeHead(200, {
