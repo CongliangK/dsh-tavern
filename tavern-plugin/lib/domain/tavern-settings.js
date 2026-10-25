@@ -264,6 +264,10 @@ export function applyTavernSettingsPatch(current, patch) {
     if (!['after-fill', 'after-send'].includes(input.candidateDismissMode)) throw new Error('无效的候选项收起方式')
     next.candidateDismissMode = input.candidateDismissMode
   }
+  if (Object.hasOwn(input, 'candidateAutoGenerate')) {
+    if (typeof input.candidateAutoGenerate !== 'boolean') throw new Error('无效的自动生成候选项设置')
+    next.candidateAutoGenerate = input.candidateAutoGenerate
+  }
   // Two independent directions: input replays the history that is sent to the
   // model, output turns this turn's body into a submission call. Legacy switches
   // are folded into the pair and then dropped, so a later patch to one side can
@@ -422,6 +426,8 @@ export function presentTavernSettings(document, defaults) {
     headerItems: readHeaderItems(object(document).headerItems),
     viewTabs: readViewTabs(object(document).viewTabs),
     candidateDismissMode: object(document).candidateDismissMode === 'after-fill' ? 'after-fill' : 'after-send',
+    // 自动生成候选项: off by default, since it adds a background request after every reply.
+    candidateAutoGenerate: object(document).candidateAutoGenerate === true,
     // 精修预审: off by default, since it reviews every reply whether or not 精修 is pressed.
     polishPrereview: object(document).polishPrereview === true,
     storyInputToolCall: storyToolCalls.input,

@@ -154,6 +154,8 @@ import { createConversationMarkdownExport, conversationStoryTurns } from './doma
 import { createCoordinationEventPublisher } from './domain/coordination-event-publisher.js'
 import { createSessionSignalTransport } from './domain/session-signal-transport.js'
 import { createCandidateTasks } from './domain/candidate-tasks.js'
+import { createAutoChoices } from './domain/auto-choices.js'
+import { assistantResultForTurn } from './domain/session-turn-result.js'
 import { extractEpubText } from './domain/epub-text.js'
 import { createFileResourceStore, normalizeResourcePath } from './domain/file-resources.js'
 import { createMobileCardImport } from './domain/mobile-card-import.js'
@@ -2896,6 +2898,19 @@ export async function apply(ctx) {
     },
     prepareLegacy: sessionId => pullBackgroundCycle(sessionId)
   })
+  // 自动生成候选项: fed by live turn ends only, submitting through candidateTasks like the button.
+  const autoChoices = createAutoChoices({
+    preferences: readTavernSettings,
+    async read(sessionId) {
+      const chat = await chatForSession(sessionId)
+      const session = sessionStore.get(sessionId) || agentRegistry.get(sessionId)?.session
+      const turn = chat?.messages?.findLast(message => message?.role === 'assistant')?.turn
+      return { chat, messageId: str(assistantResultForTurn(session, turn)?.event?.data?.message?.id) }
+    },
+    activity: chat => backgroundTasks.activity(chat),
+    submit: args => candidateTasks.submit(args)
+  })
+  ctx.effect(() => () => autoChoices.dispose())
   const ledgerEditor = createLedgerEditor({
     chats: { forSession: chatForSession, update: updateChat }, timeline: storyTimeline,
     isBusy: chat => backgroundTasks.activity(chat).busy || Boolean(chat.regenInProgress) || agentRegistry.get(chat.sessionId)?.phase?.kind === 'running'
@@ -3368,7 +3383,7 @@ export async function apply(ctx) {
 
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
   const rpcDeps = { webAccess, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
-    applicationUpdater, assetLibrary, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog,
+    applicationUpdater, assetLibrary, autoChoices, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog,
     backgroundConfigForSession, bindScript, bodyEditor, callModel, candidateGenerator, candidateTasks, polishPrereview, polishRecords, polishReviewer, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardSummaries, cardTaskPrompts, castAssets,
     castCardOf, castEdit, castPresentation, castStage, castView, chatForSession, chatHeaderForSession,
@@ -3671,6 +3686,7 @@ export async function apply(ctx) {
   })
 
   registerTurnLifecycleHooks({
+    autoChoices,
     backgroundAgentRunner,
     hookChatForSession,
     clearRuntimePresetRequestState,

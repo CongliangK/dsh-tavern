@@ -189,7 +189,10 @@ function createGlobalSettingsModule({ React, rpc, notifySettingsChanged, TavernD
                 h(TavernConversationWritingSkills, { globalDefaults: true })),
             // 对话气泡 (castPresentation) lives in 舞台设置 › 基础设置 with the other stage switches.
             group("剧情", "所有游戏都按这些设置，下一轮生效。",
-                h(ContextCompactionSettings)),
+                h(ContextCompactionSettings),
+                // Off by default: it adds a background model request after every reply.
+                state.settings ? h(SettingSwitch, { settings: state.settings, name: "candidateAutoGenerate", title: "自动生成候选项",
+                    description: "打开后每轮会多一次后台请求：正文写完，酒馆在后台自动生成这一轮的候选项，不用再点「生成候选项」。只对打开后的新回复生效，失败时可手动重试。" }) : null),
             group("卡片工作台搜索", "为制卡和改卡补充作品资料，设置搜索来源、网页读取与连接方式。", state.settings ? h(WebAccessSettings, { settings: state.settings }) : null),
             group("显示与交互", "对所有游戏生效，只改界面，不影响正文和存档。",
                 state.settings ? h(SettingSwitch, { settings: state.settings, name: "autoOpenStatusPanel", title: "进入游戏时打开酒馆状态",
