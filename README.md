@@ -112,6 +112,8 @@
 
 ## 快速开始
 
+> **请不要从 npm 下载或安装本项目。** 由于对 DSH 的定制改动较多，DSH Tavern 无法作为常规 DSH 插件安装使用。npm 上的 `dsh-profile-tavern` 已标记弃用，不再维护；请按下方对应平台的方式安装。
+
 **桌面版仅支持官方 DeepSeek Harness，不再支持社区 DSH Desktop 或 DSH NEXT。** 从社区版迁移前请备份数据，再按[数据导入说明](docs/data-import.md)导入；Android 和独立命令行版继续支持。
 
 当前版本适配 **DSH 0.2.x**（0.2.0-rc.2 起）。还在用 DSH 0.1.5（DSH Desktop 2.0.13、旧一键安装包）的，请用[稳定版](#稳定版dsh-015)。安装前建议备份 `.dsh` 目录。
