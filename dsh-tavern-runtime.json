@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "51264e4d20be9b65ac4c8a7e3e992469ef873208",
-  "releaseSequence": 907,
+  "revision": "00ae24e67499afc28fa60f180b0e5113578da031",
+  "releaseSequence": 908,
   "version": "3.1.0",
   "files": [
     {
@@ -951,8 +951,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/cast-annotation.js",
-      "sha256": "3e61dc48aaf0e6bb27a148f6c493774251bdccdc587d21bac13ea26b0e587811",
-      "size": 6096
+      "sha256": "c6e00727413a313177581f716f9be9b4dd1aacde83e43a313605a3d5a19da61c",
+      "size": 6031
     },
     {
       "path": "tavern-plugin/lib/domain/cast-assets.js",
@@ -4636,9 +4636,9 @@
     }
   ],
   "archive": {
-    "commit": "8632d5e8375852b77c6756a8faa342f1aac63fa8",
+    "commit": "5f01bac27647db5b42a2b5f14fc53913638e4827",
     "path": "runtime.zip",
-    "sha256": "03f3b0e209b56bb85ad3b9c7e373ccfb1d07ec5c135bde7ef96f880e4e982abb",
-    "size": 10109443
+    "sha256": "06b781ce9e9251515aafb1892768fe3a68a28e112137b39afa14cdf939716aa7",
+    "size": 10109422
   }
 }
