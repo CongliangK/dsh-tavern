@@ -130,6 +130,17 @@ export function publicPluginMedia(item, current) {
   }
 }
 
+// The pictures a removal takes away, for the owning plugin (tavern.onMediaRemoved): the whole
+// item (`version` omitted), its current picture (`'current'`) or one earlier version (index).
+export function removedPictures(item, version) {
+  const picture = entry => ({ caption: entry.caption || '', prompt: entry.prompt || '', createdAt: entry.createdAt, ...(entry.data !== undefined ? { data: structuredClone(entry.data) } : {}) })
+  const current = picture({ ...item, createdAt: item.updatedAt || item.createdAt })
+  const history = item.history || []
+  if (version === undefined) return [...history.map(picture), current]
+  if (version === 'current' || version === null || Number(version) === history.length) return [current]
+  return history[Number(version)] ? [picture(history[Number(version)])] : []
+}
+
 export function createPluginMedia({ store, now = Date.now, id = randomUUID }) {
   const pathFor = chatId => 'plugin-media/' + hash(chatId) + '.json'
   const empty = () => ({ version: 1, items: [], issued: {} })
@@ -183,7 +194,7 @@ export function createPluginMedia({ store, now = Date.now, id = randomUUID }) {
       const next = { ...previous, ...itemFields(changes, previous), updatedAt: now() }
       // A new picture replacing an image keeps the old one as an earlier version.
       if (previous.attachment?.mediaType && next.attachment?.attachmentId !== previous.attachment.attachmentId) {
-        next.history = [...(previous.history || []), { attachment: previous.attachment, caption: previous.caption || '', prompt: previous.prompt || '', createdAt: previous.updatedAt || previous.createdAt }].slice(-MAX_HISTORY)
+        next.history = [...(previous.history || []), { attachment: previous.attachment, caption: previous.caption || '', prompt: previous.prompt || '', ...(previous.data !== undefined ? { data: structuredClone(previous.data) } : {}), createdAt: previous.updatedAt || previous.createdAt }].slice(-MAX_HISTORY)
       }
       value.items[index] = next
       return next
@@ -206,7 +217,7 @@ export function createPluginMedia({ store, now = Date.now, id = randomUUID }) {
       if (version === undefined || version === null || Number(version) === history.length) {
         const last = history.pop()
         if (!last) { value.items.splice(index, 1); return null }
-        value.items[index] = { ...item, attachment: last.attachment, caption: last.caption, prompt: last.prompt, history, updatedAt: now() }
+        value.items[index] = { ...item, attachment: last.attachment, caption: last.caption, prompt: last.prompt, ...(last.data !== undefined ? { data: last.data } : {}), history, updatedAt: now() }
       } else {
         const at = Number(version)
         if (!Number.isInteger(at) || at < 0 || at >= history.length) throw invalid('版本不存在')

@@ -116,7 +116,7 @@ test('provider APIs：capabilities、克隆输入、卡绑定筛选与 Cordis �
     } })
   } })
   await tick()
-  assert.equal(tavern.apiVersion, 4)
+  assert.equal(tavern.apiVersion, 5)
   assert.deepEqual(tavern.capabilities, { mvuSettlementProvider: 1 })
   assert.equal(Object.isFrozen(tavern.capabilities), true)
   assert.equal(tavern.mvuProviderRegistered, undefined, 'registration guard is internal, not a plugin service method')
@@ -970,7 +970,7 @@ test('版本失效信号：versionSignal 在正文版本被替换或删局时中
     ctx.tavern.onTimelineChanged(change => seen.push(change))
   } })
   await tick()
-  assert.equal(tavern.apiVersion, 4)
+  assert.equal(tavern.apiVersion, 5)
   assert.equal((await tavern.versionSignal({ gameId: 'game-1', turn: 3, textVersion: 'old' })).aborted, true, '不是当前版本时立即中止')
   const signal = await tavern.versionSignal({ gameId: 'game-1', turn: 3, textVersion: 'key-3' })
   h.api.timelineChanged('game-1', { kind: 'edit', turn: 3 })
@@ -1196,4 +1196,40 @@ test('插件联网声明随卸载释放，不能覆盖原生工具或重复声�
   await fiber.dispose()
   await tick()
   assert.equal(h.api.toolNetworkFor('reference_lookup'), undefined)
+})
+
+// #394 附带：配图插件的生成记录要和对话里的图同进同退。
+test('玩家删图只通知图的主人，带上被删每张图的插件数据；插件自己按版本删不触发', { skip: !cordis }, async t => {
+  const { createPluginMediaViews } = await import('../tavern-plugin/lib/domain/plugin-media-views.js')
+  const h = await harness(t)
+  const views = createPluginMediaViews({ pluginMedia: h.media, sessionSignals: { publish() {} }, attachments: () => null, mediaRemoved: h.api.mediaRemoved,
+    pluginTurns: { resolveGame: async sessionId => sessionId === 'game-1' ? { chatId: 'chat-1', sessionId } : null, currentKey: async () => 'key-3' } })
+  const heard = { mine: [], other: [] }
+  let tavern
+  await h.root.plugin({ name: 'image-plugin', inject: ['tavern'], apply(ctx) { tavern = ctx.tavern; ctx.tavern.onMediaRemoved(event => heard.mine.push(event)) } })
+  await h.root.plugin({ name: 'other-plugin', inject: ['tavern'], apply(ctx) { ctx.tavern.onMediaRemoved(event => heard.other.push(event)) } })
+  await tick()
+  const draw = async jobs => {
+    const { id } = await tavern.attach({ gameId: 'game-1', turn: 3, textVersion: 'key-3', item: { kind: 'image', attachment: { ...image, attachmentId: jobs[0] }, data: { jobId: jobs[0] } } })
+    for (const job of jobs.slice(1)) await tavern.update(id, { attachment: { ...image, attachmentId: job }, data: { jobId: job } })
+    return id
+  }
+  const first = await draw(['j1', 'j2', 'j3'])
+  await views.removePluginMediaVersion('game-1', first, 0)
+  await views.removePluginMediaVersion('game-1', first, null)
+  await tick()
+  assert.deepEqual(heard.mine.map(event => [event.itemRemoved, event.pictures.map(picture => picture.data.jobId)]), [[false, ['j1']], [false, ['j3']]])
+  assert.equal((await tavern.list({ gameId: 'game-1' }))[0].data.jobId, 'j2', '上一版顶上时带回它的数据')
+  await views.removePluginGalleryItems('game-1', [first])
+  await tick()
+  assert.deepEqual(heard.mine.at(-1), { gameId: 'game-1', itemId: first, kind: 'image', turn: 3, textVersion: 'key-3', itemRemoved: true,
+    pictures: [{ caption: '', prompt: '', createdAt: heard.mine.at(-1).pictures[0].createdAt, data: { jobId: 'j2' } }] })
+
+  const second = await draw(['k1', 'k2'])
+  assert.equal(await tavern.remove(second, { version: 0 }), true)
+  assert.equal(await tavern.remove(second, { version: 'current' }), true)
+  assert.deepEqual(await tavern.list({ gameId: 'game-1' }), [], '最后一张删掉整项')
+  await tick()
+  assert.equal(heard.mine.length, 3, '插件自己删不再通知自己')
+  assert.deepEqual(heard.other, [], '别的插件听不到')
 })

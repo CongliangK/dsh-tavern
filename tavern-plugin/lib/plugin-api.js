@@ -7,7 +7,7 @@ import { normalizeGameSettings, coerceSetting, settingValues } from './domain/pl
 // The public `tavern` service for third-party DSH plugins (docs/plugin-api.md).
 // Only additive changes are allowed here: published plugins depend on every
 // name and field. Internals are reached through `deps`, never exposed.
-export const TAVERN_PLUGIN_API_VERSION = 4
+export const TAVERN_PLUGIN_API_VERSION = 5
 const TRACKER = Symbol.for('cordis.tracker')
 const SECTION_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const MAX_SECTION_TEXT = 8000
@@ -102,6 +102,7 @@ function boundedWithSignal(promise, label, signal, ms = PLUGIN_TIMEOUT_MS) {
 export function createTavernPluginApi(deps) {
   const settledHandlers = new Set()
   const removedHandlers = new Set()
+  const mediaRemovedHandlers = new Set()
   const timelineHandlers = new Set()
   const castHandlers = new Set()
   const cardHandlers = new Set()
@@ -291,6 +292,13 @@ export function createTavernPluginApi(deps) {
       if (typeof handler !== 'function') throw new TypeError('onGameRemoved 需要一个函数')
       const entry = { owner: ownerOf(this), handler }
       return owned(this, () => { removedHandlers.add(entry); return () => removedHandlers.delete(entry) }, 'tavern.onGameRemoved()')
+    },
+
+    // The player removed pictures this plugin attached (第 5 版): drop the plugin's own copies.
+    onMediaRemoved(handler) {
+      if (typeof handler !== 'function') throw new TypeError('onMediaRemoved 需要一个函数')
+      const entry = { owner: ownerOf(this), handler }
+      return owned(this, () => { mediaRemovedHandlers.add(entry); return () => mediaRemovedHandlers.delete(entry) }, 'tavern.onMediaRemoved()')
     },
 
     onTimelineChanged(handler) {
@@ -777,13 +785,22 @@ export function createTavernPluginApi(deps) {
       return publicPluginMedia(record)
     },
 
-    async remove(itemId) {
+    // `version` (第 5 版) removes one picture: 'current' (the latest earlier version takes its
+    // place) or an index into `history`; the item goes with its last picture.
+    async remove(itemId, { version } = {}) {
       const owner = ownerOf(this)
       const located = await locateItem(itemId).catch(() => null)
       if (!located) return false
-      const removed = await deps.media.remove({ chatId: located.chatId, owner, itemId })
-      if (removed) await changed(located.sessionId)
-      return removed
+      if (version === undefined) {
+        const removed = await deps.media.remove({ chatId: located.chatId, owner, itemId })
+        if (removed) await changed(located.sessionId)
+        return removed
+      }
+      const item = await deps.media.find(located.chatId, itemId)
+      if (!item || item.owner !== owner) return false
+      await deps.media.removeVersion({ chatId: located.chatId, itemId, version: version === 'current' ? null : version })
+      await changed(located.sessionId)
+      return true
     },
 
     async list({ gameId, turn } = {}) {
@@ -965,6 +982,13 @@ export function createTavernPluginApi(deps) {
     if (typeof converted.imported !== 'function') return
     try { await bounded(converted.imported({ card }), '导入器收尾') }
     catch (error) { recordError(null, converted.owner, '导入人物卡收尾', error) }
+  }
+
+  /** Called by Tavern after the player removed pictures of a plugin's media item; only its owner hears. */
+  function mediaRemoved(gameId, item, pictures, itemRemoved) {
+    if (!gameId || !item?.owner || !pictures?.length) return
+    const owners = new Set([...mediaRemovedHandlers].filter(entry => entry.owner !== item.owner).map(entry => entry.owner))
+    dispatch(mediaRemovedHandlers, { gameId, itemId: item.id, kind: item.kind, turn: item.turn, textVersion: item.key, itemRemoved: itemRemoved === true, pictures }, 'onMediaRemoved', owners)
   }
 
   function gameRemoved(gameId) {
@@ -1294,7 +1318,7 @@ export function createTavernPluginApi(deps) {
     return typeof owner === 'string' && Array.from(mvuSettlementProviders.values()).some(entry => entry.owner === owner)
   }
 
-  return Object.freeze({ service, mvuProvider, mvuProviderActive, mvuProviderRegistered, capabilities, toolModesFor, toolNetworkFor: name => toolNetworks.get(name)?.capability, callHandler, turnState, exportGame, importGame, turnSettled, castAnnotated, castAssetSources, gameRemoved,
+  return Object.freeze({ service, mvuProvider, mvuProviderActive, mvuProviderRegistered, capabilities, toolModesFor, toolNetworkFor: name => toolNetworks.get(name)?.capability, callHandler, turnState, exportGame, importGame, turnSettled, castAnnotated, castAssetSources, gameRemoved, mediaRemoved,
     speechProviders: () => Array.from(speechProviders.values()), timelineChanged, checkVersions, pluginState, cardChanged, cardImporterFor, convertCard, cardImported, gameForked, forkTurns, promptSections, turnContext, worldbookPoolEntries, settlement, candidate, compactionNotes, replaceSettlement,
     runSettlementTasks, manualTaskFor, runManualTask, stopTasks, runningTask, gamePlugins, setGamePlugin, pluginGameSettings })
 }
