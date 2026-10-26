@@ -162,11 +162,16 @@ pnpm() {
   "${PNPM_COMMAND}" --config.update-notifier=false \
     --config.fetchTimeout="${pnpm_config_fetch_timeout:-600000}" "$@"
 }
-# 本地 store 完整时先走 --offline（秒级完成）；缺包再联网补齐，而不是直接放弃。
+# 缓存命中时先跑一遍（秒级完成）；缺什么补什么，而不是直接放弃。
+# 这里不能再传 --offline：pnpm 11 在 “Verifying lockfile against supply-chain
+# policies” 阶段要读每个包的 metadata，缓存里少一条（例如 undici.jsonl）就会在
+# 把 287 个包全部从 store 复制完之后整轮失败，然后联网把同样 287 个包再复制一遍，
+# 日志里就是同一串 “Progress: … reused 286, downloaded 0, added …” 来回重复。
+# --prefer-offline 命中缓存就走本地，缺 metadata 时只补缺的部分，不会白跑一轮。
 pnpm_install() {
   if [ -n "${DSH_TAVERN_PNPM_STORE:-}" ]; then
-    if pnpm "$@" --offline; then return 0; fi
-    info '本地依赖缓存缺少部分包，改为联网补齐（只下载缺失项）……'
+    if pnpm "$@" --prefer-offline; then return 0; fi
+    info '缓存优先安装未完成，改为联网补齐（只下载缺失项）……'
   fi
   pnpm "$@"
 }
