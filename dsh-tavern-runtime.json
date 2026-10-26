@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "cdc999a87911096d1fed946128315afeeeb9ab06",
-  "releaseSequence": 931,
+  "revision": "e519437a586c522e56e4a987faa16507bbc1829f",
+  "releaseSequence": 932,
   "version": "3.1.0",
   "files": [
     {
@@ -76,8 +76,8 @@
     },
     {
       "path": "android/install.sh",
-      "sha256": "99392a41cf97c79962717778c34019c399ea373f115a818389ca284ab1b562ec",
-      "size": 15547
+      "sha256": "fa10a1ea2f61ada6ad331c10546f2a57ce5f33475b51ce1d5c67ca8dfe2338bb",
+      "size": 15649
     },
     {
       "path": "android/LICENSE",
@@ -4791,9 +4791,9 @@
     }
   ],
   "archive": {
-    "commit": "7fa16a235a02936689d8115826fc19862c36f53f",
+    "commit": "a552b72a31604f6f5046fce4d09e6450996b5439",
     "path": "runtime.zip",
-    "sha256": "8720b911a765a109fe8e507d6ed78852290a4658e8df0bdf309ae326e41a7035",
-    "size": 68046531
+    "sha256": "1703e91ed68c5b7fd546624720b6a66b2f854fdd043a0995d4064a2bd846e912",
+    "size": 68046567
   }
 }
