@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import { createTavernScriptHostAdapter } from '../../tavern-plugin/lib/domain/tavern-script-host-adapter.js'
 import { readOfficialMvuBundle } from '../../tavern-plugin/lib/domain/official-mvu-assets.js'
 import { readTavernRuntimeAsset, TAVERN_RUNTIME_ASSET_PREFIX } from '../../tavern-plugin/lib/domain/tavern-runtime-assets.js'
+import { formatMvuUpdateCommand } from '../../tavern-plugin/lib/domain/mvu-background-settlement.js'
 
 const clientSource = await readFile(new URL('../../tavern-plugin/lib/client.js', import.meta.url), 'utf8')
 let descriptor
@@ -16,12 +17,13 @@ vm.runInNewContext(clientSource, { window: { __ModuleLoader__: { load(value) { d
 const client = descriptor.factory(() => ({}))
 const bundle = (await readOfficialMvuBundle()).body
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+const command = formatMvuUpdateCommand({ operations: [{ op: 'replace', path: '/stat_data/hp', value: 9 }] })
 const initial = { stat_data: { hp: 10 }, schema: { type: 'object', properties: { hp: { type: 'number' } } },
   display_data: {}, delta_data: {}, initialized_lorebooks: {} }
 
 async function scenario(enabled) {
   const token = 'mvu-provider-' + enabled
-  const body = "测试正文\n_.set('hp', 9);"
+  const body = '测试正文\n' + command
   const chat = { id: token, sessionId: token, mode: 'story', mvu: { enabled: true }, tavernHelperLifecycleRevision: 1,
     messages: [
       { role: 'assistant', text: '开场', swipeId: 0, swipes: ['开场'], variables: [structuredClone(initial)] },
@@ -120,7 +122,7 @@ async function scenario(enabled) {
     writes.length = 0
     const base = structuredClone(chat.messages[2].variables[0])
     const result = await adapter.settleMvuUpdate({ operationId: token, sessionId: token, messageId: 2, swipeId: 0,
-      expectedLifecycleRevision: 1, storyText: '', command: "_.set('hp', 9);", validate: ({ before, after }) => ({ changes: [], sideEffects: [],
+      expectedLifecycleRevision: 1, storyText: '', command, validate: ({ before, after }) => ({ changes: [], sideEffects: [],
         failures: before.stat_data.hp === after.stat_data.hp ? [{ message: '未观察到对应变量变化' }] : [] }) })
     if (enabled) {
       assert.equal(result.updated, true, JSON.stringify({ validation: result.validation, rpcCalls: rpcCalls.map(call => call.method),
