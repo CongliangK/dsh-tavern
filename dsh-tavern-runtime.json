@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "4f639441667ab2100971a39a0927c68e18315120",
-  "releaseSequence": 929,
+  "revision": "6274a1ac3ad222fdfb1a7cb649e0723639df21e5",
+  "releaseSequence": 930,
   "version": "3.1.0",
   "files": [
     {
@@ -806,13 +806,13 @@
     },
     {
       "path": "tavern-plugin/lib/client-assets/tavern.css",
-      "sha256": "a05258911830b127a0cb47d6a6a15c7ecef6fd6895ce47be1af2828c9c988b6e",
-      "size": 495731
+      "sha256": "4198eaf1314afe650d6eedac30587d8978310fddc0c3b972e3aee5216077d166",
+      "size": 497092
     },
     {
       "path": "tavern-plugin/lib/client.js",
-      "sha256": "5b7e6a5191e44475f8d5c683c20095fd7be0adb090c5c43080c357ce359dc055",
-      "size": 2764521
+      "sha256": "44d2242f3d2e1e82e10d5252c8cbed1de869cf5b12256d2e32295a001a628fda",
+      "size": 2771715
     },
     {
       "path": "tavern-plugin/lib/cordis-inspect.js",
@@ -2391,13 +2391,13 @@
     },
     {
       "path": "tavern-plugin/lib/domain/stage-skin.js",
-      "sha256": "2b13f65772825781e875c8188adc056550558f233b08924af91649cbc0b88edf",
-      "size": 47551
+      "sha256": "8d2fd033c224c06517a0c5abc334e12b5428fe4f4d5f20709b3311afb00f2aaa",
+      "size": 47934
     },
     {
       "path": "tavern-plugin/lib/domain/stage-skin.schema.json",
-      "sha256": "bcce59cbd841ad487c7ae844eb710621eb6a837dd1c3717471d1be08460791a7",
-      "size": 167051
+      "sha256": "d1dd4caf1e9a98d9e6c4d3d4b22c82bafbf671c0153880762f73cf03611e38ff",
+      "size": 168226
     },
     {
       "path": "tavern-plugin/lib/domain/status-part-index.js",
@@ -4791,9 +4791,9 @@
     }
   ],
   "archive": {
-    "commit": "b5bf3ba7f6a721343dfe6f0350ac66944a24418f",
+    "commit": "30bba35d51cde3be9b6623d408f26dfc9fb69595",
     "path": "runtime.zip",
-    "sha256": "a21cd8345530ce0c5ef35cfa4a6bfb5f9a59029615d5fed0a101ce5363344abf",
-    "size": 68041952
+    "sha256": "4f18b74dfd83c2daa28d2f45fc97939ae9a8497ac2571d0755d236e181f54cfc",
+    "size": 68044638
   }
 }
