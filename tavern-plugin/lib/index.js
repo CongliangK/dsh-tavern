@@ -3026,7 +3026,8 @@ export async function apply(ctx) {
     await writeChat(latest, { source: 'worldbook.projection' })
     return latest
   }
-  const mvuSettlementEngine = createMvuSettlementEngine({ mvuSettlement, mvuUpdateRules, backgroundModelSelection, postureItem, tavernScriptDispatch })
+  const mvuSettlementEngine = createMvuSettlementEngine({ mvuSettlement, mvuUpdateRules, backgroundModelSelection, postureItem, tavernScriptDispatch,
+    pluginApi, readPendingTurn: gameId => pluginTurns.readPendingTurn(gameId) })
   const plainSettlementEngine = createPlainSettlementEngine({ pluginApi, pluginSettlementProgress, settlementItems, backgroundModelSelection, postureItem, backgroundAgentRunner, agentRegistry, sessionStore })
   const settlementRun = createSettlementRun({
     backgroundTasks, chatPersistence, readChat, writeChat, readChatCard, taskStateReader, worldBookScanDepth, prepareNextWorldBookContext,
