@@ -347,12 +347,20 @@ export function createApplicationUpdater(options) {
       return result.status === 'fulfilled' && String(result.value?.revision || '').toLowerCase() === revision.toLowerCase()
         && Number.isSafeInteger(sequence) && sequence > 0 ? sequence : null
     }
+    // jsDelivr 的 @main 能滞后十几小时，滞后时清单提交号对不上 GitHub 的最新提交。
+    // 但清单里的发布序号仍然有效：拿它当「最新版本序号」的下界，旧安装靠序号也能
+    // 判断要不要更新，不必等 CDN 与 GitHub 对齐。
+    const latestSequenceOf = async revision => (await cdnSequenceFor(revision)) || (async () => {
+      const result = await cdn
+      const sequence = Number(result.value?.releaseSequence)
+      return result.status === 'fulfilled' && Number.isSafeInteger(sequence) && sequence > 0 ? sequence : null
+    })()
 
     const github = commit.status === 'fulfilled' ? runtimeCommitIdentityOf(commit.value) : null
     if (github && /^[0-9a-f]{40}$/i.test(github.runtimeCommit)) {
       const { publishedCommit, runtimeCommit: latestCommit } = github
       const normalizedCurrentCommit = currentCommit.toLowerCase() === publishedCommit.toLowerCase() ? latestCommit : currentCommit
-      const updateAvailable = await relationTo({ ...identity, currentCommit: normalizedCurrentCommit }, latestCommit, () => cdnSequenceFor(latestCommit))
+      const updateAvailable = await relationTo({ ...identity, currentCommit: normalizedCurrentCommit }, latestCommit, () => latestSequenceOf(latestCommit))
       const latestVersion = manifestVersion || (await cdn).value?.version || 'unknown'
       return { currentVersion, latestVersion: String(latestVersion), currentCommit: normalizedCurrentCommit, latestCommit, checkSource: 'github', updateAvailable, checkWarning: undefined }
     }
