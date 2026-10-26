@@ -12,6 +12,8 @@ import { diffJson } from './json-mutation.js'
 import { rollbackAvailability, clearFailedTurnSurface, locateRegenerationSurface, planRegenerationSurface, regenerationProjection, applyRegenerationProjection, failedTurnReplayAvailability, replayableFailedTurn } from './rollback-surface.js'
 import { assertRegenerationSourceCurrent, replaceLastRound } from './last-round-replacement.js'
 import { diagnosticIdentity, regenerationTargetDiagnostic } from './regeneration-diagnostics.js'
+import { assistantResultForTurn } from './session-turn-result.js'
+import { plainReplyProse } from './reply-prose.js'
 
 function str(value) {
   return typeof value === 'string' ? value : (value === undefined || value === null ? '' : String(value))
@@ -31,6 +33,33 @@ export function regenerationInputText(userText, guidance, rewriteBody) {
 
 // What the model saw of a stored reply (same precedence as the body editor).
 function replyTextOf(message) { return str(message && (message.projectionText ?? message.sourceText ?? message.text)) }
+
+/**
+ * A regeneration the host never finished still streams its reply into the log
+ * before the turn ends (stop, provider error, safety block, truncation). The
+ * save only receives a round once the host commits it, so read the streamed text
+ * back here and keep it instead of dropping a body the player already saw.
+ */
+function streamedAttemptText(session, turn, eventStart) {
+  if (!Number.isSafeInteger(turn) || turn <= 0) return ''
+  try {
+    const result = assistantResultForTurn(session, turn)
+    if (result === null || typeof result.text !== 'string') return ''
+    // The attempt owns its own events: a reply already in the log belongs to the
+    // round being replaced, never to this try.
+    if (Number(result.event?.seq) < Number(eventStart)) return ''
+    return result.text.trim()
+  } catch { return '' }
+}
+
+/** The round a kept partial attempt writes: an ordinary floor, marked as incomplete. */
+function partialAttemptRows(input) {
+  const attachments = Array.isArray(input.inputAttachments) ? input.inputAttachments : []
+  const user = { role: 'user', text: str(input.userText), native: true, ...(attachments.length ? { inputAttachments: structuredClone(attachments) } : {}) }
+  const assistant = { role: 'assistant', ...plainReplyProse(input.text), native: true, turn: input.turn,
+    incomplete: true, incompleteReason: '这次重新生成被中断，保留了已生成的部分正文' }
+  return [user, assistant]
+}
 
 export function selectRegenerationTarget(chat, session, observe) {
   const nodes = (session.surface !== undefined && Array.isArray(session.surface.nodes)) ? session.surface.nodes : []
@@ -261,7 +290,7 @@ export function createRoundHistory({ chats, sessions, scripts, timeline, queueSe
     const syntheticText = regenerationInputText(originalUserText, guide, replyTextOf(msgs0[oldAssistantIndex]))
     releaseOpeningTurn(agent.session, agent)
     const beforeLastTurn = agent.phase !== undefined && agent.phase !== null && Number.isFinite(Number(agent.phase.lastTurn)) ? Number(agent.phase.lastTurn) : 0
-    let committedChat, body, syntheticTurn
+    let committedChat, body, syntheticTurn, keptStreamed = false
     try {
       if (activeRound !== undefined && typeof cancelSettlement === 'function') await cancelSettlement(chat.id)
       if (agent.phase?.kind === 'running') throw new Error('前台正在生成，未启动重新生成')
@@ -273,15 +302,38 @@ export function createRoundHistory({ chats, sessions, scripts, timeline, queueSe
         content: projectPlayerContent(msgs0[oldAssistantIndex - 1].inputAttachments, syntheticText),
         source: { kind: 'plugin:dsh-tavern-regen', regenerationId: operationId }
       })
-      await agent.whenIdle()
+      // A stopped, blocked or truncated attempt fails the wait, but the text it
+      // already streamed stays in the log. Keep going and adopt that text.
+      let generationError = null
+      try { await agent.whenIdle() } catch (error) { generationError = error }
       syntheticTurn = agent.phase !== undefined && agent.phase !== null && Number.isFinite(Number(agent.phase.lastTurn)) ? Number(agent.phase.lastTurn) : (beforeLastTurn + 1)
-      const latest = await readChat(chat.id)
+      let latest = await readChat(chat.id)
       if (latest === undefined) {
         throw new Error('聊天不存在: ' + chat.id)
       }
-      const latestMsgs = latest.messages || []
+      let latestMsgs = latest.messages || []
       if (latestMsgs.length < rolledMessageCount + 2) {
-        throw new Error('这次重新生成没有完成（可能被内容审核拦截或已停止），正文保持原样，可以再试一次')
+        const streamed = streamedAttemptText(session, syntheticTurn, eventStart)
+        if (streamed === '') {
+          if (generationError !== null) throw generationError
+          throw new Error('这次重新生成没有完成（可能被内容审核拦截或已停止），正文保持原样，可以再试一次')
+        }
+        await updateChat(chat.id, function (current) {
+          if (current?.regenRecovery?.id !== operationId) throw new Error('重新生成操作已失效')
+          const messages = Array.isArray(current.messages) ? current.messages : []
+          if (messages.length >= rolledMessageCount + 2) return
+          current.messages = messages.concat(partialAttemptRows({ turn: syntheticTurn, userText: syntheticText,
+            inputAttachments: msgs0[oldAssistantIndex - 1].inputAttachments, text: streamed }))
+          // The host's own commit for this turn must not append the round twice if
+          // its stop hook lands after this write; the commit drops this record.
+          current.nativeCommits = current.nativeCommits !== null && typeof current.nativeCommits === 'object' ? current.nativeCommits : {}
+          current.nativeCommits[String(syntheticTurn)] = { turn: syntheticTurn, userText: syntheticText, committedAt: Date.now(), partial: true }
+          return current
+        }, { source: 'foreground.regen-partial' })
+        latest = await readChat(chat.id)
+        if (latest === undefined) throw new Error('聊天不存在: ' + chat.id)
+        latestMsgs = latest.messages || []
+        keptStreamed = true
       }
       const regeneratedUser = latestMsgs[latestMsgs.length - 2]
       const newAssistant = latestMsgs[latestMsgs.length - 1]
@@ -344,6 +396,7 @@ export function createRoundHistory({ chats, sessions, scripts, timeline, queueSe
     }
     const result = await view(settledChat, card)
     result.adopted = { text: body, guidance: guide, hiddenTurn: oldTurn, syntheticTurn: syntheticTurn }
+    if (keptStreamed) result.regenerationWarning = '这次重新生成没有完成（可能被内容审核拦截或已停止），已保留生成到的部分正文。'
     return result
   }
 
@@ -446,7 +499,7 @@ export function createRoundHistory({ chats, sessions, scripts, timeline, queueSe
     const syntheticText = regenerationInputText(originalUserText, guide, replyTextOf(msgs0[oldAssistantIndex]))
     releaseOpeningTurn(agent.session, agent)
     const beforeLastTurn = agent.phase !== undefined && agent.phase !== null && Number.isFinite(Number(agent.phase.lastTurn)) ? Number(agent.phase.lastTurn) : 0
-    let committedChat, body, syntheticTurn
+    let committedChat, body, syntheticTurn, keptStreamed = false
     try {
       if (activeRound !== undefined && typeof cancelSettlement === 'function') await cancelSettlement(chat.id)
       if (agent.phase?.kind === 'running') throw new Error('前台正在生成，未启动重新生成')
@@ -458,12 +511,32 @@ export function createRoundHistory({ chats, sessions, scripts, timeline, queueSe
         content: projectPlayerContent(originalUser.inputAttachments, syntheticText),
         source: { kind: 'plugin:dsh-tavern-regen', regenerationId: operationId }
       })
-      await agent.whenIdle()
+      // 同上（完整路径）：中断的尝试仍把已生成的正文留在日志里，接着用它。
+      let generationError = null
+      try { await agent.whenIdle() } catch (error) { generationError = error }
       syntheticTurn = agent.phase !== undefined && agent.phase !== null && Number.isFinite(Number(agent.phase.lastTurn)) ? Number(agent.phase.lastTurn) : (beforeLastTurn + 1)
-      const latest = await chats.readRecent(chat.id)
+      let latest = await chats.readRecent(chat.id)
       if (latest === undefined) throw new Error('聊天不存在: ' + chat.id)
-      const latestMsgs = latest.messages
-      if (latestMsgs.length < rolledMessageCount + 2) throw new Error('这次重新生成没有完成（可能被内容审核拦截或已停止），正文保持原样，可以再试一次')
+      let latestMsgs = latest.messages
+      if (latestMsgs.length < rolledMessageCount + 2) {
+        const streamed = streamedAttemptText(session, syntheticTurn, eventStart)
+        if (streamed === '') {
+          if (generationError !== null) throw generationError
+          throw new Error('这次重新生成没有完成（可能被内容审核拦截或已停止），正文保持原样，可以再试一次')
+        }
+        const commits = latest.nativeCommits !== null && typeof latest.nativeCommits === 'object' ? structuredClone(latest.nativeCommits) : {}
+        // 同上（完整路径）：宿主自己的提交若随后到达，不能把这一轮再追加一次。
+        const partialCommit = { turn: syntheticTurn, userText: syntheticText, committedAt: Date.now(), partial: true }
+        const appended = await chats.patch(chat.id, latest._storageRevision, [{ op: 'splice', path: ['messages'], index: latestMsgs.length, deleteCount: 0,
+          items: partialAttemptRows({ turn: syntheticTurn, userText: syntheticText, inputAttachments: originalUser.inputAttachments, text: streamed }) },
+        { op: 'set', path: ['nativeCommits'], value: { ...commits, [String(syntheticTurn)]: partialCommit } }],
+        { source: 'foreground.regen-partial' })
+        if (!appended) throw new Error('重新生成流程的正文已被另一项操作修改')
+        latest = await chats.readRecent(chat.id)
+        if (latest === undefined) throw new Error('聊天不存在: ' + chat.id)
+        latestMsgs = latest.messages
+        keptStreamed = true
+      }
       const regeneratedUser = latestMsgs[latestMsgs.length - 2]
       const newAssistant = latestMsgs[latestMsgs.length - 1]
       if (regeneratedUser === null || typeof regeneratedUser !== 'object' || regeneratedUser.role !== 'user' ||
@@ -527,6 +600,7 @@ export function createRoundHistory({ chats, sessions, scripts, timeline, queueSe
     }
     const result = await view(settledChat, card)
     result.adopted = { text: body, guidance: guide, hiddenTurn: oldTurn, syntheticTurn: syntheticTurn }
+    if (keptStreamed) result.regenerationWarning = '这次重新生成没有完成（可能被内容审核拦截或已停止），已保留生成到的部分正文。'
     return result
   }
 
