@@ -98,7 +98,7 @@ function TavernStageScene(props) {
 			beat.kind === "line" ? h("div", { className: "dsh-tavern-stage-name" }, h("b", { ref: nameRef, "data-text": beat.speaker }, beat.speaker),
 				TAVERN_CAST_EMOTIONS[beat.emotion] && beat.emotion !== "neutral" ? h("span", { className: "dsh-tavern-cast-emotion" }, TAVERN_CAST_EMOTIONS[beat.emotion]) : null) : null,
 			h("div", { key: index, ref: props.textRef, className: "dsh-tavern-stage-text" + (beat.kind === "narration" ? " is-narration" : "") },
-				h(TavernStageTypewriter, { key: props.visit, text: props.card ?? beat.text, speed: props.textSpeed, instant: props.typed, onDone: props.onTyped }), next),
+				h(TavernStageTypewriter, { key: props.visit, text: props.card ?? beat.text, speed: props.textSpeed, reveal: props.reveal, instant: props.typed, onDone: props.onTyped }), next),
 			lamp, props.footer || null, props.dock || null)
 			: h("div", { className: "dsh-tavern-stage-textbox is-empty" }, props.empty || "还没有可以演出的正文", props.dock || null));
 }
@@ -375,6 +375,8 @@ function TavernStageScreen(props) {
 	// step or › finishes the line, the next turns the page; auto paging waits until it is typed. A skip, a restored page (the
 	// stage reopened, a rollback), a backlog jump and a plugin's stage view show the whole line at once.
 	const prefs = useTavernStageReadingPrefs();
+	// The skin's textFx (modules/stage-typewriter.js stageSkinReveal): how its glyphs come in, on the reader's speed.
+	const reveal = React.useMemo(() => stageSkinReveal(skinDocument, prefs.textSpeed), [JSON.stringify(skinDocument.textFx), skinDocument.photosensitive, prefs.textSpeed]);
 	const visit = reader.key + ":" + reader.visit;
 	// 分页 (stage-pager.js): a page whose line the box cannot hold shows card by card. The click, key, wheel step or › that
 	// turns the page first walks its cards, ‹ walks them back (into the previous page's last card), auto paging reads each card,
@@ -520,7 +522,7 @@ function TavernStageScreen(props) {
 	return h("div", { className: "dsh-tavern-stage-overlay", role: "dialog", "aria-modal": "true", "aria-label": "舞台", ...skin,
 		...(art ? { ...art.marks, style: { ...skin.style, ...art.tokens } } : null), "data-stage-auto": reader.auto ? "" : undefined, "data-stage-backlog": backlog ? "" : undefined, onWheel: wheel },
 		h(TavernStageSceneView, { scene, view: choice.view, sessionId: id, data, beats, index: reader.index, sceneRef, onAdvance: advance, footer, art, speaking, dock: docked ? input : null,
-			visit: cardKey, typed, textSpeed: prefs.textSpeed, onTyped: () => setTypedVisit(cardKey), textRef: pager.textRef, card: cards[card].text, more: !lastCard }),
+			visit: cardKey, typed, textSpeed: prefs.textSpeed, reveal, onTyped: () => setTypedVisit(cardKey), textRef: pager.textRef, card: cards[card].text, more: !lastCard }),
 		docked ? null : input,
 		config ? h(TavernStageConfigScreen, { tab: config.tab, onClose: closeConfig,
 			tests: { voice: reading.on && beats[reader.index] ? () => tavernSpeech.speak(tavernBeatSpeech(id, beats[reader.index])) : null } }) : null,

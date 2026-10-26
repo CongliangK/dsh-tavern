@@ -10,10 +10,25 @@ function stageSkinTokens(document) {
 		"--gal-skin-name-bg": n.paint.bg, "--gal-skin-name-fg": n.paint.fg, "--gal-skin-name-rotate": (n.rotate || 0) + "deg",
 		"--gal-skin-name-radius": n.shape === "pill" ? "99px" : "2px",
 		"--gal-skin-weight": String(document.textStyle?.weight || 400), "--gal-skin-spacing": (document.textStyle?.letterSpacing ?? 0.03) + "em",
-		"--gal-skin-line-height": String(document.textStyle?.lineHeight || 1.7), ...stageSkinQuickMenu(document) };
+		"--gal-skin-line-height": String(document.textStyle?.lineHeight || 1.7),
+		// textFx: the ink a glyph enters in (flash) and the side a stamp drops from (tavern.css 「stage typewriter」).
+		"--gal-skin-flash": document.textFx.flash || document.textStyle?.emphasis || p.fg, "--gal-skin-stamp-y": document.textFx.from === "bottom" ? "16px" : "-16px",
+		...stageSkinGlyphPoses(document.textFx), ...stageSkinQuickMenu(document) };
 	let spread = 0;
 	tokens["--gal-skin-rings"] = (shape.rings || []).map(ring => `0 0 0 ${spread += ring.width}px ${ring.color}`).join(",") || "none";
 	return Object.assign(tokens, stageSkinPanelTokens(document));
+}
+
+// textFx.poses as the glyph copy's tokens (tavern.css 「stage typewriter」): per pose its transform, filter and ink.
+function stageSkinGlyphPoses(fx) {
+	const tokens = {};
+	(fx.poses || []).forEach((pose, i) => {
+		const scale = pose.scale ?? 1, p = "--gal-hop-" + i;
+		tokens[p + "-t"] = `translate(${pose.dx || 0}em, ${pose.dy || 0}em) rotate(${pose.rot || 0}deg) scale(${(pose.sx ?? 1) * scale}, ${(pose.sy ?? 1) * scale}) skewX(${pose.skew || 0}deg)`;
+		tokens[p + "-f"] = pose.blur ? `blur(${pose.blur}em)` : "none";
+		tokens[p + "-c"] = pose.ink === "flash" ? "var(--gal-skin-flash)" : pose.ink === "accent" ? "var(--gal-skin-accent)" : "var(--gal-skin-fg)";
+	});
+	return tokens;
 }
 
 // The control row sits on the text box with no plate of its own: the skin's own ink at rest (quickMenu.fg, else fgMuted,
