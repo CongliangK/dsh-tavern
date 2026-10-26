@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "20036d242ae70928e7590db9e07215f1213ac0f0",
-  "releaseSequence": 922,
+  "revision": "b40e008b729477f3501c369a4d44e2f883498a29",
+  "releaseSequence": 923,
   "version": "3.1.0",
   "files": [
     {
@@ -701,8 +701,8 @@
     },
     {
       "path": "tavern-plugin/lib/client.js",
-      "sha256": "3f9025d2a9a33bf4df28edf955887c67b6f87fcc88755be8d555ebd8b805a565",
-      "size": 2753248
+      "sha256": "bf96d0496d61f1a835889a8ef49528c9525757feba8d7176d6eb6f086fc69da1",
+      "size": 2752950
     },
     {
       "path": "tavern-plugin/lib/cordis-inspect.js",
@@ -1151,8 +1151,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/dialogue-bubbles.js",
-      "sha256": "a1977a1d615a729dd127295bad415e10dc37612526b0be648be13d665542dd77",
-      "size": 6213
+      "sha256": "c8e6f83284959b22a5f4bb396a9da0132872700cfbbd038154fa9b1f3b980187",
+      "size": 6037
     },
     {
       "path": "tavern-plugin/lib/domain/dialogue-format.js",
@@ -4661,9 +4661,9 @@
     }
   ],
   "archive": {
-    "commit": "118324488332d8b13058ea9ee29ed0fba9a2a793",
+    "commit": "d5a87a0f12214f34a16ccebd1e7419442da97d25",
     "path": "runtime.zip",
-    "sha256": "c6b3cf7d623b1bb7f5e2df2cfd3028fe54476cae39c0e636217cce35b05ab4db",
-    "size": 10170370
+    "sha256": "e51012214fe6f811b7efda148117f3e3a37c40808200262089906977789f1cf6",
+    "size": 10170358
   }
 }
