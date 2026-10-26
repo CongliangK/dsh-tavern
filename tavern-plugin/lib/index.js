@@ -295,6 +295,13 @@ function historyLayoutFile() {
 }
 
 export async function apply(ctx) {
+  // 插件侧的联网请求（更新检查、插件市场、内置搜索）都走 fetch，
+  // 而 Node 的 fetch 不认系统代理：启动时先应用一次，进程内所有请求生效。
+  try {
+    const { applySystemProxy, describeProxy } = await import('../../bin/system-proxy.mjs')
+    const proxy = applySystemProxy()
+    if (proxy?.source) console.log('dsh-tavern: ' + describeProxy(proxy))
+  } catch (error) { console.warn('dsh-tavern: 系统代理未能应用：' + (error?.message || error)) }
   // Per-turn paths must not load a whole save; see whole-read-guard.js.
   const wholeReads = createWholeReadGuard({ mode: process.env.DSH_TAVERN_WHOLE_READ_GUARD || 'warn' })
   ctx = scopeTurnHooks(ctx, wholeReads)

@@ -11,6 +11,7 @@ import { createUpdateState } from '../../bin/update-state.mjs'
 import { verifyInstallationProcessesStopped } from '../../bin/installation-process.mjs'
 import { readInstallationReceipt } from '../../bin/installation-receipt.mjs'
 import installationState from '../../bin/installation-state.cjs'
+import { applySystemProxy, describeProxy } from '../../bin/system-proxy.mjs'
 
 const STATUS_FILE = 'update-status.json'
 const RELEASE_FILE = '.dsh-tavern-release.json'
@@ -190,6 +191,9 @@ async function readRecordedCommit(sourceRoot, dshHome) {
 }
 
 export function createApplicationUpdater(options) {
+  // 检查更新/下载都走 fetch：先把系统代理（WinINET / Android settings / GNOME）
+  // 翻译成 HTTP(S)_PROXY 并切换全局 dispatcher，否则科学上网在进程里等于没开。
+  const proxy = applySystemProxy()
   const dataRoot = path.resolve(options.dataRoot)
   const sourceRoot = path.resolve(options.sourceRoot)
   const dshHome = path.resolve(options.dshHome || path.join(dataRoot, '../../..'))
@@ -203,6 +207,7 @@ export function createApplicationUpdater(options) {
   const isProcessAlive = typeof options.isProcessAlive === 'function' ? options.isProcessAlive : processIsAlive
   const diagnosticContext = new AsyncLocalStorage()
   const record = (event, details = {}) => recordUpdateDiagnostic(dataRoot, { attemptId: diagnosticContext.getStore(), event, ...details })
+  if (proxy?.source) record('proxy', { source: proxy.source, summary: proxy.summary ? proxy.summary.replace(/\/\/.*@/, '//') : undefined, note: describeProxy(proxy) })
   async function stage(name, operation) {
     const startedAt = now()
     record(name + '.started')

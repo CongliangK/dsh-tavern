@@ -4,6 +4,7 @@ import { recordUpdateDiagnostic, redactUpdateDiagnostic } from './update-diagnos
 import { randomUUID } from 'node:crypto'
 import { runInstallationProcess } from './installation-process.mjs'
 import installationState from './installation-state.cjs'
+import { applySystemProxy } from './system-proxy.mjs'
 import { createUpdateState } from './update-state.mjs'
 import { readInstallationReceipt } from './installation-receipt.mjs'
 import { closeSync, copyFileSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
@@ -144,6 +145,9 @@ export function installerFailureTail(output, lines = 12) {
 }
 
 export async function updateApplication(options = { host: RUNTIME_HOST, statusFile: '', delay: 0 }) {
+  // 更新器自己的诊断请求和随后的安装子进程都要能看到系统代理：先翻译成环境变量，
+  // 子进程用同一份 env 启动（Windows 的 WinINET 设置对 Node/curl/git/pnpm 都不可见）。
+  applySystemProxy()
   options = { statusFile: '', delay: 0, ...options }
   const sourceRoot = path.resolve(options.sourceRoot || SOURCE_ROOT)
   const log = typeof options.log === 'function' ? options.log : console.log
