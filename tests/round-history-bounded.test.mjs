@@ -59,13 +59,19 @@ async function fixture(t, bounded) {
   const agent = { session, phase: { kind: 'idle', lastTurn: 81 }, followup(message) { agent.input = message }, async whenIdle() {
     if (!agent.input) return
     if (hooks.failGeneration) { agent.input = null; throw new Error('fixture generation failed') }
-    // A turn cut off mid-reply: the text streamed, the host never committed the round.
+    // A turn the provider failed mid-reply: the text streamed, but the host only
+    // kept the raw attempt (no assistant/message) and never committed the round.
     if (hooks.partialGeneration !== undefined) {
       const turn = ++agent.phase.lastTurn, userText = agent.input.content[0].text
       agent.input = null
       session.append('user/message', { turn, role: 'user', content: [{ type: 'text', text: userText }], source: { kind: 'plugin', plugin: 'dsh-tavern-regen' } }, { surfaceOp: 'append' })
-      session.append('assistant/message', { turn, step: 1, message: { role: 'assistant', source: model, content: [{ type: 'text', text: hooks.partialGeneration }] } }, { surfaceOp: 'append' })
-      session.append('turn/end', { turn, reason: { kind: 'error', error: { message: 'Provider stopped with: SAFETY' } } })
+      session.append('assistant/attempt', { turn, step: 1, stream: [
+        { type: 'chunk', chunk: { type: 'block-start', index: 0, blockType: 'text' } },
+        { type: 'text-chunks', index: 0, dt: [120, 90], texts: [hooks.partialGeneration.slice(0, 2), hooks.partialGeneration.slice(2)] },
+        { type: 'chunk', chunk: { type: 'block-end', index: 0, block: { type: 'text', text: hooks.partialGeneration } } },
+        { type: 'chunk', chunk: { type: 'finish', reason: { kind: 'error', failure: { message: 'Provider finish_reason: error', code: 'PI_AI_ERROR' } } } }
+      ] })
+      session.append('turn/end', { turn, reason: { kind: 'error', error: { message: 'Provider finish_reason: error', code: 'PI_AI_ERROR' } } })
       throw new Error('fixture generation failed')
     }
     const turn = ++agent.phase.lastTurn, userText = agent.input.content[0].text, text = '重写正文' + turn
@@ -283,6 +289,7 @@ test('被截断的重新生成保留已生成的部分正文，两种路径结�
   }
   const strip = chat => {
     const value = comparable(chat)
+    if (value.nativeSync) value.nativeSync.at = 0
     for (const op of Object.values(value.timeline.operations)) if (op.regenerationId) op.regenerationId = 'R'
     return JSON.parse(JSON.stringify(value).replace(/tavern-regen:[0-9a-f-]+/g, 'tavern-regen:R'))
   }

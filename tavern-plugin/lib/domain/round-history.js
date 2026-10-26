@@ -35,6 +35,47 @@ export function regenerationInputText(userText, guidance, rewriteBody) {
 function replyTextOf(message) { return str(message && (message.projectionText ?? message.sourceText ?? message.text)) }
 
 /**
+ * Text a streamed attempt had written when its turn ended badly. A turn the
+ * provider failed, the player stopped or content moderation cut short often
+ * never writes an `assistant/message` at all — but the durable
+ * `assistant/attempt` record keeps its chunks, which is exactly what the player
+ * watched arrive. Rebuild the text blocks from those chunks.
+ */
+export function attemptStreamText(events, eventStart, turn) {
+  let stream = null
+  for (const event of Array.isArray(events) ? events : []) {
+    if (!event || event.type !== 'assistant/attempt' || Number(event.seq) < Number(eventStart)) continue
+    if (Number.isSafeInteger(turn) && turn > 0 && Number(event.data?.turn) !== turn) continue
+    stream = event.data?.stream
+  }
+  if (!Array.isArray(stream)) return ''
+  const blocks = new Map(), order = []
+  function bucket(index) {
+    const key = String(index ?? 0)
+    if (!blocks.has(key)) { blocks.set(key, { kind: 'text', text: '', closed: '' }); order.push(key) }
+    return blocks.get(key)
+  }
+  for (const entry of stream) {
+    if (!entry || typeof entry !== 'object') continue
+    if (entry.type === 'chunk') {
+      const chunk = entry.chunk
+      if (!chunk || typeof chunk !== 'object') continue
+      if (chunk.type === 'block-start') { const item = bucket(chunk.index); if (typeof chunk.blockType === 'string') item.kind = chunk.blockType }
+      else if (chunk.type === 'text-delta') { const item = bucket(chunk.index); if (item.closed === '') item.text += str(chunk.text) }
+      else if (chunk.type === 'reasoning-delta') bucket(chunk.index).kind = 'reasoning'
+      else if (chunk.type === 'block-end' && chunk.block && chunk.block.type === 'text') { const item = bucket(chunk.index); item.closed = str(chunk.block.text) }
+    } else if (entry.type === 'text-chunks') {
+      const item = bucket(entry.index)
+      if (item.closed === '' && Array.isArray(entry.texts)) item.text += entry.texts.map(str).join('')
+    } else if (entry.type === 'text-delta') {
+      const item = bucket(entry.index)
+      if (item.closed === '') item.text += str(entry.text)
+    }
+  }
+  return order.map(key => blocks.get(key)).filter(item => item.kind !== 'reasoning').map(item => item.closed !== '' ? item.closed : item.text).join('').trim()
+}
+
+/**
  * A regeneration the host never finished still streams its reply into the log
  * before the turn ends (stop, provider error, safety block, truncation). The
  * save only receives a round once the host commits it, so read the streamed text
@@ -43,12 +84,14 @@ function replyTextOf(message) { return str(message && (message.projectionText ??
 function streamedAttemptText(session, turn, eventStart) {
   if (!Number.isSafeInteger(turn) || turn <= 0) return ''
   try {
+    const events = sessionEvents(session)
     const result = assistantResultForTurn(session, turn)
-    if (result === null || typeof result.text !== 'string') return ''
     // The attempt owns its own events: a reply already in the log belongs to the
     // round being replaced, never to this try.
-    if (Number(result.event?.seq) < Number(eventStart)) return ''
-    return result.text.trim()
+    if (result !== null && str(result.text).trim() !== '' && Number(result.event?.seq) >= Number(eventStart)) return result.text.trim()
+    // A failed turn may have numbered its own turn (or not advanced the phase):
+    // the stream that started with this attempt is still the one to keep.
+    return attemptStreamText(events, eventStart, turn) || attemptStreamText(events, eventStart, 0)
   } catch { return '' }
 }
 
