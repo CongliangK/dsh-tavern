@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "5a6b7b0b1590fc4d77c9abbf1e851fab8622257b",
-  "releaseSequence": 913,
+  "revision": "4be7d508eac2f503576127e4810aa762e3ac729e",
+  "releaseSequence": 914,
   "version": "3.1.0",
   "files": [
     {
@@ -256,8 +256,8 @@
     },
     {
       "path": "bin/profile-installation.mjs",
-      "sha256": "a170251aa8a86d0e1f71a2997d86bef84265bec3e6794e50e867e23d8b804b3d",
-      "size": 23150
+      "sha256": "3836658c7436be661c06eac2a6933cda54a6de6e6eff604c68ea05cae15c5e74",
+      "size": 23794
     },
     {
       "path": "bin/prune-installed-files.mjs",
@@ -561,8 +561,8 @@
     },
     {
       "path": "tavern-plugin/lib/application-updater.js",
-      "sha256": "79a5a976076a282f173ee2de416ecd15d22c779c44302a5f4ad78a729c46c084",
-      "size": 39027
+      "sha256": "896cf92e2ea59d1ac44fafdcc08396459bba6790b77fbada92abcfb58a0491b0",
+      "size": 39660
     },
     {
       "path": "tavern-plugin/lib/asset-library/asset-packs/common.js",
@@ -4641,9 +4641,9 @@
     }
   ],
   "archive": {
-    "commit": "ca2acf174553f9ed607a50cb92652f1b1701c265",
+    "commit": "fe94ec2d758dc25dc6789897dfccbcb40731740a",
     "path": "runtime.zip",
-    "sha256": "52047d0b6df699f95e1a314305545c8778db2910e69d3ded5fb6bc3fb789451f",
-    "size": 10118745
+    "sha256": "6b1066e244afc92545c48031163fab16800e6d1c0f9090e93078da3042189d02",
+    "size": 10119305
   }
 }
