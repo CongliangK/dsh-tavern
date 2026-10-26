@@ -54,6 +54,7 @@ import { createSaveUpgrade, detachSaveSessions, prepareSaveUpgrade, saveSessionI
 import { storedSessionVersion } from './domain/session-upgrade.js'
 import { createTaskStateReader, taskStateFields } from './domain/task-state-reader.js'
 import { installHostProjectionReplay } from './domain/host-projection-replay.js'
+import { installHostTurnRailFilter } from './domain/host-turn-rail.js'
 import { createBoundedHistory, readRecentWindow, readRowsAt } from './domain/bounded-history.js'
 import { createHelperHistoryAccess } from './domain/helper-history-access.js'
 import { isScopedMessages } from './domain/scoped-messages.js'
@@ -341,6 +342,8 @@ export async function apply(ctx) {
   const gameTitles = createGameTitles({ sessionTitle: () => ctx.get('sessionTitle'), sessions: sessionStore })
   ctx.effect(() => installTavernTokenMeter(ctx.get('tokenMeter')))
   ctx.effect(() => installHostProjectionReplay(ctx.get('sessionProjections')))
+  // 轮次导航只列表面里还有内容的轮次：重试留下的空 turn/start 不再各占一根刻度。
+  ctx.effect(() => installHostTurnRailFilter(ctx.get('sessionProjections')))
   if (llm === undefined || agentRegistry === undefined || sessionStore === undefined) {
     console.error('dsh-tavern: 缺少 llm、agents 或 sessions 服务')
     return
