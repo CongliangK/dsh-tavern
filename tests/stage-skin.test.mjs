@@ -108,6 +108,22 @@ test('another document changes the look through the same tokens, never through a
   assert.equal(tokens['--gal-ui-accent'], '#a03010')
 })
 
+test('textFx draws the glyphs\' entrance: its flash ink, the side a stamp drops from and the skin\'s own poses as tokens', () => {
+  const plain = interpreter.stageSkinTokens(classic)
+  assert.deepEqual([plain['--gal-skin-flash'], plain['--gal-skin-stamp-y'], Object.keys(plain).some(key => key.startsWith('--gal-hop-'))], ['#f5f2fa', '-16px', false])
+  const posed = skin({ textStyle: { emphasis: '#7fd0ff' }, textFx: { reveal: 'stamp', from: 'bottom', poses: [{ dy: -.2, rot: 4, scale: 1.1, blur: .1, ink: 'flash' }, { sx: .9, skew: 3, ink: 'accent' }] } })
+  validateStageSkin(posed)
+  const tokens = interpreter.stageSkinTokens(posed)
+  assert.equal(tokens['--gal-skin-flash'], '#7fd0ff', 'no flash: the emphasis ink')
+  assert.equal(tokens['--gal-skin-stamp-y'], '16px')
+  assert.equal(tokens['--gal-hop-0-t'], 'translate(0em, -0.2em) rotate(4deg) scale(1.1, 1.1) skewX(0deg)')
+  assert.deepEqual([tokens['--gal-hop-0-f'], tokens['--gal-hop-0-c'], tokens['--gal-hop-1-f'], tokens['--gal-hop-1-c']], ['blur(0.1em)', 'var(--gal-skin-flash)', 'none', 'var(--gal-skin-accent)'])
+  assert.equal(tokens['--gal-hop-1-t'], 'translate(0em, 0em) rotate(0deg) scale(0.9, 1) skewX(3deg)')
+  assert.equal(interpreter.stageSkinTokens(skin({ textFx: { reveal: 'ink', flash: '#ffd27f' } }))['--gal-skin-flash'], '#ffd27f')
+  // Every reveal the contract accepts has its poses in the stylesheet, and the system's reduced motion keeps the steps without them.
+  for (const reveal of ['ink', 'pop', 'stutter', 'stamp', 'cut', 'scan', 'scrawl']) assert.match(css, new RegExp('data-skin-reveal="' + reveal + '"\\] \\.dsh-tavern-stage-glyph-paint\\[data-hop="0"\\]'))
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\n  \.dsh-tavern-stage-type\[data-skin-reveal="ink"\]/)
+})
 test('the stage draws only from skin tokens: no colour of its own on the box, plate, text, controls or input', () => {
   const rules = css.match(/^\.dsh-tavern-stage-(?:textbox|name|text|controls|input)[^{]*\{[^}]*\}/gm)
   assert.ok(rules.length >= 10)

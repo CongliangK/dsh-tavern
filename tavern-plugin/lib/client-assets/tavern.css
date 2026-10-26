@@ -3191,6 +3191,40 @@ html body .dsh-tavern-stage-overlay[role="dialog"][aria-modal="true"] { max-widt
 .dsh-tavern-stage-glyph { position: relative; animation: dsh-tavern-stage-glyph-in .22s cubic-bezier(.2, .65, .3, 1) both; }
 @keyframes dsh-tavern-stage-glyph-in { from { opacity: 0; top: .16em; } to { opacity: 1; top: 0; } }
 @media (prefers-reduced-motion: reduce) { .dsh-tavern-stage-glyph { animation-name: dsh-tavern-stage-fade; } }
+/* 皮肤的分步跳字（皮肤文档 textFx，TavernStageTypewriter 的 hop 时钟）：每 1/12 秒一步。原字留在行里占位、透明，上面一个副本摆姿势；
+   data-hop 是这个字出现了几步：0 = 入场姿势，1 = 落地姿势（或皮肤自己的 poses），之后并入普通文字。姿势是平的、不透明的，不用过渡或
+   CSS 计时；副本 overflow: clip 留在自己的格子里，不改文字区的滚动；副本把 text-indent 归零，免得悬挂缩进把它移出格子。
+   系统「减少动态」时照常分步出现，只是不摆姿势。 */
+.dsh-tavern-stage-type[data-skin-reveal] .dsh-tavern-stage-glyph { color: transparent; animation: none; }
+.dsh-tavern-stage-glyph-paint { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
+.dsh-tavern-stage-type[data-skin-reveal] .dsh-tavern-stage-glyph-paint::after { content: attr(data-glyph); position: absolute; left: 0; top: 0; color: var(--gal-skin-fg); white-space: pre; text-indent: 0; pointer-events: none; transform-origin: 50% 60%; }
+@media (prefers-reduced-motion: no-preference) {
+  .dsh-tavern-stage-type[data-skin-reveal="ink"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { filter: blur(.7px); transform: scale(1.1); color: var(--gal-skin-flash); }
+  .dsh-tavern-stage-type[data-skin-reveal="ink"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after { filter: blur(.25px); transform: scale(1.03); }
+  .dsh-tavern-stage-type[data-skin-reveal="pop"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { transform: translateY(-.1em) scale(1.12) rotate(-4deg); color: var(--gal-skin-flash); }
+  .dsh-tavern-stage-type[data-skin-reveal="pop"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after { transform: translateY(.04em) scale(.95) rotate(2deg); }
+  .dsh-tavern-stage-type[data-skin-reveal="stutter"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { color: var(--gal-skin-flash); }
+  .dsh-tavern-stage-type[data-skin-reveal="stamp"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { transform: translateY(calc(var(--gal-skin-stamp-y) * .25)) scale(1.1); }
+  .dsh-tavern-stage-type[data-skin-reveal="stamp"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after { transform: translateY(calc(var(--gal-skin-stamp-y) * -.05)); }
+  .dsh-tavern-stage-type[data-skin-reveal="cut"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { transform: rotate(-9deg) translate(-.04em, -.06em); color: var(--gal-skin-flash); }
+  .dsh-tavern-stage-type[data-skin-reveal="cut"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after { transform: rotate(3deg); }
+  .dsh-tavern-stage-type[data-skin-reveal="scan"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { transform: scaleY(.3); color: var(--gal-skin-flash); }
+  .dsh-tavern-stage-type[data-skin-reveal="scan"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after { transform: scaleY(1.1); }
+  .dsh-tavern-stage-type[data-skin-reveal="scrawl"] .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { transform: skewX(-16deg) translateX(-.06em); color: var(--gal-skin-flash); }
+  .dsh-tavern-stage-type[data-skin-reveal="scrawl"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after { transform: skewX(-5deg); }
+  /* textFx.poses：皮肤自己的入场姿势代替这种出现方式自带的两个（stageSkinGlyphPoses 的令牌，每个姿势一条）；emphasis jitter 在入场时
+     加上这个字固定的偏移（--gj-x / --gj-y，和姿势叠加）；emphasis none 用正文墨色入场，ink 用闪色。 */
+  .dsh-tavern-stage-type[data-skin-poses] .dsh-tavern-stage-glyph-paint:is([data-hop="0"], [data-hop="1"], [data-hop="2"], [data-hop="3"])::after { transform: var(--gal-hop-t); filter: var(--gal-hop-f); color: var(--gal-hop-c); }
+  .dsh-tavern-stage-type[data-skin-poses] .dsh-tavern-stage-glyph-paint[data-hop="0"] { --gal-hop-t: var(--gal-hop-0-t); --gal-hop-f: var(--gal-hop-0-f); --gal-hop-c: var(--gal-hop-0-c); }
+  .dsh-tavern-stage-type[data-skin-poses] .dsh-tavern-stage-glyph-paint[data-hop="1"] { --gal-hop-t: var(--gal-hop-1-t); --gal-hop-f: var(--gal-hop-1-f); --gal-hop-c: var(--gal-hop-1-c); }
+  .dsh-tavern-stage-type[data-skin-poses] .dsh-tavern-stage-glyph-paint[data-hop="2"] { --gal-hop-t: var(--gal-hop-2-t); --gal-hop-f: var(--gal-hop-2-f); --gal-hop-c: var(--gal-hop-2-c); }
+  .dsh-tavern-stage-type[data-skin-poses] .dsh-tavern-stage-glyph-paint[data-hop="3"] { --gal-hop-t: var(--gal-hop-3-t); --gal-hop-f: var(--gal-hop-3-f); --gal-hop-c: var(--gal-hop-3-c); }
+  .dsh-tavern-stage-type[data-skin-poses="1"] .dsh-tavern-stage-glyph-paint[data-hop="1"]::after, .dsh-tavern-stage-type[data-skin-poses="2"] .dsh-tavern-stage-glyph-paint[data-hop="2"]::after,
+  .dsh-tavern-stage-type[data-skin-poses="3"] .dsh-tavern-stage-glyph-paint[data-hop="3"]::after { transform: none; filter: none; color: var(--gal-skin-fg); }
+  .dsh-tavern-stage-type[data-skin-emphasis="jitter"] .dsh-tavern-stage-glyph-paint[style]::after { translate: var(--gj-x) var(--gj-y); }
+  .dsh-tavern-stage-type[data-skin-emphasis="none"] .dsh-tavern-stage-glyph-paint::after { color: var(--gal-skin-fg); }
+  .dsh-tavern-stage-type[data-skin-emphasis="ink"]:not([data-skin-poses]) .dsh-tavern-stage-glyph-paint[data-hop="0"]::after { color: var(--gal-skin-flash); }
+}
 .dsh-tavern-stage-next.is-waiting { visibility: hidden !important; animation: none !important; }
 /* ==== stage skin: art ====
    A skin's own images as the text box, its name plate, the page cue and the auto lamp (stageSkinArt in stage-skin.js writes the
