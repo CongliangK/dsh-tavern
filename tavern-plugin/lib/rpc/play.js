@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 // In-game play, turn editing, compaction and background settlement requests.
 // `deps` carries the services ../index.js builds; dispatchMethod routes by method name.
 export function createPlayHandlers(deps) {
-  const { agentCompaction, agentRegistry, autoChoices, backgroundAgentRunner, backgroundCatalog, bodyEditor, polishPrereview, polishRecords, polishReviewer, applyCardUpdate, cardAutoReload,
+  const { agentCompaction, agentRegistry, autoChoices, backgroundAgentRunner, backgroundCatalog, bodyEditor, branchOrigin, polishPrereview, polishRecords, polishReviewer, applyCardUpdate, cardAutoReload,
     candidateGenerator, candidateTasks, chatForSession, compactionAbort, conversationGuides, ctx,
     ledgerEditor, manualCharacterDesign, manualLedger, notifyPluginTimeline, phoneChat,
     pluginSettlementProgress, readBackgroundSuppression, readTavernSettings,
@@ -37,6 +37,9 @@ export function createPlayHandlers(deps) {
     async getSession(args) {
       // A save opened for the first time in this process is checked once, while nothing runs.
       await reconcileWhenIdle(args && args.sessionId, { once: true })
+      // A branch forked by an older Tavern is a conversation, not a subagent: without the
+      // repair the page's history read fails and the composer stays read-only.
+      await branchOrigin?.ensure?.(str(args && args.sessionId))
       void backgroundCatalog(str(args && args.sessionId))
       if(args?.fullView === true)templateHistoryFrom.set(args.sessionId,0)
       else if(Number.isSafeInteger(args?.historyFrom) && args.historyFrom >= 0)templateHistoryFrom.set(args.sessionId,args.historyFrom)

@@ -59,6 +59,7 @@ import { isScopedMessages } from './domain/scoped-messages.js'
 import {registerVariableReadTool} from './domain/read-variables.js'
 import { createBackgroundSessionRetirement, installRetiredBackgroundFilter, installRetiredCatalogView } from './domain/background-session-retirement.js'
 import { createBackgroundCatalogBackfill } from './domain/background-catalog.js'
+import { createBranchOriginRepair } from './domain/branch-origin-repair.js'
 import { createGameTitles } from './domain/game-titles.js'
 import { createCardMemory, CARD_MEMORY_TOOLS } from '../packages/dsh-tavern-card-memory/index.js'
 import { installSkillCatalogSessionScope } from './domain/skill-catalog-session-scope.js'
@@ -2000,6 +2001,17 @@ export async function apply(ctx) {
   // Games whose background agents predate their catalog entry get them listed when opened.
   const backgroundCatalog = createBackgroundCatalogBackfill({ agents: agentRegistry, sessionQuery: ctx.get('sessionQuery'),
     onListed: parentId => sessionSignals.publish(parentId, { kind: 'subagents', version: String(Date.now()) + ':' + Math.random().toString(36).slice(2) }) })
+  // Branches an older Tavern forked as subagent children have no subagent descriptor, so
+  // DSH 0.2.1 refuses their whole history ("subagent descriptor is corrupt"). Repair the
+  // header once at startup, while nothing is loaded, and again before a page reads one.
+  const branchOrigin = createBranchOriginRepair({
+    dataRoot: resolveTavernDataRoot(),
+    loadCatalog: sessionPatch.loadSessionCatalog,
+    isLive: id => Boolean(sessionStore.get(id) || agentRegistry.get(id)),
+    ownsChat: async id => Boolean(await chatForSession(id)),
+    listSessions: () => ctx.get('sessionQuery')?.listSessions?.() ?? []
+  })
+  void branchOrigin.sweep().catch(error => console.warn('dsh-tavern: 检查旧分支会话头部失败', error?.message || error))
   const runtimePresetSnapshots = new Map()
   const BACKGROUND_TOOLS = [...WORLD_BOOK_FILTER_TOOLS, POSTURE_SUBMIT_TOOL, CHARACTER_DESIGN_READ_TOOL, CHARACTER_DESIGN_SAVE_TOOL, CHARACTER_DESIGN_REUSE_TOOL, MVU_SUBMIT_UPDATE_TOOL, CANDIDATE_SUBMIT_TOOL, SCRIPT_READ_TOOL, SCRIPT_POINT_TOOL, LEDGER_SUBMIT_TOOL, STYLE_REFERENCE_SUBMIT_TOOL]
   const backgroundAgentRunner = createBackgroundAgentRunner({
@@ -3402,7 +3414,7 @@ export async function apply(ctx) {
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
   const rpcDeps = { webAccess, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
     applicationUpdater, assetLibrary, autoChoices, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog,
-    backgroundConfigForSession, bindScript, bodyEditor, callModel, candidateGenerator, candidateTasks, polishPrereview, polishRecords, polishReviewer, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload,
+    backgroundConfigForSession, bindScript, bodyEditor, branchOrigin, callModel, candidateGenerator, candidateTasks, polishPrereview, polishRecords, polishReviewer, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardSummaries, cardTaskPrompts, castAssets,
     castCardOf, castEdit, castPresentation, castStage, castView, chatForSession, chatHeaderForSession,
     chatHistoryImporter, chatPersistence, commands, compactionAbort, compatibilityDiagnostics,
