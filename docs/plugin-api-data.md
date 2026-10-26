@@ -34,7 +34,7 @@ item = {
 
 修改自己挂的媒体项，`changes` 只需写要改的字段，返回修改后的媒体项。不能修改 `id`、`turn`、`textVersion`。
 
-图片换成新的 `attachment` 时（比如重画），旧图自动保留为早期版本，最多 8 个，在返回值的 `history` 里（`{ caption, prompt, createdAt }`）。旧图当时的 `data` 也随版本保存（第 5 版），删除时原样还给插件（见 `onMediaRemoved`）；删掉当前图、由上一版顶上时，`data` 也换回上一版的。玩家可以在插图卡上翻看和删除这些版本。
+图片换成新的 `attachment` 时（比如重画），旧图自动保留为早期版本，最多 8 个，在返回值的 `history` 里（`{ caption, prompt, createdAt, data? }`）。旧图当时的 `data` 也随版本保存（第 5 版），插件可据此找到要删的版本，玩家删除时也原样还给插件（见 `onMediaRemoved`）；删掉当前图、由上一版顶上时，`data` 也换回上一版的。玩家可以在插图卡上翻看和删除这些版本。
 
 ## `remove(id, { version? })`
 

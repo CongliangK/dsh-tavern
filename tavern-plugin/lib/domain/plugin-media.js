@@ -123,7 +123,7 @@ export function publicPluginMedia(item, current) {
     progress: item.progress, anchor: item.anchor, caption: item.caption, error: item.error,
     attachment: item.attachment ? { ...item.attachment } : null,
     activity: item.activity ? { ...item.activity } : null, actions: (item.actions || []).map(action => ({ ...action })), prompt: item.prompt || '',
-    history: (item.history || []).map(entry => ({ caption: entry.caption, prompt: entry.prompt, createdAt: entry.createdAt })),
+    history: (item.history || []).map(entry => ({ caption: entry.caption, prompt: entry.prompt, createdAt: entry.createdAt, ...(entry.data !== undefined ? { data: structuredClone(entry.data) } : {}) })),
     ...(item.data !== undefined ? { data: structuredClone(item.data) } : {}),
     createdAt: item.createdAt, updatedAt: item.updatedAt,
     ...(current === undefined ? {} : { current })
