@@ -24,6 +24,9 @@ const execFileAsync = promisify(execFile)
 const UPDATE_CHECK_POLICY = 5
 const BUSY_PHASES = new Set(['running', 'cancelling', 'blocked'])
 const CDN_METADATA_URL = 'https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@main/dsh-tavern-runtime.json'
+// 检查更新先问 GitHub：commits API 判不了时，再读 GitHub 自己发布的运行清单，
+// 最后才用 jsDelivr（它的 @main 可能滞后十几小时）。
+const GITHUB_MANIFEST_URL = 'https://raw.githubusercontent.com/flizzywine/dsh-tavern/main/dsh-tavern-runtime.json'
 const RUNTIME_FILES = new Set(['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'cordis.patch.yml', 'install.ps1', 'install.sh'])
 const RUNTIME_DIRECTORIES = ['android/', 'bin/', 'config/', 'presets/', 'tavern-plugin/', 'patches/']
 
@@ -242,6 +245,13 @@ export function createApplicationUpdater(options) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     return response.json()
   }
+  const fetchGithubManifest = options.fetchGithubManifest || async function () {
+    const response = await diagnosticFetch(options.githubMetadataUrl || process.env.DSH_TAVERN_GITHUB_METADATA_URL || GITHUB_MANIFEST_URL, {
+      cache: 'no-store', signal: AbortSignal.timeout(8000),
+    }, 8000)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return response.json()
+  }
   const fetchCdnMetadata = options.fetchCdnMetadata || async function () {
     const response = await diagnosticFetch(options.cdnMetadataUrl || process.env.DSH_TAVERN_CDN_METADATA_URL || CDN_METADATA_URL, {
       cache: 'no-store', signal: AbortSignal.timeout(8000),
@@ -339,6 +349,10 @@ export function createApplicationUpdater(options) {
     const settle = promise => promise.then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }))
     // Start the CDN request in parallel, but only wait for it when GitHub cannot decide.
     const cdn = settle(stage('cdn.fetch', fetchCdnMetadata))
+    // GitHub 自己的清单优先于 jsDelivr：CDN 的 @main 会滞后，GitHub 的 raw 不会。
+    // 只有 GitHub 的 commits API 判不了时才取 GitHub 清单：正常检查不多发一次请求。
+    let githubManifestPromise = null
+    const githubManifest = () => (githubManifestPromise ||= settle(stage('github.manifest', fetchGithubManifest)))
     const [manifest, commit] = await Promise.all([settle(stage('github.version', fetchManifest)), settle(stage('github.commit', fetchLatestCommit))])
     const manifestVersion = manifest.status === 'fulfilled' ? String(manifest.value?.version || '') : ''
     const cdnSequenceFor = async revision => {
@@ -365,22 +379,35 @@ export function createApplicationUpdater(options) {
       return { currentVersion, latestVersion: String(latestVersion), currentCommit: normalizedCurrentCommit, latestCommit, checkSource: 'github', updateAvailable, checkWarning: undefined }
     }
     const githubError = github ? new Error('GitHub 返回的提交号无效') : commit.reason
-    record('fallback.cdn', { reason: sanitizeUpdateError(githubError?.message || githubError) })
+    record('fallback.manifest', { reason: sanitizeUpdateError(githubError?.message || githubError) })
     try {
-      const metadata = await cdn
-      if (metadata.status === 'rejected') throw metadata.reason
-      const compared = await compareCdnRuntime(sourceRoot, metadata.value)
-      record('cdn.comparison', { ...identity, latestVersion: compared.version, latestCommit: compared.revision, latestReleaseSequence: compared.releaseSequence, matches: compared.matches })
+      // 顺序固定：GitHub 的 commits API → GitHub raw 清单 → jsDelivr 清单。
+      let compared = null
+      let checkSource = 'github'
+      const raw = await githubManifest()
+      if (raw.status === 'fulfilled') {
+        try { compared = await compareCdnRuntime(sourceRoot, raw.value) } catch (error) {
+          record('github.manifest.unusable', { error: sanitizeUpdateError(error?.message || error) })
+        }
+      }
+      if (!compared) {
+        const metadata = await cdn
+        if (metadata.status === 'rejected') throw metadata.reason
+        try {
+          compared = await compareCdnRuntime(sourceRoot, metadata.value)
+          checkSource = 'jsdelivr'
+        } catch (error) { throw error }
+      }
+      record('manifest.comparison', { ...identity, latestVersion: compared.version, latestCommit: compared.revision, latestReleaseSequence: compared.releaseSequence, matches: compared.matches, checkSource })
       const updateAvailable = !compared.matches && await relationTo(identity, compared.revision, async () => compared.releaseSequence, { sequenceFirst: true })
       return {
-        currentVersion, latestVersion: manifestVersion || compared.version || 'unknown', currentCommit, latestCommit: compared.revision, checkSource: 'jsdelivr', updateAvailable,
-        // jsDelivr caches @main, so it can lag behind GitHub but never invent a newer build.
+        currentVersion, latestVersion: manifestVersion || compared.version || 'unknown', currentCommit, latestCommit: compared.revision, checkSource, updateAvailable,
         checkWarning: updateAvailable
-          ? 'GitHub 暂不可达；已发现 CDN 上的较新构建，但无法确认它是最新构建。'
-          : 'GitHub 暂不可达；CDN 清单未显示更新构建，CDN 可能有数小时缓存延迟。',
+          ? 'GitHub 核实不可用；已发现清单上的较新构建，但无法确认它是最新构建。'
+          : 'GitHub 核实不可用；清单未显示更新构建，CDN 可能有数小时缓存延迟。',
       }
     } catch (cdnError) {
-      throw new Error(`暂时无法确认最新版本：GitHub 核实失败（${sanitizeUpdateError(githubError?.message || githubError)}）；CDN 备用检查（${sanitizeUpdateError(cdnError?.message || cdnError)}）`)
+      throw new Error(`暂时无法确认最新版本：GitHub 核实失败（${sanitizeUpdateError(githubError?.message || githubError)}）；备用清单检查（${sanitizeUpdateError(cdnError?.message || cdnError)}）`)
     }
   }
 

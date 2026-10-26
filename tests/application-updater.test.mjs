@@ -35,6 +35,9 @@ function createApplicationUpdater(options) {
     platform: 'linux', dshHome: options.sourceRoot,
     // CDN fallback is explicit in each fixture; never fetch live metadata.
     fetchCdnMetadata: async () => { throw new Error('CDN unavailable in GitHub fixture') },
+    // 检查更新的回退是 GitHub commits API → GitHub raw 清单 → jsDelivr；
+    // 测试默认把 raw 清单也置为不可用，需要它的用例自己传 fetchGithubManifest。
+    fetchGithubManifest: async () => { throw new Error('GitHub manifest unavailable in fixtures') },
     ...options,
   })
 }
@@ -179,7 +182,7 @@ test('更新诊断跨检查保留回退和网络原因，并可在重启后读�
     assert.equal(checked.latestVersion, 'unknown')
     const records = recovered.diagnostics().records
     assert.equal(new Set(records.filter(r => r.event === 'check.started').map(r => r.attemptId)).size, 2)
-    assert.ok(records.some(r => r.event === 'fallback.cdn'))
+    assert.ok(records.some(r => r.event === 'fallback.manifest'))
     assert.ok(records.some(r => r.event === 'github.commit.failed' && r.cause.code === 'ETIMEDOUT' && r.durationMs >= 0))
     assert.ok(records.some(r => r.event === 'github.version.failed' && r.cause.code === 'ETIMEDOUT'))
     assert.ok(records.some(r => r.event === 'status' && r.phase === 'check-failed'))

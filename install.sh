@@ -693,6 +693,7 @@ echo "更新诊断日志：${UPDATE_LOG_ROOT}/update-diagnostics.jsonl"
 
 echo "正在增量同步 DSH Tavern……"
 USED_GIT=0
+USED_ARCHIVE=0
 USED_CDN=0
 if command -v git >/dev/null 2>&1; then
   echo "正在通过 Git 增量同步（不下载文档与图片）……"
@@ -712,6 +713,27 @@ else
 fi
 
 if [ "${USED_GIT}" -eq 0 ]; then
+  # 整包下载（GitHub 的 codeload）优先于 jsDelivr：CDN 的 @main 会滞后十几小时。
+  if command -v curl >/dev/null 2>&1; then
+    echo "正在下载精简运行压缩包（GitHub）……"
+    update_log installer.stage.started source.github.archive '' '' ''
+    if [ -z "${TARGET_COMMIT}" ]; then
+      TARGET_COMMIT=$(curl -fsSL --connect-timeout 10 "${COMMIT_URL}" | sed -n 's/^[[:space:]]*"sha":[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' | head -n 1 || true)
+    fi
+    # Fail only after 30 s without data; --max-time is a generous upper bound.
+    if curl -fL --retry 3 --connect-timeout 15 --speed-limit 1 --speed-time 30 --max-time 900 "${ARCHIVE_URL}" -o "${TEMP_DIR}/app.tar.gz"; then
+      USED_ARCHIVE=1
+      update_log installer.stage.succeeded source.github.archive 0 '' ''
+    else
+      update_log installer.stage.failed source.github.archive 1 '' ''
+      echo "GitHub 压缩包下载失败，改用 jsDelivr 备用源。" >&2
+    fi
+  else
+    echo "未找到 curl，改用 jsDelivr 备用源。" >&2
+  fi
+fi
+
+if [ "${USED_GIT}" -eq 0 ] && [ "${USED_ARCHIVE}" -eq 0 ]; then
   echo "正在通过 jsDelivr 备用源下载运行代码……"
   update_log installer.stage.started source.jsdelivr '' '' ''
   mkdir -p "${TEMP_DIR}/cdn-source"
@@ -1187,14 +1209,8 @@ DSH_DOWNLOAD_MODULE
   fi
 fi
 
-if [ "${USED_GIT}" -eq 0 ] && [ "${USED_CDN}" -eq 0 ]; then
-  command -v curl >/dev/null 2>&1 || fail "Git 不可用且未找到 curl，无法下载精简运行压缩包。"
-  echo "正在下载精简运行压缩包……"
-  if [ -z "${TARGET_COMMIT}" ]; then
-    TARGET_COMMIT=$(curl -fsSL --connect-timeout 10 "${COMMIT_URL}" | sed -n 's/^[[:space:]]*"sha":[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' | head -n 1 || true)
-  fi
-  # Fail only after 30 s without data; --max-time is a generous upper bound.
-  curl -fL --retry 3 --connect-timeout 15 --speed-limit 1 --speed-time 30 --max-time 900 "${ARCHIVE_URL}" -o "${TEMP_DIR}/app.tar.gz"
+if [ "${USED_GIT}" -eq 0 ] && [ "${USED_ARCHIVE}" -eq 0 ] && [ "${USED_CDN}" -eq 0 ]; then
+  fail "Git、GitHub 压缩包与 jsDelivr 均未能取到源码，请检查网络后重试。"
 fi
 mkdir -p "${TEMP_DIR}/extract"
 if [ "${USED_CDN}" -eq 1 ]; then

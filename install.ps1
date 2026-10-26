@@ -1394,6 +1394,7 @@ try {
   $ArchivePath = Join-Path $TempDir 'app.zip'
   $ExtractDir = Join-Path $TempDir 'extract'
   $UsedGit = $false
+  $UsedArchive = $false
   $UsedCdn = $false
   if ($null -ne $GitCommand) {
     try {
@@ -1415,26 +1416,8 @@ try {
   }
   if ($null -eq $GitCommand) { Write-UpdateLog 'installer.stage.failed' 'git.unavailable' '127'; if ($FriendlyOutput) { Write-InstallStatus '下载代码：未安装 Git，改用 jsDelivr 下载' } else { Write-Warning '未找到 Git，正在尝试备用源。' } }
   if (-not $UsedGit) {
-    try {
-      Write-InstallStatus '下载代码：正在连接 jsDelivr 备用源…'
-      Write-UpdateLog 'installer.stage.started' 'source.jsdelivr'
-      $CdnSource = Join-Path $TempDir 'cdn-source'
-      New-Item -ItemType Directory -Force -Path $CdnSource | Out-Null
-      Invoke-InstallCommand 'source.files' 'node' @((Get-DownloadModule), 'runtime', $CdnMetadataUrl, $CdnRootUrl, $CdnSource, $AppDir, '--min-version', $InstallerVersion)
-      $TargetCommit = [string]([IO.File]::ReadAllText((Join-Path $CdnSource 'dsh-tavern-runtime.json')) | ConvertFrom-Json).revision
-      Write-UpdateLog 'installer.stage.succeeded' 'source.jsdelivr' '0'
-      $UsedCdn = $true
-    }
-    catch {
-      $CdnErrorFile = Join-Path $TempDir 'cdn.error'
-      [IO.File]::WriteAllText($CdnErrorFile, $_.Exception.ToString(), (New-Object Text.UTF8Encoding($false)))
-      Write-UpdateLog 'installer.stage.failed' 'source.jsdelivr' '1' '' $CdnErrorFile
-      Write-InstallStatus 'jsDelivr 下载失败，正在切换 GitHub 压缩包；详细原因见日志。'
-      Write-Warning ("jsDelivr 备用源不可用，将回退到精简运行压缩包：" + $_.Exception.Message)
-    }
-  }
-  if (-not $UsedGit -and -not $UsedCdn) {
-    Write-InstallStatus '下载代码：前面的源不可用，正在尝试 GitHub 压缩包…'
+    # GitHub 的整包下载优先于 jsDelivr：CDN 的 @main 会滞后十几小时。
+    Write-InstallStatus '下载代码：正在连接 GitHub，下载精简运行压缩包…'
     $PreviousProgressPreference = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
@@ -1457,10 +1440,37 @@ try {
           Start-Sleep -Seconds 2
         }
       }
+      $UsedArchive = $true
+    }
+    catch {
+      Write-InstallStatus 'GitHub 压缩包不可用，正在切换 jsDelivr 备用源；详细原因见日志。'
+      Write-Warning ("GitHub 压缩包下载失败，将回退到 jsDelivr 备用源：" + $_.Exception.Message)
     }
     finally {
       $ProgressPreference = $PreviousProgressPreference
     }
+  }
+  if (-not $UsedGit -and -not $UsedArchive) {
+    try {
+      Write-InstallStatus '下载代码：GitHub 压缩包不可用，正在连接 jsDelivr 备用源…'
+      Write-UpdateLog 'installer.stage.started' 'source.jsdelivr'
+      $CdnSource = Join-Path $TempDir 'cdn-source'
+      New-Item -ItemType Directory -Force -Path $CdnSource | Out-Null
+      Invoke-InstallCommand 'source.files' 'node' @((Get-DownloadModule), 'runtime', $CdnMetadataUrl, $CdnRootUrl, $CdnSource, $AppDir, '--min-version', $InstallerVersion)
+      $TargetCommit = [string]([IO.File]::ReadAllText((Join-Path $CdnSource 'dsh-tavern-runtime.json')) | ConvertFrom-Json).revision
+      Write-UpdateLog 'installer.stage.succeeded' 'source.jsdelivr' '0'
+      $UsedCdn = $true
+    }
+    catch {
+      $CdnErrorFile = Join-Path $TempDir 'cdn.error'
+      [IO.File]::WriteAllText($CdnErrorFile, $_.Exception.ToString(), (New-Object Text.UTF8Encoding($false)))
+      Write-UpdateLog 'installer.stage.failed' 'source.jsdelivr' '1' '' $CdnErrorFile
+      Write-InstallStatus 'jsDelivr 备用源也不可用；详细原因见日志。'
+      Write-Warning ("jsDelivr 备用源不可用：" + $_.Exception.Message)
+    }
+  }
+  if (-not $UsedGit -and -not $UsedArchive -and -not $UsedCdn) {
+    throw 'Git、GitHub 压缩包与 jsDelivr 均未能取到源码，请检查网络后重试。'
   }
   if (-not $UsedCdn) {
     New-Item -ItemType Directory -Force -Path $ExtractDir | Out-Null

@@ -249,10 +249,16 @@ install_from_tarball() {
   prepare_temp_root
   local archive="${TEMP_ROOT}/dsh-tavern.tar.gz"
   local candidate="${TEMP_ROOT}/tarball-source"
-  printf 'Git 下载失败，正在改用 GitHub 压缩包……\n'
-  download_file "${TARBALL_URL}" "${archive}" || fail "Git 与压缩包下载均失败，请检查网络后重试。"
+  printf '正在改用 GitHub 压缩包下载源码……\n'
+  if ! download_file "${TARBALL_URL}" "${archive}"; then
+    info 'GitHub 压缩包下载失败。'
+    return 1
+  fi
   mkdir -p "${candidate}"
-  tar -xzf "${archive}" -C "${candidate}" --strip-components=1 --exclude='*/docs' --exclude='*/docs/*' || fail "压缩包无法解压，旧版本未被修改。"
+  if ! tar -xzf "${archive}" -C "${candidate}" --strip-components=1 --exclude='*/docs' --exclude='*/docs/*'; then
+    info 'GitHub 压缩包无法解压，旧版本未被修改。'
+    return 1
+  fi
   verify_source "${candidate}"
   printf '%s\n' "${TARBALL_URL}" > "${candidate}/${SOURCE_MARKER}"
   replace_source "${candidate}"
@@ -278,7 +284,9 @@ install_source() {
   else
     printf '未检测到 Git，直接使用 GitHub 压缩包。\n'
   fi
-  install_from_tarball
+  if install_from_tarball; then return; fi
+  if install_from_cdn; then return; fi
+  fail "Git、GitHub 压缩包与 jsDelivr 均未能取到源码，请检查网络后重试。"
 }
 
 is_disposable_upgrade_residue() {
@@ -332,9 +340,11 @@ update_source() {
       git -C "${APP_DIR}" merge --ff-only "origin/${BRANCH}"
       return
     fi
-    # Git 走不通时优先按清单增量替换（jsDelivr 通常比 codeload 更容易连通）。
+    # Git 走不通时先整包下载（GitHub 的 codeload），最后才用 jsDelivr 清单增量替换：
+    # CDN 的 @main 会滞后十几小时，把它当兜底比当首选更安全。
+    if install_from_tarball; then return; fi
     if install_from_cdn; then return; fi
-    install_from_tarball
+    fail "Git、GitHub 压缩包与 jsDelivr 均未能取到源码，请检查网络后重试。"
     return
   fi
   if [ -f "${APP_DIR}/${SOURCE_MARKER}" ]; then
@@ -342,8 +352,9 @@ update_source() {
       TARBALL_URL="$(sed -n '1p' "${APP_DIR}/${SOURCE_MARKER}")"
       [ -n "${TARBALL_URL}" ] || TARBALL_URL="${DEFAULT_TARBALL_URL}"
     fi
+    if install_from_tarball; then return; fi
     if install_from_cdn; then return; fi
-    install_from_tarball
+    fail "GitHub 压缩包与 jsDelivr 均未能取到源码，请检查网络后重试。"
     return
   fi
   if is_disposable_upgrade_residue; then
