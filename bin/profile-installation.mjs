@@ -215,6 +215,16 @@ export async function recordInstalledRelease(options = {}) {
     if (existsSync(fetchHead)) commit = readFileSync(fetchHead, 'utf8').match(/^[0-9a-f]{40}/i)?.[0] || ''
   }
   if (!/^[0-9a-f]{40}$/i.test(commit)) {
+    // 源码里自带的运行清单就记着这次安装对应的提交号；手机/内网常常连不上
+    // GitHub，先本地取，能在没有网络时也留下安装记录（否则“检查更新”会一直
+    // 报“无法确认当前构建或提交先后”）。
+    try {
+      const metadata = JSON.parse(readFileSync(path.join(sourceRoot, 'dsh-tavern-runtime.json'), 'utf8').replace(/^\uFEFF/, ''))
+      const revision = String(metadata?.revision || '')
+      if (/^[0-9a-f]{40}$/i.test(revision)) commit = revision
+    } catch { /* 清单缺失或损坏时继续走网络 */ }
+  }
+  if (!/^[0-9a-f]{40}$/i.test(commit)) {
     const request = options.request || fetch
     const response = await request(options.commitUrl || process.env.DSH_TAVERN_COMMIT_URL || DEFAULT_COMMIT_URL, {
       cache: 'no-store', headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(5000),

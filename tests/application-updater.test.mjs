@@ -237,6 +237,26 @@ test('jsDelivr 兜底：本地清单未核验时用提交比较，比较不可�
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('压缩包安装没有 .git 和安装记录时，用源码自带运行清单的提交号判断更新', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-tavern-updater-archive-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const installed = 'b'.repeat(40)
+  const latest = 'd'.repeat(40)
+  await writeFile(path.join(root, 'package.json'), JSON.stringify({ version: '3.1.0' }))
+  // 清单里的哈希与本地文件不一致（安装后 regenerate 过），但提交号仍是这一版。
+  await writeFile(path.join(root, 'dsh-tavern-runtime.json'), JSON.stringify({
+    revision: installed, releaseSequence: 900, version: '3.1.0', files: [{ path: 'package.json', sha256: 'f'.repeat(64) }],
+  }))
+  const updater = createApplicationUpdater({
+    dataRoot: path.join(root, 'data'), sourceRoot: root, dshHome: path.join(root, 'home'), runtimeHost: 'android',
+    fetchManifest: async () => ({ version: '3.1.0' }), fetchLatestCommit: async () => ({ sha: latest }),
+    compareCommits: async (current, target) => { assert.deepEqual([current, target], [installed, latest]); return 'ahead' },
+  })
+  const checked = await updater.check()
+  assert.equal(checked.phase, 'update-available')
+  assert.equal(checked.currentCommit, installed)
+})
+
 test('状态查询按与安装相同的规则回收残留锁，更新按钮不再永久卡在「等待安全停止」', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'update-stale-lock-'))
   t.after(() => rm(root, { recursive: true, force: true }))

@@ -173,6 +173,16 @@ async function readRecordedCommit(sourceRoot, dshHome) {
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error
   }
+  // 压缩包/离线快照安装既没有 .git 也没有安装记录；源码里自带的运行清单仍然记着
+  // 这次安装对应的提交号。清单没通过校验（例如安装后 regenerate 过文件）也用：
+  // 它是本地唯一能说明「装的是哪一版」的线索，比让「检查更新」直接失败好。
+  try {
+    const metadata = JSON.parse(await readFile(path.join(sourceRoot, 'dsh-tavern-runtime.json'), 'utf8'))
+    const revision = String(metadata?.revision || '')
+    if (/^[0-9a-f]{40}$/i.test(revision)) return revision
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
   return ''
 }
 
