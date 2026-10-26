@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "2d5c661ac03fcf353f0959fb6167f99f567acf07",
-  "releaseSequence": 924,
+  "revision": "8d6769447b6ea0bd0615e41df60f6a509a750a78",
+  "releaseSequence": 925,
   "version": "3.1.0",
   "files": [
     {
@@ -558,6 +558,116 @@
       "path": "tavern-plugin/cordis.patch.yml",
       "sha256": "676f5838918d55ddffc97bf682ecd48c6cad4d57d619179e3b2cca1181322afd",
       "size": 8205
+    },
+    {
+      "path": "tavern-plugin/fonts/neo-xihei-screen/index.json",
+      "sha256": "c6b5f6da510a7b7162050a53000b1a0db96f3cbd129baf898f7a82559a918a02",
+      "size": 658
+    },
+    {
+      "path": "tavern-plugin/fonts/neo-xihei-screen/LICENSE.txt",
+      "sha256": "daf91386d6f9a6a78e4e736c0c00375cae30214ac5c1dab2479f0a05fcb63edd",
+      "size": 20446
+    },
+    {
+      "path": "tavern-plugin/fonts/neo-xihei-screen/LXGWNeoXiHeiScreen.ttf",
+      "sha256": "6f69412d8307c055b7f247e67669b0e4ab4b79bf199fe58ee93545429b586092",
+      "size": 7666968
+    },
+    {
+      "path": "tavern-plugin/fonts/neo-zhisong-screen/index.json",
+      "sha256": "2d590c1bb951753548a582528a588cececfd27845b164dd7cdc41d2d2ebebc16",
+      "size": 666
+    },
+    {
+      "path": "tavern-plugin/fonts/neo-zhisong-screen/LICENSE.txt",
+      "sha256": "daf91386d6f9a6a78e4e736c0c00375cae30214ac5c1dab2479f0a05fcb63edd",
+      "size": 20446
+    },
+    {
+      "path": "tavern-plugin/fonts/neo-zhisong-screen/LXGWNeoZhiSongScreen.ttf",
+      "sha256": "4e071b63ee221e72309ec720259f264024336991d1ee0bce42e80d1fb3855a1c",
+      "size": 11922650
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-sans-sc/400-758dff09a5625dd6.woff2",
+      "sha256": "758dff09a5625dd659ea4c529ffdb7741bdbc182b54957a7007f1cfcfd450820",
+      "size": 4192712
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-sans-sc/500-3f6c9c85cf17979b.woff2",
+      "sha256": "3f6c9c85cf17979b18df8001903613792d272a094c1a79846fa8591e9ed0d64c",
+      "size": 4268684
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-sans-sc/700-f022a5c5aa906dd1.woff2",
+      "sha256": "f022a5c5aa906dd18ebd5da3e3a282603537f17ce9208b5cfca6dc20692e3cc0",
+      "size": 4314792
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-sans-sc/index.json",
+      "sha256": "b2c9172ca93dac8b15ce7519a0f8b36a8427fcdfc8bfd9a5087d8ec5d7888813",
+      "size": 1392
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-sans-sc/LICENSE.txt",
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+      "size": 4388
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-serif-sc/400-a15f54b1f3e51cb8.woff2",
+      "sha256": "a15f54b1f3e51cb863943599c3d784cbb9399d5d877caf8d9eac523fda1f8283",
+      "size": 5732364
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-serif-sc/500-7437aa3d18b9f273.woff2",
+      "sha256": "7437aa3d18b9f273328c6fb52195e0f27d69e241e50af8b232326371065bba5f",
+      "size": 5809688
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-serif-sc/700-5f9ea1f47fcc4654.woff2",
+      "sha256": "5f9ea1f47fcc46540e199586cc7c0a5799a9fa8473ca82d950ea6b779ed405cc",
+      "size": 5925560
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-serif-sc/index.json",
+      "sha256": "7ae781c6e9b4ae1a1424068acd0fa450a32346770a77ff911890af0297b78872",
+      "size": 1397
+    },
+    {
+      "path": "tavern-plugin/fonts/noto-serif-sc/LICENSE.txt",
+      "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6",
+      "size": 4350
+    },
+    {
+      "path": "tavern-plugin/fonts/README.md",
+      "sha256": "f4e002ff99eca755de209e439c386730892b507b7677aa6fdc7ff4c57b4a6ad9",
+      "size": 2679
+    },
+    {
+      "path": "tavern-plugin/fonts/resource-han-rounded/400-bd8eb891801bbcf9.woff2",
+      "sha256": "bd8eb891801bbcf9c8d73f8023e63c30e423e2a87b948a5be491ad187b668d56",
+      "size": 4936772
+    },
+    {
+      "path": "tavern-plugin/fonts/resource-han-rounded/500-42d73bc48bf5d5d6.woff2",
+      "sha256": "42d73bc48bf5d5d62a6e2cb5d6f5aeb2d875236be43a9d54c7800504aa06c479",
+      "size": 4974796
+    },
+    {
+      "path": "tavern-plugin/fonts/resource-han-rounded/700-4e42ee4c402cce9d.woff2",
+      "sha256": "4e42ee4c402cce9dd2eaa687be8a9b8585f335ef1a916d9632a85c6234b4dbea",
+      "size": 5040192
+    },
+    {
+      "path": "tavern-plugin/fonts/resource-han-rounded/index.json",
+      "sha256": "b42fbf7a971ec38829251433887795a42ea5b63fc506ce08398ee8433d8bf682",
+      "size": 1434
+    },
+    {
+      "path": "tavern-plugin/fonts/resource-han-rounded/LICENSE.txt",
+      "sha256": "586a072c53a12f6e4389f0eb6034f9780afcb9f0a49558e9ed299664ab1107d8",
+      "size": 4523
     },
     {
       "path": "tavern-plugin/lib/agent-compaction.js",
@@ -2725,6 +2835,11 @@
       "size": 12323
     },
     {
+      "path": "tavern-plugin/lib/font-library.js",
+      "sha256": "4f7c4e8200894c4af9a0f78acfe28bb0291e0479442d906e61f0d56e90a193db",
+      "size": 6392
+    },
+    {
       "path": "tavern-plugin/lib/gameplay-api.js",
       "sha256": "b1b305474990abad2a87324a738a3b071060898866bf0e841441b52c1e9e7d82",
       "size": 7797
@@ -2746,13 +2861,13 @@
     },
     {
       "path": "tavern-plugin/lib/http/routes.js",
-      "sha256": "48011424bc57929c20e9c9ec8920ab240caa23349e72e17b930b96f1efc7e88a",
-      "size": 29417
+      "sha256": "3d3770b82e613d60a626785b21f82cf2a94b9a7ec50b98ed31ac7bad49c96764",
+      "size": 29503
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "81c2f57f1c546086e5cbd991b39a0a21fa07463086e28ed48cbe7b85bfd26e06",
-      "size": 244523
+      "sha256": "f978b944921350655ad9c73bfbcf72437afbe51a10af9ed404ab90ee24048b57",
+      "size": 244661
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -2796,8 +2911,8 @@
     },
     {
       "path": "tavern-plugin/lib/rpc/media.js",
-      "sha256": "8b0b7956db6c3a13446e735f7d6569a73fc7dd8d0fb841a79abe669b183c047f",
-      "size": 6097
+      "sha256": "1732a38fe9b8b4c3c44a7821bac2590bb788529eb79958c5755c16bad8362af8",
+      "size": 6273
     },
     {
       "path": "tavern-plugin/lib/rpc/opening.js",
@@ -4671,9 +4786,9 @@
     }
   ],
   "archive": {
-    "commit": "0a091ae0606306fa841570b01e0b59be4bf3d2d3",
+    "commit": "48689e07fee3b5c0f603a2136d327215fef15ee1",
     "path": "runtime.zip",
-    "sha256": "f1a1c751190cfbb246b14b6ada72384a4c184c37f9c2af5cf5a094c7046d3384",
-    "size": 10174634
+    "sha256": "3e64e48193fb2a898ff855ede9bff59d890604407fca9755077d35ecd684fcb4",
+    "size": 68028254
   }
 }
