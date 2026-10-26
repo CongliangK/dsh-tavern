@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "6274a1ac3ad222fdfb1a7cb649e0723639df21e5",
-  "releaseSequence": 930,
+  "revision": "cdc999a87911096d1fed946128315afeeeb9ab06",
+  "releaseSequence": 931,
   "version": "3.1.0",
   "files": [
     {
@@ -1631,8 +1631,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/manual-ledger.js",
-      "sha256": "cf373d8ede66b5e4b315016a809612074631f1b0437512ab7d41df4cde565972",
-      "size": 7037
+      "sha256": "5ee41b6761052fceaedf03ef9ae3c71ceebca37f1d1e9574894759f5b8a4f9c1",
+      "size": 7697
     },
     {
       "path": "tavern-plugin/lib/domain/message-source.js",
@@ -2426,8 +2426,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/story-ledger.js",
-      "sha256": "b10a1f153ff903acd812ebc650c4c632e7ded1c5ab3eadc70c1d18b0b49b3570",
-      "size": 12063
+      "sha256": "b52208bc33b1a7f23913680c774ad99586db0d85e68b966254e4158a2ea2f390",
+      "size": 14806
     },
     {
       "path": "tavern-plugin/lib/domain/story-reconciliation.js",
@@ -2871,13 +2871,13 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "b482c23229d192a745b965bc323dea441bdf96b6d1ac1168481ef7e75c2ed510",
-      "size": 245365
+      "sha256": "1a62a36289c94e48423a27346d7a24b4e7b5484ce57214f0fbaf9bd10cbc2b0d",
+      "size": 245425
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
-      "sha256": "c560f0cbad00d27d9d72a7cc66ebcbfe773a7dade6b2c2be91efcf86d29a4203",
-      "size": 78881
+      "sha256": "10a48732530833d741229585cd68b07b88f25c0f09616cf0b4d819066657bff6",
+      "size": 81348
     },
     {
       "path": "tavern-plugin/lib/profile-data-store.js",
@@ -4791,9 +4791,9 @@
     }
   ],
   "archive": {
-    "commit": "30bba35d51cde3be9b6623d408f26dfc9fb69595",
+    "commit": "7fa16a235a02936689d8115826fc19862c36f53f",
     "path": "runtime.zip",
-    "sha256": "4f18b74dfd83c2daa28d2f45fc97939ae9a8497ac2571d0755d236e181f54cfc",
-    "size": 68044638
+    "sha256": "8720b911a765a109fe8e507d6ed78852290a4658e8df0bdf309ae326e41a7035",
+    "size": 68046531
   }
 }
