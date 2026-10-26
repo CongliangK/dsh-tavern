@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "4be7d508eac2f503576127e4810aa762e3ac729e",
-  "releaseSequence": 914,
+  "revision": "1f2bc464264c0fa8d65019acc4496b67cc0b5863",
+  "releaseSequence": 915,
   "version": "3.1.0",
   "files": [
     {
@@ -91,8 +91,8 @@
     },
     {
       "path": "android/setup.sh",
-      "sha256": "e3b21c5e797af36b0a7700f24924ba9c4ead7b0c2112f0450e3b27931a5f32d6",
-      "size": 17620
+      "sha256": "cbddec2954f0f9e3b7bcf0d93adcdfda0dc78ee87c7febe0ded3616fde53448c",
+      "size": 18126
     },
     {
       "path": "android/update.sh",
@@ -101,8 +101,8 @@
     },
     {
       "path": "bin/application-update.mjs",
-      "sha256": "5af75fbc72a80d0c2dd300d99ef2942949a899f096883b8888066838f02aa107",
-      "size": 19329
+      "sha256": "1272fdc658ce6743ec8cf24ee5382d7f4139bb3ea088fcfc562d7e0643e6ed75",
+      "size": 19632
     },
     {
       "path": "bin/build-installer-scripts.mjs",
@@ -305,6 +305,11 @@
       "size": 8772
     },
     {
+      "path": "bin/system-proxy.mjs",
+      "sha256": "720e9e641a15f94ff94470445d15ff9ba47d70fbd1088292003337de65303342",
+      "size": 6909
+    },
+    {
       "path": "bin/tavern-window.mjs",
       "sha256": "6f2186efc887a79b031219a4fd39a195c692287792190fd9df1f487ac3243c6f",
       "size": 3243
@@ -381,13 +386,13 @@
     },
     {
       "path": "install.ps1",
-      "sha256": "9bf69b10e5e26dba980682a3974bf050f461e5c4aedc0560841376cab42ec279",
-      "size": 97822
+      "sha256": "4557b10848adbf649571eced10ccdd63ce3a7adea0ad36017e48cbbf06fe2317",
+      "size": 98344
     },
     {
       "path": "install.sh",
-      "sha256": "ee0b344a7635f7c5311ab0ac336200706e25b96bf8da26f006e07cf6bfebb52f",
-      "size": 71860
+      "sha256": "a4d35a22da8cd1990eab21acb99991fa8a084b94935d10c0932f6a4ab3217d1c",
+      "size": 72533
     },
     {
       "path": "package.json",
@@ -561,8 +566,8 @@
     },
     {
       "path": "tavern-plugin/lib/application-updater.js",
-      "sha256": "896cf92e2ea59d1ac44fafdcc08396459bba6790b77fbada92abcfb58a0491b0",
-      "size": 39660
+      "sha256": "2f93e8d0fc098b7e99de513e1b9b8d993049a769a763997ed72e8525fd5a94ff",
+      "size": 42277
     },
     {
       "path": "tavern-plugin/lib/asset-library/asset-packs/common.js",
@@ -2721,8 +2726,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "315d440b488fadbb84a211ea969670605669b9b699ee7653f8ae2666b9af53d2",
-      "size": 242291
+      "sha256": "c3470a61bcb816f94464ea7216024f2b0a3e30381690fd8c0142157e0e79029e",
+      "size": 242803
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -4641,9 +4646,9 @@
     }
   ],
   "archive": {
-    "commit": "fe94ec2d758dc25dc6789897dfccbcb40731740a",
+    "commit": "6817e4b17d094048bc36afc4470232aef5ef12b0",
     "path": "runtime.zip",
-    "sha256": "6b1066e244afc92545c48031163fab16800e6d1c0f9090e93078da3042189d02",
-    "size": 10119305
+    "sha256": "4edddd17cc676aa282e86a8b08810fc5acbc291277bb06988bf2631cc89a8680",
+    "size": 10123982
   }
 }
