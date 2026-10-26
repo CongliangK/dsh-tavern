@@ -173,7 +173,13 @@ pnpm_install() {
     if pnpm "$@" --prefer-offline; then return 0; fi
     info '缓存优先安装未完成，改为联网补齐（只下载缺失项）……'
   fi
-  pnpm "$@"
+  if pnpm "$@"; then return 0; fi
+  # 镜像缺包时（例如新版本 lockfile 里的 undici 在 npmmirror 上 metadata 没同步，
+  # 报 ERR_PNPM_NO_OFFLINE_META 或 404）整轮更新就白跑；换官方源再试一次。
+  # 用户显式指定过 DSH_TAVERN_NPM_REGISTRY 时不动他的选择。
+  if [ -n "${DSH_TAVERN_NPM_REGISTRY:-}" ]; then return 1; fi
+  info '当前镜像安装失败，改用官方源 registry.npmjs.org 重试一次……'
+  pnpm "$@" --registry=https://registry.npmjs.org
 }
 # Android 的 proot 会把硬链接模拟成符号链接，pnpm 默认导入方式可能因此
 # 生成无法进行相对 require 的包目录。DSHA 中的所有后续安装也必须沿用复制模式。
