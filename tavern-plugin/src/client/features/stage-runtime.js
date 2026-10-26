@@ -380,7 +380,7 @@ function TavernStageScreen(props) {
 	const visit = reader.key + ":" + reader.visit;
 	// 分页 (stage-pager.js): a page whose line the box cannot hold shows card by card. The click, key, wheel step or › that
 	// turns the page first walks its cards, ‹ walks them back (into the previous page's last card), auto paging reads each card,
-	// 跳过 lands on the last page's last card. Each card types out; a skip, a restored page or a backlog jump shows the card it
+	// 跳过 fast-forwards through them (below). Each card types out; a skip, a restored page or a backlog jump shows the card it
 	// lands on whole. `spot`: the card shown in this visit (its start, in characters, so a re-measured page keeps it) and how
 	// many cards it has turned through; a page turn (a new visit) starts on its first card.
 	const [spot, setSpot] = React.useState({ visit: "", offset: 0, turns: 0 });
@@ -390,8 +390,15 @@ function TavernStageScreen(props) {
 	const pager = useTavernStagePager(beats, reader.index, here.offset, art || skin);
 	const cards = pager.cards, card = pager.card, lastCard = card >= cards.length - 1;
 	const cardKey = visit + ":" + here.turns;
+	// 跳过 (the control, or Ctrl held): a fast-forward, not a jump. Every STAGE_SKIP_CARD_MS it shows the next card whole - a
+	// page's first card on a skip visit, which plays no voice and no performance - until the round's last card; auto paging
+	// is off meanwhile. The control turns it on and off; Ctrl held (after a short arm delay, so Ctrl shortcuts do not skip)
+	// runs it until released. Any other key, click or wheel stops it, and that input does only that (skipStopped).
+	const [skipLatch, setSkipLatch] = React.useState(false), [skipHeld, setSkipHeld] = React.useState(false);
+	const skipping = skipLatch || skipHeld, skippingRef = React.useRef(false), skipStopped = React.useRef(false), skipPossible = React.useRef(false);
+	skippingRef.current = skipping;
 	const [typedVisit, setTypedVisit] = React.useState("");
-	const typed = typedVisit === cardKey || here.turns === 0 && (reader.mode === "skip" || reader.mode === "refresh") || Boolean(choice.view);
+	const typed = typedVisit === cardKey || here.turns === 0 && (reader.mode === "skip" || reader.mode === "refresh") || Boolean(choice.view) || skipping;
 	const typedRef = React.useRef(typed), visitRef = React.useRef(cardKey), shownRef = React.useRef(null);
 	typedRef.current = typed; visitRef.current = cardKey;
 	shownRef.current = { reader, visit, turns: here.turns, cards, card, last: lastCard };
@@ -431,8 +438,65 @@ function TavernStageScreen(props) {
 	React.useEffect(() => { tavernStageRuntime.sync(id); }, [id, reading.on, Boolean(config), backlog, typed, card, cards[card].text, lastCard]);
 	useTavernStageArtFrames(sceneRef, art, reader.index, reader.auto);
 	const atEnd = reader.index >= beats.length - 1, step = delta => tavernStageRuntime.page(id, index => index + delta);
+	skipPossible.current = !(atEnd && lastCard);
+	const stopSkip = () => { setSkipLatch(false); setSkipHeld(false); };
+	// The control: on ends auto paging, a second press stops it.
+	const toggleSkip = () => { tavernStageRuntime.setAuto(id, false); setSkipLatch(value => !value); };
+	// One card a step, each shown whole (the card it lands on stays typed when the fast-forward stops there). It ends on the
+	// round's last card; CONFIG or the backlog open pauses it.
+	React.useEffect(() => {
+		if (!skipping) return undefined;
+		if (atEnd && lastCard) { stopSkip(); return undefined; }
+		if (config || backlog) return undefined;
+		const timer = setTimeout(() => {
+			const now = shownRef.current;
+			if (!now.last) { setTypedVisit(now.visit + ":" + (now.turns + 1)); showCard(now.card + 1); }
+			else tavernStageRuntime.page(id, index => index + 1, "skip");
+		}, STAGE_SKIP_CARD_MS);
+		return () => clearTimeout(timer);
+	}, [skipping, atEnd, lastCard, Boolean(config), backlog, cardKey]);
+	const skipHoldBlocked = Boolean(config) || backlog;
+	React.useEffect(() => {
+		if (skipHoldBlocked) { setSkipHeld(false); return undefined; }
+		let timer = 0;
+		const cancel = () => { clearTimeout(timer); timer = 0; setSkipHeld(false); };
+		// Any other key, click or wheel stops a fast-forward (the control's own press toggles it instead); advance(), back()
+		// and the wheel then drop that input instead of turning a card.
+		function interrupt(event) {
+			const own = event && event.type === "pointerdown" && event.target && typeof event.target.closest === "function" && event.target.closest(STAGE_SKIP_CONTROL);
+			const running = skippingRef.current && !own;
+			skipStopped.current = running;
+			cancel();
+			if (running) setSkipLatch(false);
+		}
+		function onDown(event) {
+			if (event.key !== "Control") { interrupt(event); return; }
+			if (event.repeat || timer || event.altKey || event.shiftKey || event.metaKey) return;
+			const target = event.target;
+			if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+			timer = setTimeout(() => { timer = 0; if (!skipPossible.current) return; tavernStageRuntime.setAuto(id, false); setSkipHeld(true); }, STAGE_SKIP_HOLD_MS);
+		}
+		function onUp(event) { if (event.key === "Control") cancel(); }
+		function onHidden() { if (document.hidden) cancel(); }
+		window.addEventListener("keydown", onDown, true);
+		window.addEventListener("keyup", onUp, true);
+		window.addEventListener("wheel", interrupt, true);
+		window.addEventListener("pointerdown", interrupt, true);
+		window.addEventListener("blur", cancel);
+		document.addEventListener("visibilitychange", onHidden);
+		return () => {
+			clearTimeout(timer); setSkipHeld(false); skipStopped.current = false;
+			window.removeEventListener("keydown", onDown, true);
+			window.removeEventListener("keyup", onUp, true);
+			window.removeEventListener("wheel", interrupt, true);
+			window.removeEventListener("pointerdown", interrupt, true);
+			window.removeEventListener("blur", cancel);
+			document.removeEventListener("visibilitychange", onHidden);
+		};
+	}, [skipHoldBlocked, id]);
 	// A click, → / Space / Enter, a wheel step or ›: finish the line still typing, else the next card, else the next page.
 	const advance = () => {
+		if (skipStopped.current) { skipStopped.current = false; return; }
 		const now = shownRef.current;
 		if (!typedRef.current) setTypedVisit(visitRef.current);
 		else if (!now.last) showCard(now.card + 1);
@@ -440,6 +504,7 @@ function TavernStageScreen(props) {
 	};
 	// ← / ‹: the card before, else the previous page's last card.
 	const back = () => {
+		if (skipStopped.current) { skipStopped.current = false; return; }
 		const now = shownRef.current;
 		if (now.card > 0) showCard(now.card - 1);
 		else if (now.reader.index > 0) { landLast(); step(-1); }
@@ -484,8 +549,8 @@ function TavernStageScreen(props) {
 		control("back", "上一句", "‹", { onClick: back, disabled: reader.index <= 0 && card === 0, "aria-label": "上一句" }),
 		h("span", { className: "dsh-tavern-stage-progress" }, beats.length ? (reader.index + 1) + " / " + beats.length : ""),
 		h("button", { type: "button", onClick: advance, disabled: atEnd && lastCard, "aria-label": "下一句" }, "›"),
-		control("auto", "自动", "自动", { className: reader.auto ? "is-on" : "", onClick: () => tavernStageRuntime.setAuto(id, !reader.auto), "aria-pressed": reader.auto }, reader.auto),
-		control("skip", "跳过", "跳过", { onClick: () => { landLast(); tavernStageRuntime.page(id, beats.length - 1, "skip"); } }),
+		control("auto", "自动", "自动", { className: reader.auto ? "is-on" : "", onClick: () => { setSkipLatch(false); tavernStageRuntime.setAuto(id, !reader.auto); }, "aria-pressed": reader.auto }, reader.auto),
+		control("skip", "跳过", "跳过", { className: skipping ? "is-on" : "", onClick: toggleSkip, "aria-pressed": skipping, title: "跳过（按住 Ctrl 快进）" }, skipping),
 		control("backlog", "履历", "履历", { title: "履历（L / 滚轮向上）", onClick: event => openBacklog(event.currentTarget) }),
 		h(TavernBgmStage, { sessionId: id }),
 		h(TavernMusicToggle, null),
@@ -504,6 +569,7 @@ function TavernStageScreen(props) {
 	function wheel(event) {
 		if (configOpen.current || backlogOpen.current || Date.now() - backlogClosedAt.current < 450) return;
 		if (event.target && event.target.closest && event.target.closest(".dsh-tavern-bgm-panel")) return;
+		if (skipStopped.current) { skipStopped.current = false; return; } // this notch only stopped a fast-forward
 		const decision = stageWheelDecision(wheelGesture.current, { now: Date.now(), deltaY: event.deltaY, deltaMode: event.deltaMode, typed: typedRef.current });
 		wheelGesture.current = decision.state;
 		if (decision.action === "backlog") openBacklog(null);
@@ -529,6 +595,11 @@ function TavernStageScreen(props) {
 		backlog ? h(TavernStageBacklog, { sessionId: id, data, page: reader.index, onJump: jumpBack, onClose: closeBacklog }) : null,
 		entrance.element);
 }
+
+// 跳过 shows a card every 150 ms, each painted fully before the next: 9 frames at 60 Hz, long enough to see each card as a
+// distinct frame, short enough for a 40-card round in about 6 s. Ctrl must be held 160 ms before it skips.
+const STAGE_SKIP_CARD_MS = 150, STAGE_SKIP_HOLD_MS = 160;
+const STAGE_SKIP_CONTROL = '[data-action="skip"]';
 
 // A drawn control (stageSkinControlIcons): the icon (its `on` image while it runs) alone, or on the skin's button body - its
 // normal / on / disabled image by state and the hover image over it under the pointer and keyboard focus - in the glyph box.

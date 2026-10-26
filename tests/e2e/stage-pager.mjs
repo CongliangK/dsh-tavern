@@ -1,6 +1,6 @@
 // 分页 (cast-presentation.md 26/N) on the real stage: a line longer than the text box shows card by card, each as many lines as the box holds (at most 3),
 // so nothing overflows at 1920 or on a 375 phone. Each card types out; the first →/›/click finishes it, the next shows the next
-// card and only after the last card turns the page. ‹ walks the cards back into the previous page's last card; 跳过 lands on the
+// card and only after the last card turns the page. ‹ walks the cards back into the previous page's last card; 跳过 fast-forwards to the
 // last page's last card whole; a backlog jump and a reopened stage show the first card whole; auto paging reads every card.
 // Fresh disposable profile only, no model calls. Nothing reaches a speaker: every AudioContext ends in stage-state's zero gain.
 import assert from 'node:assert/strict'
@@ -99,8 +99,9 @@ try {
           assert.equal((await shown()).text, cards.at(-2).text, 'and walks the cards back')
           await page.waitForTimeout(450)
           await page.screenshot({ path: join(output, label + '-back.png') })
-          // 5. 跳过 lands on the last page's last card, whole; the input waits there, › is off.
+          // 5. 跳过 fast-forwards to the last page's last card and stops there, whole; the input waits there, › is off.
           await stage.getByRole('button', { name: '跳过', exact: true }).click(); await at('4 / 4')
+          await stage.locator('.dsh-tavern-stage-controls [data-action="skip"][aria-pressed="false"]').waitFor()
           assert.equal(await typing(), false, '跳过 shows the card whole')
           const end = await shown(); fits(end)
           assert.ok(LAST.endsWith(end.text.replace(/^[「（]/, '')), 'the last card: ' + end.text)
