@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "b40e008b729477f3501c369a4d44e2f883498a29",
-  "releaseSequence": 923,
+  "revision": "2d5c661ac03fcf353f0959fb6167f99f567acf07",
+  "releaseSequence": 924,
   "version": "3.1.0",
   "files": [
     {
@@ -803,6 +803,16 @@
       "path": "tavern-plugin/lib/domain/bounded-history.js",
       "sha256": "5bdab3e71565ad088442e80a6c729a6018f620f9f649ed1c52d25199f2817ba9",
       "size": 7510
+    },
+    {
+      "path": "tavern-plugin/lib/domain/branch-origin-repair.js",
+      "sha256": "e5074a5357201ac4ea11fa0358456319451fd695f8d6bade94934296158e30e8",
+      "size": 4150
+    },
+    {
+      "path": "tavern-plugin/lib/domain/branch-origin.js",
+      "sha256": "7bb1c54dd395ac65b34426524827f3353705cc32375a9f5d69de7c01faddf50a",
+      "size": 4137
     },
     {
       "path": "tavern-plugin/lib/domain/buffered-json-records.js",
@@ -2741,8 +2751,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "189fd3a41c7336b13e9b9d359ccf2aeb98abd7a96e5114f426038ff3357ed935",
-      "size": 243682
+      "sha256": "81c2f57f1c546086e5cbd991b39a0a21fa07463086e28ed48cbe7b85bfd26e06",
+      "size": 244523
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -2796,8 +2806,8 @@
     },
     {
       "path": "tavern-plugin/lib/rpc/play.js",
-      "sha256": "3b5f90f1991fbe1dd3250ba3d0c83d3131819655d571b6fce83a4a1f2c4fd52a",
-      "size": 15911
+      "sha256": "fa3636c0d9d7d0f7c0f2bc809e2c0d8f0bf6c566ecf67acea2538eb94ed0fcca",
+      "size": 16160
     },
     {
       "path": "tavern-plugin/lib/rpc/plugins.js",
@@ -4661,9 +4671,9 @@
     }
   ],
   "archive": {
-    "commit": "d5a87a0f12214f34a16ccebd1e7419442da97d25",
+    "commit": "0a091ae0606306fa841570b01e0b59be4bf3d2d3",
     "path": "runtime.zip",
-    "sha256": "e51012214fe6f811b7efda148117f3e3a37c40808200262089906977789f1cf6",
-    "size": 10170358
+    "sha256": "f1a1c751190cfbb246b14b6ada72384a4c184c37f9c2af5cf5a094c7046d3384",
+    "size": 10174634
   }
 }
