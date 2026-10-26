@@ -204,14 +204,28 @@ fi
 
 # 更新而不是重装：lockfile 没变、node_modules 与它一致时 pnpm 只会做一次空校验，
 # 直接跳过；桌面版更新也是这个行为。只有依赖真的变化（或首次安装）才装。
+DEPS_CHECKED_BY_TREE=0
 deps_up_to_date() {
-  [ -f "${REPO_ROOT}/node_modules/.pnpm/lock.yaml" ] || return 1
-  cmp -s "${REPO_ROOT}/node_modules/.pnpm/lock.yaml" "${REPO_ROOT}/pnpm-lock.yaml" || return 1
+  if [ -f "${REPO_ROOT}/node_modules/.pnpm/lock.yaml" ]; then
+    cmp -s "${REPO_ROOT}/node_modules/.pnpm/lock.yaml" "${REPO_ROOT}/pnpm-lock.yaml" && return 0
+    return 1
+  fi
+  # 这份记录会被复制或中断的安装弄丢，旧版安装器也从没写过它（node_modules 完整却
+  # 每次重装 287 个包就卡在这里）。缺了不整批重装，改为按 lockfile 逐项核对
+  # node_modules 是否真的装到位：装全了跳过，少包或版本不符才装。
+  [ -d "${REPO_ROOT}/node_modules" ] || return 1
+  [ -f "${REPO_ROOT}/bin/dependency-tree-check.mjs" ] || return 1
+  node "${REPO_ROOT}/bin/dependency-tree-check.mjs" "${REPO_ROOT}" >/dev/null 2>&1 || return 1
+  DEPS_CHECKED_BY_TREE=1
   return 0
 }
 if [ "${DSH_TAVERN_FORCE_DEPENDENCIES:-0}" != 1 ] && deps_up_to_date; then
   stage "检查酒馆核心依赖"
-  info '依赖未变化（lockfile 未变），跳过安装'
+  if [ "${DEPS_CHECKED_BY_TREE}" = 1 ]; then
+    info 'node_modules/.pnpm/lock.yaml 缺失，已按 pnpm-lock.yaml 逐项核对：依赖齐全，跳过安装'
+  else
+    info '依赖未变化（lockfile 未变），跳过安装'
+  fi
 else
   stage "安装酒馆核心依赖（287 包；本地依赖缓存命中时通常 10-60s，需要联网补齐则取决于网速）"
   info "依赖目录：${REPO_ROOT}/node_modules"
