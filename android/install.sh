@@ -156,11 +156,12 @@ fi
 # 进度逐行追加：APK 日志框只追加新行，pnpm 默认的回车原地刷新在那里看起来像卡死。
 # 用配置项而不是命令行参数，避免污染包装函数传参顺序。
 export pnpm_config_reporter=append-only
+# 慢速移动网络保留 10 分钟超时，也允许调用方覆盖。pnpm 11 会把环境变量
+# 转为数字；--config.fetchTimeout 会保留字符串，传给 AbortSignal.timeout 后报错。
+# 导出后，配置阶段派生的 pnpm 也使用同一设置，不污染 config 子命令的参数。
+export pnpm_config_fetch_timeout="${pnpm_config_fetch_timeout:-600000}"
 pnpm() {
-  # 慢速移动网络下载大包会撞上 pnpm 单请求 60 秒默认超时（日志 error (23)）；
-  # 提高到 10 分钟，避免一次超时就丢掉整轮安装。可用同名环境变量覆盖。
-  "${PNPM_COMMAND}" --config.update-notifier=false \
-    --config.fetchTimeout="${pnpm_config_fetch_timeout:-600000}" "$@"
+  "${PNPM_COMMAND}" --config.update-notifier=false "$@"
 }
 # 缓存命中时先跑一遍（秒级完成）；缺什么补什么，而不是直接放弃。
 # 这里不能再传 --offline：pnpm 11 在 “Verifying lockfile against supply-chain
