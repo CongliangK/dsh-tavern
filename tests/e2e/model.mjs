@@ -17,6 +17,10 @@ export function apply(ctx) {
       if (process.env.TAVERN_E2E_SETTLEMENT_DUMP && JSON.stringify(input.messages || []).includes('任务类型：状态结算')) {
         await appendFile(process.env.TAVERN_E2E_SETTLEMENT_DUMP, JSON.stringify({ system: input.system, tools: (input.tools || []).map(tool => tool.name), messages: input.messages }) + '\n')
       }
+      // Every background request (settlement, posture, candidates) verbatim.
+      if (process.env.TAVERN_E2E_BACKGROUND_DUMP && (tools.has('posture_submit') || tools.has('mvu_submit_update') || tools.has('candidate_submit_choices'))) {
+        await appendFile(process.env.TAVERN_E2E_BACKGROUND_DUMP, JSON.stringify({ at: Date.now(), system: input.system, tools: [...tools], messages: input.messages }) + '\n')
+      }
       if (process.env.TAVERN_E2E_MEMORY_AUDIT) {
         await appendFile(process.env.TAVERN_E2E_MEMORY_AUDIT, JSON.stringify({ system: input.system, messages: input.messages, tools: input.tools }) + '\n')
         if (tools.has('tavern_memory_search')) {
