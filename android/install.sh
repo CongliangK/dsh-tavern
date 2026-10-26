@@ -235,7 +235,11 @@ if [ "${DSH_TAVERN_FORCE_DEPENDENCIES:-0}" != 1 ] && deps_up_to_date; then
 else
   stage "安装酒馆核心依赖（287 包；本地依赖缓存命中时通常 10-60s，需要联网补齐则取决于网速）"
   info "依赖目录：${REPO_ROOT}/node_modules"
-  pnpm_install --dir "${REPO_ROOT}" install --frozen-lockfile
+  # 桌面端两条安装器都带 --config.minimum-release-age=0；安卓这边缺了它，pnpm 11
+  # 就会跑 “Verifying lockfile against supply-chain policies”，逐包去registry 要
+  # metadata——store 里明明有包（复用 286、下载 0），却会因为新包 undici 的 metadata
+  # 没缓存而整轮失败，日志就停在同一串计数上。
+  pnpm_install --dir "${REPO_ROOT}" install --frozen-lockfile --config.minimum-release-age=0
   info "核心依赖完成，node_modules：$(du -sh "${REPO_ROOT}/node_modules" 2>/dev/null | cut -f1)"
 fi
 
