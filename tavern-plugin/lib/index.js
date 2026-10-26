@@ -2182,7 +2182,8 @@ export async function apply(ctx) {
     },
     ensureSession: async sessionId => {
       if (!agentRegistry.get(sessionId)?.session) await agentRegistry.resume({ resumeSessionId: sessionId })
-    }
+    },
+    replaceLedger: input => pluginApi.replaceLedger(input)
   })
   const manualCharacterDesign = createManualCharacterDesign({
     publishWorldbook: publishCharacterDesign,

@@ -7,7 +7,7 @@ import { normalizeGameSettings, coerceSetting, settingValues } from './domain/pl
 // The public `tavern` service for third-party DSH plugins (docs/plugin-api.md).
 // Only additive changes are allowed here: published plugins depend on every
 // name and field. Internals are reached through `deps`, never exposed.
-export const TAVERN_PLUGIN_API_VERSION = 5
+export const TAVERN_PLUGIN_API_VERSION = 6
 const TRACKER = Symbol.for('cordis.tracker')
 const SECTION_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const MAX_SECTION_TEXT = 8000
@@ -123,7 +123,8 @@ export function createTavernPluginApi(deps) {
   const handlers = new Map()
   const candidateSections = new Map()
   const compactionSections = new Map()
-  const replacements = { settlement: new Map() }
+  const replacements = { settlement: new Map(), ledger: new Map() }
+  const ledgerRuns = new Map()  // gameId → AbortController of a running ledger replacement
   const settlementTasks = new Map()
   const manualTasks = new Map()
   const toolScopes = new Map()
@@ -861,6 +862,13 @@ export function createTavernPluginApi(deps) {
       return register.call(this, replacements.settlement, owner, { owner, settle }, 'tavern.replaceSettlement()', '本插件已经注册了结算替换')
     },
 
+    // Take over the player's manual ledger consolidation (第 6 版); Tavern still applies the delta.
+    replaceLedger({ consolidate } = {}) {
+      const owner = ownerOf(this)
+      if (typeof consolidate !== 'function') throw new TypeError('consolidate 必须是函数')
+      return register.call(this, replacements.ledger, owner, { owner, consolidate }, 'tavern.replaceLedger()', '本插件已经注册了台账整理替换')
+    },
+
     // Browser halves call their own host half through tavernUi.callHost(name, args).
     handle(name, handler) {
       const owner = ownerOf(this)
@@ -1077,6 +1085,41 @@ export function createTavernPluginApi(deps) {
     } finally {
       finish?.()
     }
+  }
+
+  /**
+   * Seam: run the ledger replacement, if any. Returns { owner, delta } for Tavern to apply,
+   * or null so Tavern consolidates by itself (no replacement, it declined, or it failed).
+   * `apply(delta)` validates without saving and throws on a bad delta.
+   */
+  async function replaceLedger(input) {
+    const entry = await replacementFor('ledger', input.gameId)
+    if (!entry) return null
+    const controller = new AbortController()
+    ledgerRuns.set(input.gameId, controller)
+    const finish = input.onStart?.(entry.owner)
+    try {
+      const fields = structuredClone({ gameId: input.gameId, from: input.from, through: input.through, text: input.text, ledger: input.ledger, rules: input.rules, tool: input.tool })
+      const value = await bounded(untilAborted(entry.consolidate({ ...fields, signal: controller.signal }), controller.signal), '台账整理替换', REPLACEMENT_TIMEOUT_MS)
+      if (value === null) return null
+      if (!value || typeof value !== 'object' || Array.isArray(value) || !value.delta || typeof value.delta !== 'object' || Array.isArray(value.delta)) throw new Error('consolidate 必须返回 { delta } 或 null')
+      input.apply(value.delta)
+      return { owner: entry.owner, delta: structuredClone(value.delta) }
+    } catch (error) {
+      // The player stopped the background: stop, do not fall back to Tavern's own.
+      if (controller.signal.aborted) throw controller.signal.reason
+      recordError(input.gameId, entry.owner, '台账整理替换（已改用 Tavern 自己的整理）', error)
+      return null
+    } finally {
+      if (ledgerRuns.get(input.gameId) === controller) ledgerRuns.delete(input.gameId)
+      finish?.()
+    }
+  }
+
+  function stopAllTasks(gameId) {
+    const ledger = ledgerRuns.get(gameId)
+    ledger?.abort(new Error('玩家停止了台账整理'))
+    return stopTasks(gameId) || Boolean(ledger)
   }
 
   /** A game's manual plugin tasks and the options plugins add to its settings. */
@@ -1319,6 +1362,6 @@ export function createTavernPluginApi(deps) {
   }
 
   return Object.freeze({ service, mvuProvider, mvuProviderActive, mvuProviderRegistered, capabilities, toolModesFor, toolNetworkFor: name => toolNetworks.get(name)?.capability, callHandler, turnState, exportGame, importGame, turnSettled, castAnnotated, castAssetSources, gameRemoved, mediaRemoved,
-    speechProviders: () => Array.from(speechProviders.values()), timelineChanged, checkVersions, pluginState, cardChanged, cardImporterFor, convertCard, cardImported, gameForked, forkTurns, promptSections, turnContext, worldbookPoolEntries, settlement, candidate, compactionNotes, replaceSettlement,
-    runSettlementTasks, manualTaskFor, runManualTask, stopTasks, runningTask, gamePlugins, setGamePlugin, pluginGameSettings })
+    speechProviders: () => Array.from(speechProviders.values()), timelineChanged, checkVersions, pluginState, cardChanged, cardImporterFor, convertCard, cardImported, gameForked, forkTurns, promptSections, turnContext, worldbookPoolEntries, settlement, candidate, compactionNotes, replaceSettlement, replaceLedger,
+    runSettlementTasks, manualTaskFor, runManualTask, stopTasks: stopAllTasks, runningTask, gamePlugins, setGamePlugin, pluginGameSettings })
 }
