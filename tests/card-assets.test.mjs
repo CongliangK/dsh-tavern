@@ -146,7 +146,7 @@ test('素材配额按唯一地址计算；超限拒绝导入导出，缺失的�
 test('CHARX 导出拒绝生成超过导入解压容量的文件', () => {
   const bytes = Buffer.alloc(8 * 1024 * 1024)
   const characters = Array.from({ length: 20 }, (_, i) => ({ name: '角色' + i, sprites: { joy: i + '.png' } }))
-  assert.throws(() => buildCharx({ document: { data: {} }, manifest: { characters }, readFile: () => bytes }), /解压后内容超过 150 MB/)
+  assert.throws(() => buildCharx({ document: { data: {} }, manifest: { characters }, readFile: () => bytes }), /解压后 [0-9]+ MB，超过 150 MB/)
 })
 
 // 随卡参考音频 (cast-presentation.md 22/N): a clip is audio by its bytes plus what it says; the card file carries both.

@@ -77,5 +77,5 @@ test('一局几十兆的存档也打得进导出包：不再被通用 ZIP 的 50
 test('仍超出自带上限时报出实际大小，并给出分次导出的做法', () => {
   const { manifest, files } = sampleBundle()
   assert.throws(() => packTransferBundle({ manifest, files, maxArchiveBytes: 64 }),
-    /导出包超过 0 MB，请取消一部分板块后分两次导出/)
+    /导出包有 [0-9]+ MB，超过 0 MB，请取消一部分板块后分两次导出/)
 })
