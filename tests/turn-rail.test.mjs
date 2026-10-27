@@ -106,3 +106,15 @@ test('行的高度晚到或新刻度补上来，合并到下一次同步', async
   assert.deepEqual(tickTurns(document), [1, 2], '展开后第 2 轮补上刻度')
   filter.dispose()
 })
+
+test('目录里说不出内容的轮次不出刻度（预览也不会为空）', t => {
+  const { dom, document, scope, create } = rail([1, 2, 3, 4], { rows: [[1, 120], [2, 30], [3, 0], [4, 60]], unloaded: [4] })
+  t.after(() => dom.window.close())
+  const filter = create(scope)
+  // 目录说：1、3 有正文；2 只有系统消息；4 是空的尝试轮。
+  filter.apply({ text: new Set([1, 3]) })
+  assert.deepEqual(tickTurns(document), [1], '第 2 轮有行但目录里没内容；第 3 轮目录有内容却没画出来；第 4 轮目录是空的')
+  filter.apply({ text: new Set([1, 2, 3, 4]) })
+  assert.deepEqual(tickTurns(document), [1, 2, 4], '目录都说有内容时，按行高和加载状态来')
+  filter.dispose()
+})

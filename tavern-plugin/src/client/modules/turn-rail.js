@@ -13,7 +13,7 @@ function createTurnRailFilter(root, options) {
 	const label = (options && options.label) || "轮次导航";
 	const jumpLabel = (options && options.jumpLabel) || "跳转到第 {turn} 轮";
 	const narrow = (options && options.narrow) || 900;
-	let rail = null, frame = 0, allowed = null, accept = null, turnsKey = "";
+	let rail = null, frame = 0, allowed = null, accept = null, textTurns = null, turnsKey = "";
 	const ticks = new Map();
 	function turnOf(mark) {
 		const match = /第\s*(\d+)\s*轮/.exec(mark.getAttribute("aria-label") || "");
@@ -47,6 +47,13 @@ function createTurnRailFilter(root, options) {
 	function defaultAccept(turn, mark, visible) {
 		// 当前所在的那一轮永远留着：读者要能看见自己在第几轮。
 		if (mark.getAttribute("aria-current") === "true") return true;
+		// 目录里说得出这一轮写了什么的才留：目录两样都空的轮次（只剩系统消息、工具行、
+		// 被清空的尝试）没有正文可落，悬浮预览也是空的。
+		if (textTurns !== null) {
+			if (!textTurns.has(turn)) return false;
+			if (/markUnloaded/.test(String(mark.className || ""))) return true;
+			return visible.has(turn);
+		}
 		if (/markUnloaded/.test(String(mark.className || ""))) return true;
 		return visible.has(turn);
 	}
@@ -121,14 +128,17 @@ function createTurnRailFilter(root, options) {
 			place();
 		}
 	}
-	// 接受三种输入：轮次数组、按轮次判定的函数、或者什么都不给（用默认规则）。
+	// 接受轮次数组、判定函数，或者 { text: Set }（目录里写得出正文的轮次，默认规则的依据）。
 	function apply(turns) {
-		if (typeof turns === "function") { accept = turns; allowed = null; sync(); return; }
 		accept = null;
 		allowed = null;
-		if (Array.isArray(turns) && turns.length) {
-			const list = [...new Set(turns.map(Number).filter(turn => Number.isSafeInteger(turn) && turn > 0))].sort((left, right) => left - right);
-			allowed = new Set(list);
+		textTurns = null;
+		if (typeof turns === "function") accept = turns;
+		else if (turns && !Array.isArray(turns) && typeof turns === "object") {
+			if (turns.text && typeof turns.text.has === "function") textTurns = turns.text;
+			else if (Array.isArray(turns.turns) && turns.turns.length) allowed = new Set(turns.turns.map(Number));
+		} else if (Array.isArray(turns) && turns.length) {
+			allowed = new Set(turns.map(Number).filter(turn => Number.isSafeInteger(turn) && turn > 0));
 		}
 		sync();
 	}
@@ -151,7 +161,7 @@ function createTurnRailFilter(root, options) {
 			if (frame) { host.clearTimeout(frame); frame = 0; }
 			for (const mark of Array.from(scope.querySelectorAll("[" + hiddenAttribute + "]"))) mark.removeAttribute(hiddenAttribute);
 			if (rail) rail.remove();
-			rail = null; ticks.clear(); allowed = null; accept = null; turnsKey = "";
+			rail = null; ticks.clear(); allowed = null; accept = null; textTurns = null; turnsKey = "";
 		}
 	};
 }
