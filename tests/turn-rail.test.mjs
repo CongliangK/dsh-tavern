@@ -1,4 +1,4 @@
-// 轮次导航的客户端重画（modules/turn-rail.js）：收起宿主那列，按 railTurns 另画等距刻度。
+// 轮次导航的客户端重画（modules/turn-rail.js）：收起宿主那列，按「点了能落到正文上」另画等距刻度。
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -7,13 +7,17 @@ import { JSDOM } from 'jsdom'
 
 const source = readFileSync(new URL('../tavern-plugin/src/client/modules/turn-rail.js', import.meta.url), 'utf8')
 
-// 宿主结构：会话滚动区 → nav（宿主那列）→ 每个轮次一个带 aria-label 的刻度按钮。
+// 宿主结构：会话滚动区 → nav（宿主那列）→ 每个轮次一个刻度按钮；正文行带 data-chat-turn。
+// rows: [[turn, height]]，height 0 就是被折叠/清空、点了只剩空气的那种。
 function rail(turns, options = {}) {
-  const marks = turns.map(turn => `<button class="_9dNBWq_mark" aria-label="跳转到第 ${turn} 轮">${turn}</button>`).join('')
-  const dom = new JSDOM(`<body><div data-conversation-scroll><div class="_9dNBWq_marks"><nav aria-label="轮次导航">${marks}</nav></div></div></body>`, { pretendToBeVisual: true })
+  const unloaded = options.unloaded || []
+  const marks = turns.map(turn => `<button class="_9dNBWq_mark${unloaded.includes(turn) ? ' _9dNBWq_markUnloaded' : ''}" aria-label="${unloaded.includes(turn) ? '加载并跳转到' : '跳转到'}第 ${turn} 轮">${turn}</button>`).join('')
+  const rows = (options.rows || []).map(([turn]) => `<div data-chat-turn="${turn}" data-row="${turn}"></div>`).join('')
+  const dom = new JSDOM(`<body><div data-conversation-scroll><div class="_9dNBWq_marks"><nav aria-label="轮次导航">${marks}</nav></div><div data-chat-flow>${rows}</div></div></body>`, { pretendToBeVisual: true })
   const scope = dom.window.document.querySelector('[data-conversation-scroll]')
   const box = { left: 20, right: options.narrow ? 700 : 1200, top: 40, bottom: 640, width: options.narrow ? 680 : 1180, height: 600 }
   scope.getBoundingClientRect = () => box
+  for (const [turn, height] of options.rows || []) measure(scope.querySelector('[data-row="' + turn + '"]'), height)
   const clicked = []
   for (const mark of scope.querySelectorAll('._9dNBWq_mark')) mark.addEventListener('click', () => clicked.push(Number(mark.textContent)))
   const context = vm.createContext({ window: dom.window, document: dom.window.document })
@@ -21,73 +25,84 @@ function rail(turns, options = {}) {
   return { dom, document: dom.window.document, scope, clicked, create: context.createTurnRailFilter }
 }
 
+// jsdom 没有布局：按给定高度给行装一个矩形。
+function measure(row, height) {
+  row.getBoundingClientRect = () => ({ height, width: 400, top: 0, bottom: height, left: 0, right: 400 })
+}
+
 const hostHidden = document => document.querySelector('nav[data-dsh-tavern-rail-hidden]') !== null
 const tickTurns = document => [...document.querySelectorAll('.dsh-tavern-turn-rail [data-turn]')].map(node => Number(node.getAttribute('data-turn')))
 
-test('收起宿主那列，按 railTurns 另画等距刻度', t => {
-  const { dom, document, create } = rail([1, 2, 3, 4])
+test('只给点了能落到正文上的轮次画刻度', t => {
+  const { dom, document, scope, create } = rail([1, 2, 3, 4], { rows: [[1, 120], [2, 0], [3, 40], [4, 0]] })
   t.after(() => dom.window.close())
-  const railFilter = create(document.querySelector('[data-conversation-scroll]'))
-  railFilter.apply([1, 3])
-  assert.ok(hostHidden(document), '宿主那列（含重试的空轮）不再显示')
-  assert.deepEqual(tickTurns(document), [1, 3])
+  const filter = create(scope)
+  filter.apply()
+  assert.ok(hostHidden(document), '宿主那列收起来（含重试的空轮）')
+  assert.deepEqual(tickTurns(document), [1, 3], '零高度的尝试轮不再占刻度')
+  assert.equal(document.querySelector('.dsh-tavern-turn-rail').getAttribute('aria-label'), '轮次导航')
   assert.equal(document.querySelectorAll('.dsh-tavern-turn-rail').length, 1, '只画一列')
-  railFilter.apply([1, 2, 3, 4])
-  assert.deepEqual(tickTurns(document), [1, 2, 3, 4], '视图说都还有内容就全部列出')
-  railFilter.dispose()
+  filter.dispose()
   assert.equal(hostHidden(document), false, '卸载后宿主那列回来')
   assert.equal(document.querySelector('.dsh-tavern-turn-rail'), null)
 })
 
-test('点我们的刻度走宿主原来的按钮，当前轮镜像宿主的 aria-current', t => {
-  const { dom, document, create, clicked } = rail([1, 2, 3])
+test('还没加载的轮次照列：点了会先拉历史再跳', t => {
+  const { dom, document, scope, create } = rail([1, 2, 3], { rows: [[1, 80], [2, 0], [3, 0]], unloaded: [3] })
   t.after(() => dom.window.close())
-  const railFilter = create(document.querySelector('[data-conversation-scroll]'))
-  railFilter.apply([2, 3])
-  const active = document.querySelector('._9dNBWq_mark[aria-label="跳转到第 3 轮"]')
-  active.setAttribute('aria-current', 'true')
-  railFilter.sync()
-  assert.deepEqual([...document.querySelectorAll('.dsh-tavern-turn-rail [data-active]')].map(node => node.getAttribute('data-turn')), ['3'])
-  document.querySelector('.dsh-tavern-turn-rail [data-turn="2"]').click()
-  assert.deepEqual(clicked, [2], '委托给宿主刻度，加载历史与跳转逻辑不变')
-  railFilter.dispose()
+  const filter = create(scope)
+  filter.apply()
+  assert.deepEqual(tickTurns(document), [1, 3])
+  filter.dispose()
 })
 
-test('视图没有 railTurns（旧服务端）时列出宿主全部轮次，不凭空藏', t => {
-  const { dom, document, create } = rail([1, 2])
+test('点我们的刻度走宿主原来的按钮，当前轮镜像宿主的 aria-current', t => {
+  const { dom, document, scope, create, clicked } = rail([1, 2, 3], { rows: [[1, 60], [2, 60], [3, 60]] })
   t.after(() => dom.window.close())
-  const railFilter = create(document.querySelector('[data-conversation-scroll]'))
-  railFilter.apply(null)
-  assert.deepEqual(tickTurns(document), [1, 2], '旧服务端没有这一栏：照列，不筛')
-  railFilter.apply([])
-  assert.deepEqual(tickTurns(document), [1, 2], '空表也当还没拿到（会话刚打开），不凭空藏')
-  railFilter.dispose()
+  const filter = create(scope)
+  filter.apply()
+  const hostMark = document.querySelector('._9dNBWq_mark[aria-label="跳转到第 3 轮"]')
+  hostMark.setAttribute('aria-current', 'true')
+  filter.sync()
+  assert.deepEqual([...document.querySelectorAll('.dsh-tavern-turn-rail [data-active]')].map(node => node.getAttribute('data-turn')), ['3'])
+  document.querySelector('.dsh-tavern-turn-rail [data-turn="2"]').click()
+  assert.deepEqual(clicked, [2], '委托给宿主刻度：加载历史与跳转逻辑不变')
+  filter.dispose()
 })
 
 test('窄容器里跟宿主一样不出刻度', t => {
-  const { dom, document, create } = rail([1, 2], { narrow: true })
+  const { dom, document, scope, create } = rail([1, 2], { narrow: true, rows: [[1, 60], [2, 60]] })
   t.after(() => dom.window.close())
-  const railFilter = create(document.querySelector('[data-conversation-scroll]'))
-  railFilter.apply([1, 2])
-  const nav = document.querySelector('.dsh-tavern-turn-rail')
-  assert.equal(nav.hidden, true)
-  railFilter.dispose()
+  const filter = create(scope)
+  filter.apply()
+  assert.equal(document.querySelector('.dsh-tavern-turn-rail').hidden, true)
+  filter.dispose()
 })
 
-test('宿主重渲染后补上的刻度在下一帧进同一列', async t => {
-  const { dom, document, create } = rail([1])
+test('也能按显式轮次表或判定函数收窄', t => {
+  const { dom, document, scope, create } = rail([1, 2, 3, 4], { rows: [[1, 60], [2, 60], [3, 60], [4, 60]] })
   t.after(() => dom.window.close())
-  const railFilter = create(document.querySelector('[data-conversation-scroll]'))
-  railFilter.apply([1, 2])
-  assert.deepEqual(tickTurns(document), [1], '宿主还没有第 2 轮的刻度')
-  const extra = document.createElement('button')
-  extra.className = '_9dNBWq_mark'
-  extra.setAttribute('aria-label', '跳转到第 2 轮')
-  extra.textContent = '2'
-  document.querySelector('nav').appendChild(extra)
-  await new Promise(resolve => dom.window.requestAnimationFrame(() => resolve(null)))
-  await new Promise(resolve => dom.window.requestAnimationFrame(() => resolve(null)))
-  assert.deepEqual(tickTurns(document), [1, 2])
-  assert.ok(hostHidden(document), '重新渲染出来的宿主列仍然收起')
-  railFilter.dispose()
+  const filter = create(scope)
+  filter.apply([2, 4])
+  assert.deepEqual(tickTurns(document), [2, 4])
+  filter.apply(turn => turn !== 3)
+  assert.deepEqual(tickTurns(document), [1, 2, 4])
+  filter.apply()
+  assert.deepEqual(tickTurns(document), [1, 2, 3, 4], '不给参数回到默认规则')
+  filter.dispose()
+})
+
+test('行的高度晚到或新刻度补上来，合并到下一次同步', async t => {
+  const { dom, document, scope, create } = rail([1, 2], { rows: [[1, 60], [2, 0]] })
+  t.after(() => dom.window.close())
+  const filter = create(scope)
+  filter.apply()
+  assert.deepEqual(tickTurns(document), [1])
+  const row = scope.querySelector('[data-row="2"]')
+  filter.sync()
+  measure(row, 90)
+  row.setAttribute('class', 'is-open')
+  await new Promise(resolve => dom.window.setTimeout(resolve, 260))
+  assert.deepEqual(tickTurns(document), [1, 2], '展开后第 2 轮补上刻度')
+  filter.dispose()
 })

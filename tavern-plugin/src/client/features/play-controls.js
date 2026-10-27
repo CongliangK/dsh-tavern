@@ -1009,23 +1009,14 @@
 			const replayTurn = state.view && state.view.canReplayFailedTurn ? Number(state.view.replayFailedTurn) || null : null;
 			const staleTurns = state.view && state.view.staleDshErrorTurns || [];
 			const filteredStreak = Number(state.view && state.view.filteredFailureStreak) || 0;
-			// 正文表面里还有内容的轮次：右侧「轮次导航」只留这几根刻度（重试留下的空轮不算）。
-			const railTurns = state.view && Array.isArray(state.view.railTurns) ? state.view.railTurns : null;
-			// 会话刚打开时视图里还没有这一栏（表面尚未挂上），一次性地重读视图把它取回来。
-			const railRetried = React.useRef("");
-			const railReady = Array.isArray(railTurns) && railTurns.length > 0;
-			React.useEffect(function () {
-				if (railReady || railRetried.current === props.sessionId) return;
-				railRetried.current = props.sessionId;
-				const timer = window.setTimeout(function () { liveTavernView.invalidate(props.sessionId); }, 800);
-				return function () { window.clearTimeout(timer); };
-			}, [props.sessionId, railReady]);
+			// 右侧「轮次导航」只留点了能落到正文上的轮次：判定在 modules/turn-rail.js 里，
+			// 按宿主画出来的行高和加载状态筛，重试留下的空轮不再占刻度。
 			const canRewind = !!(state.view && state.view.canRegenerate === true);
 			const draft = props.useInput(snapshot => snapshot.draft);
 			const draftRef = React.useRef(draft);
 			draftRef.current = draft;
 			const revision = turns.join(",") + ":" + (Array.isArray(hiddenTurns) ? "saved:" + hiddenTurns.join(",") : "local") + ":" + String(replayTurn || "")
-				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind + ":rail:" + (railTurns === null ? "unknown" : railTurns.join(","));
+				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind;
 			// Clearing a failed tail is the first half of both recovery actions.
 			async function clearFailedTail() {
 				const result = await rpc("rollbackTurn", { expectedTurn: null }, props.sessionId);
@@ -1078,7 +1069,7 @@
                     },
                     onError: function (error) { tavernErrorHub.report("保存错误提示状态失败", error); }
                 });
-				const apply = function () { projection.apply(turns); controls.apply(); rail.apply(railTurns); };
+				const apply = function () { projection.apply(turns); controls.apply(); rail.apply(); };
 				apply();
 				const observer = observeTurnErrorProjection(root, apply);
 				return function () { observer.disconnect(); controls.dispose(); projection.dispose(); rail.dispose(); };

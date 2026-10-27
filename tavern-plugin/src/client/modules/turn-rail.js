@@ -13,7 +13,7 @@ function createTurnRailFilter(root, options) {
 	const label = (options && options.label) || "轮次导航";
 	const jumpLabel = (options && options.jumpLabel) || "跳转到第 {turn} 轮";
 	const narrow = (options && options.narrow) || 900;
-	let rail = null, frame = 0, allowed = null, turnsKey = "";
+	let rail = null, frame = 0, allowed = null, accept = null, turnsKey = "";
 	const ticks = new Map();
 	function turnOf(mark) {
 		const match = /第\s*(\d+)\s*轮/.exec(mark.getAttribute("aria-label") || "");
@@ -32,6 +32,24 @@ function createTurnRailFilter(root, options) {
 			if (on && typeof host.FocusEvent === "function") mark.dispatchEvent(new host.FocusEvent("focusin", { bubbles: true }));
 		} catch (error) { /* 预览只是锦上添花，宿主改结构时不能挡住跳转 */ }
 	}
+	// 宿主那一列的条目也来自整档目录，里面混着已经被清空的尝试轮。默认规则只认两类：
+	// 正文里真的画出来的轮次（有高度的行），以及还没加载、点了会先拉历史的轮次。
+	// 「只上划一小段」的正是前者里的反例——有行、行是零高度，点过去只剩空气。
+	function visibleTurns() {
+		const visible = new Set();
+		for (const row of scope.querySelectorAll("[data-chat-turn], [data-turn]")) {
+			const turn = Number(row.getAttribute("data-chat-turn") || row.getAttribute("data-turn"));
+			if (!Number.isSafeInteger(turn) || turn <= 0) continue;
+			if (row.getBoundingClientRect().height > 0) visible.add(turn);
+		}
+		return visible;
+	}
+	function defaultAccept(turn, mark, visible) {
+		// 当前所在的那一轮永远留着：读者要能看见自己在第几轮。
+		if (mark.getAttribute("aria-current") === "true") return true;
+		if (/markUnloaded/.test(String(mark.className || ""))) return true;
+		return visible.has(turn);
+	}
 	function build(turns, marks) {
 		const box = doc.createElement("nav");
 		box.className = "dsh-tavern-turn-rail";
@@ -42,6 +60,7 @@ function createTurnRailFilter(root, options) {
 			if (!mark) continue;
 			const button = doc.createElement("button");
 			button.type = "button";
+			button.setAttribute("data-mark-kind", /markUnloaded/.test(String(mark.className || "")) ? "unloaded" : "loaded");
 			button.className = "dsh-tavern-turn-rail-tick";
 			button.setAttribute("aria-label", jumpLabel.replace("{turn}", String(turn)));
 			button.setAttribute("data-turn", String(turn));
@@ -75,18 +94,21 @@ function createTurnRailFilter(root, options) {
 		rail.style.right = Math.max(0, Math.round(host.innerWidth - rect.right)) + 12 + "px";
 		rail.style.top = Math.round(rect.top + rect.height / 2) + "px";
 	}
+	// 行高会随折叠/流式变化，逐帧重扫整份正文太贵：合并到 120ms 一次。
 	function schedule() {
 		if (frame) return;
-		const next = function () { frame = 0; sync(); };
-		frame = host.requestAnimationFrame ? host.requestAnimationFrame(next) : host.setTimeout(next, 16);
+		frame = host.setTimeout(function () { frame = 0; sync(); }, 120);
 	}
 	function sync() {
-		if (frame) { host.cancelAnimationFrame ? host.cancelAnimationFrame(frame) : host.clearTimeout(frame); frame = 0; }
+		if (frame) { host.clearTimeout(frame); frame = 0; }
 		const marks = hostMarks();
 		const hostNav = marks.length ? marks[0].closest("nav") : null;
 		if (hostNav) hostNav.setAttribute(hiddenAttribute, "");
-		const present = marks.map(turnOf);
-		const turns = allowed === null ? present : present.filter(turn => allowed.has(turn));
+		const pairs = marks.map(mark => ({ mark, turn: turnOf(mark) }));
+		const visible = accept !== null || allowed !== null ? null : visibleTurns();
+		const turns = pairs
+			.filter(pair => accept !== null ? accept(pair.turn) : allowed !== null ? allowed.has(pair.turn) : defaultAccept(pair.turn, pair.mark, visible))
+			.map(pair => pair.turn);
 		const key = turns.join(",");
 		if (key !== turnsKey) {
 			turnsKey = key;
@@ -99,15 +121,19 @@ function createTurnRailFilter(root, options) {
 			place();
 		}
 	}
-	// 视图里没有这一栏、或者还是空表（会话刚打开、表面还没挂上）时不筛：宁可多几根刻度，
-	// 也不要凭空藏掉能跳的轮次。真正的筛选等视图给出非空的 railTurns 再开始。
+	// 接受三种输入：轮次数组、按轮次判定的函数、或者什么都不给（用默认规则）。
 	function apply(turns) {
-		const list = Array.isArray(turns) ? [...new Set(turns.map(Number).filter(turn => Number.isSafeInteger(turn) && turn > 0))].sort((left, right) => left - right) : [];
-		allowed = list.length ? new Set(list) : null;
+		if (typeof turns === "function") { accept = turns; allowed = null; sync(); return; }
+		accept = null;
+		allowed = null;
+		if (Array.isArray(turns) && turns.length) {
+			const list = [...new Set(turns.map(Number).filter(turn => Number.isSafeInteger(turn) && turn > 0))].sort((left, right) => left - right);
+			allowed = new Set(list);
+		}
 		sync();
 	}
 	const observer = typeof host.MutationObserver === "function" ? new host.MutationObserver(schedule) : null;
-	if (observer) observer.observe(scope, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-label", "aria-current"] });
+	if (observer) observer.observe(scope, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-label", "aria-current", "class", "style"] });
 	const resize = typeof host.ResizeObserver === "function" ? new host.ResizeObserver(schedule) : null;
 	if (resize) resize.observe(scope);
 	const onScroll = function () { schedule(); };
@@ -119,12 +145,13 @@ function createTurnRailFilter(root, options) {
 		dispose: function () {
 			if (observer) observer.disconnect();
 			if (resize) resize.disconnect();
+			if (frame) { host.clearTimeout(frame); frame = 0; }
 			host.removeEventListener("scroll", onScroll, true);
 			host.removeEventListener("resize", onScroll);
-			if (frame) { host.cancelAnimationFrame ? host.cancelAnimationFrame(frame) : host.clearTimeout(frame); frame = 0; }
+			if (frame) { host.clearTimeout(frame); frame = 0; }
 			for (const mark of Array.from(scope.querySelectorAll("[" + hiddenAttribute + "]"))) mark.removeAttribute(hiddenAttribute);
 			if (rail) rail.remove();
-			rail = null; ticks.clear(); allowed = null; turnsKey = "";
+			rail = null; ticks.clear(); allowed = null; accept = null; turnsKey = "";
 		}
 	};
 }
