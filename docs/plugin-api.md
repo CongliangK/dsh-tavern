@@ -34,12 +34,14 @@ DSH Tavern 把扩展功能交给第三方 **DSH 插件**：文生图、文生视
 ```json
 {
   "name": "dsh-tavern-xxx",
+  "version": "1.0.0",
   "type": "module",
   "exports": { ".": "./index.mjs", "./client": "./client.js" },
   "dsh": { "client": { "platform": "web", "inject": ["dsh-tavern-plugin"] } }
 }
 ```
 
+- `name` 和 `version` 必须是非空字符串（例如 `"version": "1.0.0"`）；`private: true` 也不能省略版本。DSH 会读取插件包身份，缺少版本可能使官方 DeepSeek 请求在发送前失败。
 - 宿主侧入口必须有（`exports` 的 `"."`，或 `main`）。只做界面的插件也要放一个空的 `index.mjs`（`export function apply() {}`）。
 - 没有浏览器侧时，去掉 `"./client"` 和整个 `dsh` 字段。
 - 插件名建议叫 `dsh-tavern-xxx`，方便用户辨认；不能和已安装的包同名（例如 `dsh-tavern-plugin`），否则会被跳过。
@@ -70,7 +72,9 @@ window.__ModuleLoader__.load({
 | 修改 `index.mjs` | 要重启 DSH |
 | 删除插件文件夹 | 宿主侧不再加载；刷新页面后浏览器侧消失 |
 
-Tavern 把 `plugins/` 下的插件登记在 DSH 的 Tavern 配置（`~/.dsh/profiles/tavern/cordis.patch.yml`）里，以 `tavern-user-plugin-` 开头的条目由 Tavern 自动维护，不要手改。插件文件夹缺 `package.json` 或宿主入口时会被跳过，原因写在 Tavern 日志里。Tavern 通过插件文件夹里自动生成的 `.tavern-entry.mjs` 加载宿主侧：插件代码有语法错误、导入失败或 `apply` 抛错时，只在日志里记一条「plugins/<文件夹> 加载失败 / 启动失败」，不会让 DSH 起不来。这个文件不要改，也不用提交到插件仓库。
+Tavern 把 `plugins/` 下的插件登记在 DSH 的 Tavern 配置（`~/.dsh/profiles/tavern/cordis.patch.yml`）里，以 `tavern-user-plugin-` 开头的条目由 Tavern 自动维护，不要手改。插件文件夹缺 `package.json`、有效的 `name` / `version` 或宿主入口时会被跳过，原因写在 Tavern 日志里。Tavern 通过插件文件夹里自动生成的 `.tavern-entry.mjs` 加载宿主侧：插件代码有语法错误、导入失败或 `apply` 抛错时，只在日志里记一条「plugins/<文件夹> 加载失败 / 启动失败」，不会让 DSH 起不来。这个文件不要改，也不用提交到插件仓库。
+
+升级后，已有但缺少有效 `name` / `version` 的插件会保留在磁盘上，但不再登记加载，插件管理和日志会说明原因。请补齐作者确认的版本，或安装作者修正后的插件 / 人物卡，再启用；旧卡暂存副本仍无效时需重新导入修正后的卡。不要为第三方插件随意编造版本。
 
 写好之后怎样发布，才能让别人在设置里一键安装，见[发布与一键安装](plugin-publishing.md)。
 

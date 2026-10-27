@@ -1122,7 +1122,7 @@
 <p>卡内插件就是普通的 DSH Tavern 插件，写法和接口与全局插件相同，见<a href="#plugin-api">插件开发：接口总览</a>。区别只在于它跟着卡走：</p>
 <ul><li>导入卡时随卡启用，不需要玩家另装；删除卡时一起卸载。</li><li>只在这张卡的局里生效：回调只对这张卡的局触发，带别的局的 <code>gameId</code> 调接口会被拒绝，浏览器侧注册的界面只在这张卡的局里出现。</li><li>在这张卡的局里，插件是这一局的一部分：总是启用。玩家要停用，就在卡片详情里整体停用。</li><li>Tavern 按插件 <code>package.json</code> 的 <code>name</code> 识别插件，同名而内容不同的插件同时只能启用一个：撞名时后导入的卡照常导入，但它的插件不会启用。所以插件名按约定写成 <code>dsh-card-&lt;卡标识&gt;-&lt;插件名&gt;</code>，例如大肥鱼的 <code>dsh-card-dafeiyu-galgame</code>；<code>dsh.json</code> 里的 <code>name</code> 写成同一个。</li></ul>
 <p>一个插件文件夹有三个文件：</p>
-<div class="table-wrap" tabindex="0" role="region" aria-label="说明表格"><table><thead><tr><th scope="col">文件</th><th scope="col">作用</th></tr></thead><tbody><tr><td><code>package.json</code></td><td><code>name</code> 是插件名（与 <code>dsh.json</code> 里的 <code>name</code> 相同），<code>exports</code> 指向宿主侧和浏览器侧入口</td></tr><tr><td><code>index.mjs</code></td><td>宿主侧：在 Tavern 进程里运行，可以读写每轮数据、参与后台结算</td></tr><tr><td><code>client.js</code></td><td>浏览器侧：画舞台、面板，由页面直接加载，不需要打包</td></tr></tbody></table></div>
+<div class="table-wrap" tabindex="0" role="region" aria-label="说明表格"><table><thead><tr><th scope="col">文件</th><th scope="col">作用</th></tr></thead><tbody><tr><td><code>package.json</code></td><td><code>name</code> 是插件名（与 <code>dsh.json</code> 里的 <code>name</code> 相同），<code>name</code>、<code>version</code> 必须是非空字符串（如 <code>&quot;version&quot;: &quot;1.0.0&quot;</code>，不同于 <code>card.version</code>），<code>exports</code> 指向宿主侧和浏览器侧入口</td></tr><tr><td><code>index.mjs</code></td><td>宿主侧：在 Tavern 进程里运行，可以读写每轮数据、参与后台结算</td></tr><tr><td><code>client.js</code></td><td>浏览器侧：画舞台、面板，由页面直接加载，不需要打包</td></tr></tbody></table></div>
 <p>示例卡的 <a href="https://github.com/flizzywine/dsh-tavern/tree/main/examples/dshcard-hello/plugin">plugin</a> 文件夹可以直接复制改。</p>
 <h3>常用写法</h3>
 <div class="table-wrap" tabindex="0" role="region" aria-label="说明表格"><table><thead><tr><th scope="col">想做的事</th><th scope="col">用哪些接口</th></tr></thead><tbody><tr><td>每轮按剧情做个判断（换场景、记氛围），不额外调用模型</td><td>宿主侧 <code>settlementSection</code> 告诉结算模型要做什么，<code>settlementTool</code> 接收结果</td></tr><tr><td>把每轮的结果存下来，回退、重新生成时自动对上正文</td><td><code>saveTurnData</code>、<code>readTurnData</code></td></tr><tr><td>浏览器侧读宿主侧的结果</td><td>宿主侧 <code>handle</code>，浏览器侧 <code>tavernUi.callHost</code></td></tr><tr><td>自己画舞台</td><td>浏览器侧 <code>tavernUi.registerStageView</code>；翻页、朗读、全屏由 Tavern 负责</td></tr><tr><td>新一轮结束后刷新画面</td><td>浏览器侧 <code>tavernUi.watchTurnState</code></td></tr><tr><td>播放背景音乐</td><td>浏览器侧 <code>tavernUi.playMusic</code>；玩家的静音开关由 Tavern 管</td></tr><tr><td>让正文头像跟着情绪换图</td><td>宿主侧 <code>castAssetSource</code></td></tr><tr><td>在本局设置里加选项</td><td>宿主侧 <code>gameSettings</code>、<code>getGameSettings</code>，浏览器侧 <code>tavernUi.watchGameSettings</code></td></tr><tr><td>读卡带的素材包</td><td><code>listCardPacks</code>、<code>readCardPackFile</code>，浏览器侧 <code>tavernUi.getCardPacks</code></td></tr></tbody></table></div>
@@ -1132,7 +1132,7 @@
 <h2 id="dshcard-guide--section-9">打包与调试</h2>
 <ol><li>把文件按「一张卡里有什么」的结构放好，打成 ZIP，后缀改成 <code>.dshcard</code>。</li><li>在 Tavern 的人物卡库「导入人物卡」，选这个文件。导入完成后刷新页面，插件的浏览器侧才会加载。</li><li>用这张卡开一局，确认舞台、立绘、插件的效果。</li><li>改了插件：在卡片详情删掉这张卡，重新打包导入；或者开发时直接改 Tavern 数据目录 <code>plugins/</code> 下这张卡的插件文件夹，刷新页面即可看到浏览器侧的改动，宿主侧的改动要重启 Tavern。</li><li>插件加载或运行出错时，Tavern 日志里有「插件 … 加载失败 / 出错」的记录；结算里的错误也会显示在本局设置。</li></ol>
 <p>导入时常见的提示：</p>
-<div class="table-wrap" tabindex="0" role="region" aria-label="说明表格"><table><thead><tr><th scope="col">提示</th><th scope="col">原因</th></tr></thead><tbody><tr><td>dsh.json 的 format 不是 dshcard</td><td><code>format</code> 写错或缺失</td></tr><tr><td>格式版本较新，请先更新 Tavern</td><td><code>formatVersion</code> 大于 1</td></tr><tr><td>素材包路径应为 assets/&lt;包名&gt;/</td><td><code>packs[].path</code> 不是一层目录，或包名是保留名</td></tr><tr><td>插件路径应为 plugins/&lt;文件夹&gt;/</td><td>插件文件夹名只能用小写字母、数字、点、下划线、连字符</td></tr><tr><td>插件 … 缺少可读的 package.json / 没有 name</td><td>插件文件夹里的 <code>package.json</code> 缺失或没写 <code>name</code></td></tr><tr><td>已经有同名插件 … 在用</td><td>另一张卡或全局插件用了同样的插件名；卡已导入，插件没有启用</td></tr><tr><td>defaults.preset 应指向包内 presets/ 下的 JSON 预设</td><td>预设路径写错或文件不在包里</td></tr></tbody></table></div>
+<div class="table-wrap" tabindex="0" role="region" aria-label="说明表格"><table><thead><tr><th scope="col">提示</th><th scope="col">原因</th></tr></thead><tbody><tr><td>dsh.json 的 format 不是 dshcard</td><td><code>format</code> 写错或缺失</td></tr><tr><td>格式版本较新，请先更新 Tavern</td><td><code>formatVersion</code> 大于 1</td></tr><tr><td>素材包路径应为 assets/&lt;包名&gt;/</td><td><code>packs[].path</code> 不是一层目录，或包名是保留名</td></tr><tr><td>插件路径应为 plugins/&lt;文件夹&gt;/</td><td>插件文件夹名只能用小写字母、数字、点、下划线、连字符</td></tr><tr><td>插件 … 缺少可读的 package.json / name 或 version 无效</td><td>检查插件 <code>package.json</code> 的 <code>name</code>、<code>version</code>，两者都要写非空字符串；旧包请补上作者确认的版本后重新打包</td></tr><tr><td>已经有同名插件 … 在用</td><td>另一张卡或全局插件用了同样的插件名；卡已导入，插件没有启用</td></tr><tr><td>defaults.preset 应指向包内 presets/ 下的 JSON 预设</td><td>预设路径写错或文件不在包里</td></tr></tbody></table></div>
 <h2 id="dshcard-guide--section-10">体积与分发</h2>
 <ul><li>图片用 WebP，音乐用 Ogg（Opus 或 Vorbis），体积通常能减半以上。大肥鱼的分发版就是这样从 270 MB 压到 90 MB，压缩脚本见 <a href="https://github.com/flizzywine/dsh-tavern/blob/main/examples/dafeiyu-card/compress.mjs">examples/dafeiyu-card/compress.mjs</a>。</li><li>大文件建议放 GitHub Releases（单文件上限 2 GB），再配一份国内网盘；Discord 免费用户单文件只有 10 MB。</li><li>用到别人的素材，先取得授权，按许可要求署名，并在 <code>credits/</code> 里注明你做了哪些改动。</li></ul>
 <h2 id="dshcard-guide--section-11">参考</h2>
@@ -1209,6 +1209,7 @@
 <p><code>package.json</code> 指明两个入口：</p>
 <div class="code-block"><div class="code-heading"><span>json</span><button type="button" class="copy-code" aria-label="复制这段命令" hidden>复制</button></div><pre tabindex="0"><code>{
   &quot;name&quot;: &quot;dsh-card-dafeiyu-galgame&quot;,
+  &quot;version&quot;: &quot;1.0.0&quot;,
   &quot;private&quot;: true,
   &quot;type&quot;: &quot;module&quot;,
   &quot;exports&quot;: {
@@ -1222,6 +1223,7 @@
     }
   }
 }</code></pre></div>
+<p><code>name</code> 和 <code>version</code> 都必须是非空字符串；卡清单里的 <code>card.version</code> 不能代替插件自己的版本，<code>private: true</code> 也不例外。</p>
 <p>插件名按约定写成 <code>dsh-card-&lt;卡标识&gt;-&lt;插件名&gt;</code>。Tavern 按这个名字识别插件，同名而内容不同的插件同时只能启用一个：撞名时后导入的卡照常导入，但它的插件不会启用。</p>
 <h3>宿主侧：导演</h3>
 <p>入口导出 <code>name</code>、<code>inject</code> 和 <code>apply</code>，接口都在 <code>ctx.tavern</code> 上：</p>
@@ -1531,11 +1533,12 @@ ctx.tavernUi.registerComposerAction({
 <p><code>package.json</code> 的写法：</p>
 <div class="code-block"><div class="code-heading"><span>json</span><button type="button" class="copy-code" aria-label="复制这段命令" hidden>复制</button></div><pre tabindex="0"><code>{
   &quot;name&quot;: &quot;dsh-tavern-xxx&quot;,
+  &quot;version&quot;: &quot;1.0.0&quot;,
   &quot;type&quot;: &quot;module&quot;,
   &quot;exports&quot;: { &quot;.&quot;: &quot;./index.mjs&quot;, &quot;./client&quot;: &quot;./client.js&quot; },
   &quot;dsh&quot;: { &quot;client&quot;: { &quot;platform&quot;: &quot;web&quot;, &quot;inject&quot;: [&quot;dsh-tavern-plugin&quot;] } }
 }</code></pre></div>
-<ul><li>宿主侧入口必须有（<code>exports</code> 的 <code>&quot;.&quot;</code>，或 <code>main</code>）。只做界面的插件也要放一个空的 <code>index.mjs</code>（<code>export function apply() {}</code>）。</li><li>没有浏览器侧时，去掉 <code>&quot;./client&quot;</code> 和整个 <code>dsh</code> 字段。</li><li>插件名建议叫 <code>dsh-tavern-xxx</code>，方便用户辨认；不能和已安装的包同名（例如 <code>dsh-tavern-plugin</code>），否则会被跳过。</li><li>插件被删除或卸载时要释放的东西（定时器、连接），用 <code>ctx.effect(() =&gt; () =&gt; { /* 清理 */ })</code> 注册。</li></ul>
+<ul><li><code>name</code> 和 <code>version</code> 必须是非空字符串（例如 <code>&quot;version&quot;: &quot;1.0.0&quot;</code>）；<code>private: true</code> 也不能省略版本。DSH 会读取插件包身份，缺少版本可能使官方 DeepSeek 请求在发送前失败。</li><li>宿主侧入口必须有（<code>exports</code> 的 <code>&quot;.&quot;</code>，或 <code>main</code>）。只做界面的插件也要放一个空的 <code>index.mjs</code>（<code>export function apply() {}</code>）。</li><li>没有浏览器侧时，去掉 <code>&quot;./client&quot;</code> 和整个 <code>dsh</code> 字段。</li><li>插件名建议叫 <code>dsh-tavern-xxx</code>，方便用户辨认；不能和已安装的包同名（例如 <code>dsh-tavern-plugin</code>），否则会被跳过。</li><li>插件被删除或卸载时要释放的东西（定时器、连接），用 <code>ctx.effect(() =&gt; () =&gt; { /* 清理 */ })</code> 注册。</li></ul>
 <p>浏览器侧的 <code>client.js</code> 由浏览器直接加载，不需要打包，固定写成下面的样子；<code>id</code> 必须和 <code>package.json</code> 的 <code>name</code> 一致，React 用 <code>require(&#39;react&#39;)</code> 取：</p>
 <div class="code-block"><div class="code-heading"><span>js</span><button type="button" class="copy-code" aria-label="复制这段命令" hidden>复制</button></div><pre tabindex="0"><code>window.__ModuleLoader__.load({
   id: &#39;dsh-tavern-xxx&#39;,
@@ -1550,7 +1553,8 @@ ctx.tavernUi.registerComposerAction({
 })</code></pre></div>
 <p>什么时候生效：</p>
 <div class="table-wrap" tabindex="0" role="region" aria-label="说明表格"><table><thead><tr><th scope="col">操作</th><th scope="col">生效方式</th></tr></thead><tbody><tr><td>往 <code>plugins/</code> 放进一个新插件</td><td>不用重启：宿主侧几秒内加载，浏览器侧刷新一次页面后出现</td></tr><tr><td>修改 <code>client.js</code></td><td>不用刷新：几秒内自动换成新代码</td></tr><tr><td>修改 <code>index.mjs</code></td><td>要重启 DSH</td></tr><tr><td>删除插件文件夹</td><td>宿主侧不再加载；刷新页面后浏览器侧消失</td></tr></tbody></table></div>
-<p>Tavern 把 <code>plugins/</code> 下的插件登记在 DSH 的 Tavern 配置（<code>~/.dsh/profiles/tavern/cordis.patch.yml</code>）里，以 <code>tavern-user-plugin-</code> 开头的条目由 Tavern 自动维护，不要手改。插件文件夹缺 <code>package.json</code> 或宿主入口时会被跳过，原因写在 Tavern 日志里。Tavern 通过插件文件夹里自动生成的 <code>.tavern-entry.mjs</code> 加载宿主侧：插件代码有语法错误、导入失败或 <code>apply</code> 抛错时，只在日志里记一条「plugins/&lt;文件夹&gt; 加载失败 / 启动失败」，不会让 DSH 起不来。这个文件不要改，也不用提交到插件仓库。</p>
+<p>Tavern 把 <code>plugins/</code> 下的插件登记在 DSH 的 Tavern 配置（<code>~/.dsh/profiles/tavern/cordis.patch.yml</code>）里，以 <code>tavern-user-plugin-</code> 开头的条目由 Tavern 自动维护，不要手改。插件文件夹缺 <code>package.json</code>、有效的 <code>name</code> / <code>version</code> 或宿主入口时会被跳过，原因写在 Tavern 日志里。Tavern 通过插件文件夹里自动生成的 <code>.tavern-entry.mjs</code> 加载宿主侧：插件代码有语法错误、导入失败或 <code>apply</code> 抛错时，只在日志里记一条「plugins/&lt;文件夹&gt; 加载失败 / 启动失败」，不会让 DSH 起不来。这个文件不要改，也不用提交到插件仓库。</p>
+<p>升级后，已有但缺少有效 <code>name</code> / <code>version</code> 的插件会保留在磁盘上，但不再登记加载，插件管理和日志会说明原因。请补齐作者确认的版本，或安装作者修正后的插件 / 人物卡，再启用；旧卡暂存副本仍无效时需重新导入修正后的卡。不要为第三方插件随意编造版本。</p>
 <p>写好之后怎样发布，才能让别人在设置里一键安装，见<a href="#plugin-publishing">发布与一键安装</a>。</p>
 <blockquote><p>不要把插件放进 <code>tools/</code> 和 <code>tools.cordis.yml</code>：那里是卡片工作台的自创工具，挂在 Agent 预设里，要等第一局开始才加载，浏览器侧也永远不会加载。</p></blockquote>
 <h3>卡内插件</h3>
