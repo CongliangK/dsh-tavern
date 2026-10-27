@@ -413,8 +413,8 @@ function createTransferFeatureModule() {
 					chatsSelected ? h("span", { className: "is-warn" }, "对话按实际大小打包") : null,
 					stats.bytes > 45 * 1024 * 1024 ? h("span", { className: "is-warn" }, "超过 45 MB，可能打包失败") : null
 				),
-				h("label", { className: "dsh-tavern-transfer-switch" },
-					h("input", { type: "checkbox", checked: includeImages, onChange: function (event) { setIncludeImages(event.target.checked) } }),
+				h("label", { className: "dsh-tavern-transfer-switch" + (chatsSelected ? "" : " is-off") },
+					h("input", { type: "checkbox", checked: includeImages, disabled: !chatsSelected, onChange: function (event) { setIncludeImages(event.target.checked) } }),
 					h("span", null, "含对话配图")
 				),
 				h("button", { type: "button", className: "dsh-tavern-btn primary", disabled: busy || !stats.count, onClick: submitExport }, busy ? "打包中…" : "生成导出包")

@@ -109,7 +109,7 @@ export function createTransferImport(deps) {
     const parts = manifest.parts.map(function (part) {
       if (!IMPORTABLE.includes(part.kind)) {
         return { kind: part.kind, label: part.label, importable: false, conflicts: 0,
-          note: '下一版支持，这次不会导入', items: part.items.map(function (item) {
+          note: part.kind === 'logs' ? '诊断日志只导出，不导入' : '下一版支持，这次不会导入', items: part.items.map(function (item) {
             return { key: item.key, title: item.title, bytes: item.bytes, conflict: false, reason: '' }
           }) }
       }

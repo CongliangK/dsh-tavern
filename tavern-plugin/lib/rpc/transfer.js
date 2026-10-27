@@ -6,6 +6,7 @@ import { createTransferCatalog } from '../domain/transfer-catalog.js'
 import { createTransferChats } from '../domain/transfer-chats.js'
 import { createTransferFonts } from '../domain/transfer-fonts.js'
 import { createTransferImport } from '../domain/transfer-import.js'
+import { createTransferLogs } from '../domain/transfer-logs.js'
 import { createTransferMaterials } from '../domain/transfer-materials.js'
 import { createTransferPluginData } from '../domain/transfer-plugin-data.js'
 import { createTransferSkills } from '../domain/transfer-skills.js'
@@ -34,7 +35,7 @@ export function createTransferHandlers(deps) {
   const { dataRoot, uploads, fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile,
     regexManager, readTavernSettings, updateTavernSettings, importCard, importPreset, readCardWorkspace,
     cardPreparation, TAVERN_PACKAGE_VERSION, listTavernSessions, readChat, exportGameSave, importGameSave,
-    userPluginInstaller, pluginDataStore, tavernSkills, transferExports } = deps
+    userPluginInstaller, pluginDataStore, tavernSkills, transferExports, exportTavernLogs } = deps
 
   async function writeBackup(name, text) {
     const directory = path.join(dataRoot, '..', 'backups', 'transfer', stamp())
@@ -58,6 +59,7 @@ export function createTransferHandlers(deps) {
     })
   }
   const pluginData = createTransferPluginData({ pluginDataStore, listPlugins: pluginDataEntries })
+  const logs = createTransferLogs({ listSessions: listTavernSessions, exportLogs: exportTavernLogs })
   const skills = createTransferSkills({ skillsDir: path.join(dataRoot, 'skills'), listSkills: () => tavernSkills.list() })
 
   const catalog = createTransferCatalog({
@@ -77,7 +79,8 @@ export function createTransferHandlers(deps) {
     materials,
     fonts,
     pluginData,
-    skills
+    skills,
+    logs
   })
 
   const importer = createTransferImport({
