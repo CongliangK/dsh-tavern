@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "e95ee991a1a1c9838862308774df72e662cab5dc",
-  "releaseSequence": 941,
+  "revision": "e2df835b908ae870acaa554c57c5c791e5f90cb6",
+  "releaseSequence": 942,
   "version": "3.1.0",
   "files": [
     {
@@ -821,8 +821,8 @@
     },
     {
       "path": "tavern-plugin/lib/client.js",
-      "sha256": "b04bf5ea024ee449d5b1859fcfd85019384facf4ef79ecd927eb1554e6177ff9",
-      "size": 2902149
+      "sha256": "2d0db240731c3b3095409d60a92957fa31f8086e88e3557b21079ea3719a1e8c",
+      "size": 2902444
     },
     {
       "path": "tavern-plugin/lib/cordis-inspect.js",
@@ -1381,8 +1381,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/foreground-worldbook.js",
-      "sha256": "807dfa8c9cc18c827d671b859c8efc9567ded216060fb093fa8d2847c1288ebd",
-      "size": 8464
+      "sha256": "8937d3eead1184e8a53ddb5a1c7bd3cd7a28ddd68b211540a4673df9e0402240",
+      "size": 8864
     },
     {
       "path": "tavern-plugin/lib/domain/frame-sizing.js",
@@ -2586,8 +2586,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/tavern-settings.js",
-      "sha256": "3a29e8a5759bfba8b66f518e66a6c263d97b3b4a9b2a4d1b71ba38961566ba91",
-      "size": 28167
+      "sha256": "425205ddb706366d6cbd06b5470463540999c65ed230de97fa87df2bfe858b3c",
+      "size": 28222
     },
     {
       "path": "tavern-plugin/lib/domain/tavern-skill-provider.js",
@@ -5086,9 +5086,9 @@
     }
   ],
   "archive": {
-    "commit": "21a92a1554d0f3ebbb96e96ef24cd04589a18d65",
+    "commit": "e4685de0399536c269c63e3e376b5b6e65109a9d",
     "path": "runtime.zip",
-    "sha256": "8d7373c3ad808c1f0f8a43031119abbcf71b695b6f0bf5498bfe43d2e120be25",
-    "size": 68309036
+    "sha256": "3d4e7e664ee7ca63abd0f84e5e318b92f231407adbf8303f24c15d0cc6de8e40",
+    "size": 68309298
   }
 }
