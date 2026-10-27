@@ -87,7 +87,8 @@ export function createTransferHandlers(deps) {
 
   const importer = createTransferImport({
     fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills,
+    removeCreated
   })
 
   const tokens = new Map()
@@ -103,16 +104,15 @@ export function createTransferHandlers(deps) {
     catch (error) { if (error && error.code === 'ENOENT') return null; throw error }
   }
 
-  const undo = createTransferUndo({
-    hashOf: (kind, path) => fileHash(path),
-    remove: async (kind, path) => {
-      if (kind === 'cards') return await deleteCard(path)
-      if (kind === 'worldbooks') return await worldBooks.remove({ kind: 'standalone', path })
-      if (kind === 'presets') return await deletePreset(path)
-      if (kind === 'scripts') return await deleteResource(path)
-      throw new Error('这类导入不支持撤销：' + kind)
-    }
-  })
+  async function removeCreated(kind, path) {
+    if (kind === 'cards') return await deleteCard(path)
+    if (kind === 'worldbooks') return await worldBooks.remove({ kind: 'standalone', path })
+    if (kind === 'presets') return await deletePreset(path)
+    if (kind === 'scripts') return await deleteResource(path)
+    throw new Error('这类导入不支持撤销：' + kind)
+  }
+
+  const undo = createTransferUndo({ hashOf: (kind, path) => fileHash(path), remove: removeCreated })
 
   return {
     async getTransferCatalog() {

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 
 function str(value) {
@@ -33,7 +34,8 @@ function errorText(error) {
  */
 export function createTransferImport(deps) {
   const { fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts, pluginData, skills } = deps
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts, pluginData, skills,
+    removeCreated } = deps
 
   async function cardIndex() {
     const names = new Set(), stems = new Set()
@@ -47,6 +49,45 @@ export function createTransferImport(deps) {
       } catch { /* keep the stem only */ }
     }
     return { names, stems }
+  }
+
+  // Cards carry per-import ids and timestamps in meta/raw; compare only what a reader would call
+  // the card's content, so re-importing the same card is recognised as the same card.
+  const CARD_FIELDS = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes',
+    'system_prompt', 'post_history_instructions', 'alternate_greetings', 'tags', 'creator', 'character_version']
+  function cardFingerprint(text) {
+    const document = JSON.parse(text)
+    const data = document && (document.data || (document.raw && document.raw.data) || document)
+    const picked = {}
+    for (const field of CARD_FIELDS) {
+      const value = data && data[field]
+      // An absent field and an empty one mean the same thing to a reader.
+      if (value === undefined || value === null || value === '') continue
+      picked[field] = value
+    }
+    return JSON.stringify(picked)
+  }
+
+  function contentHashOf(kind, text) {
+    if (kind === 'cards') {
+      try { return createHash('sha256').update(cardFingerprint(text)).digest('hex') } catch { return createHash('sha256').update(text).digest('hex') }
+    }
+    return createHash('sha256').update(text).digest('hex')
+  }
+
+  // What is already here, by content: importing the same package twice must not double the library.
+  async function contentIndex() {
+    const kinds = { cards: 'card', worldbooks: 'worldbook', presets: 'preset', scripts: 'source' }
+    const index = new Map()
+    for (const [kind, listKind] of Object.entries(kinds)) {
+      const hashes = new Set()
+      for (const path of await fileResources.list(listKind).catch(() => [])) {
+        const text = await fileResources.readText(path).catch(() => undefined)
+        if (typeof text === 'string') hashes.add(contentHashOf(kind, text))
+      }
+      index.set(kind, hashes)
+    }
+    return index
   }
 
   async function existingIndex() {
@@ -131,12 +172,28 @@ export function createTransferImport(deps) {
 
   async function apply({ manifest, files, policies = {} }) {
     const index = await existingIndex()
+    const contents = typeof removeCreated === 'function' ? await contentIndex() : null
     const used = {
       cardStems: new Set(index.cardStems), worldStems: new Set(index.worldStems), presetStems: new Set(index.presetStems),
       promptNames: new Set(index.promptNames), profileNames: new Set(index.profileNames),
       pluginFolders: new Set(index.pluginFolders), materialNames: new Set(index.materialNames), fontIds: new Set(index.fontIds),
       pluginDataNames: new Set(index.pluginDataNames), skillNames: new Set(index.skillNames)
     }
+    async function dropDuplicate(kind, result, title, path) {
+      if (!contents || !contents.has(kind) || !path) return false
+      const text = await fileResources.readText(path).catch(() => undefined)
+      if (typeof text !== 'string') return false
+      const hash = contentHashOf(kind, text)
+      if (!contents.get(kind).has(hash)) return false
+      await removeCreated(kind, path)
+      result.added -= 1
+      result.skipped += 1
+      result.duplicates = (result.duplicates || []).concat(title)
+      const row = (result.created || []).findIndex(entry => entry.path === path)
+      if (row >= 0) result.created.splice(row, 1)
+      return true
+    }
+
     const results = []
     let backupPath = ''
 
@@ -160,7 +217,10 @@ export function createTransferImport(deps) {
             const imported = await importCard({ name: target + '.json', text })
             used.cardStems.add(target.toLowerCase())
             result.added += 1
-            if (imported && imported.path) result.created.push({ kind: 'cards', title: item.title, path: imported.path })
+            if (imported && imported.path) {
+              result.created.push({ kind: 'cards', title: item.title, path: imported.path })
+              await dropDuplicate('cards', result, item.title, imported.path)
+            }
             continue
           }
           if (part.kind === 'worldbooks') {
@@ -169,7 +229,10 @@ export function createTransferImport(deps) {
             const importedBook = await worldBooks.import({ name: target + '.json', text })
             used.worldStems.add(target.toLowerCase())
             result.added += 1
-            if (importedBook && importedBook.path) result.created.push({ kind: 'worldbooks', title: item.title, path: importedBook.path })
+            if (importedBook && importedBook.path) {
+              result.created.push({ kind: 'worldbooks', title: item.title, path: importedBook.path })
+              await dropDuplicate('worldbooks', result, item.title, importedBook.path)
+            }
             continue
           }
           if (part.kind === 'presets') {
@@ -178,7 +241,10 @@ export function createTransferImport(deps) {
             const importedPreset = await importPreset({ name: target + '.json', text })
             used.presetStems.add(target.toLowerCase())
             result.added += 1
-            if (importedPreset && importedPreset.path) result.created.push({ kind: 'presets', title: item.title, path: importedPreset.path })
+            if (importedPreset && importedPreset.path) {
+              result.created.push({ kind: 'presets', title: item.title, path: importedPreset.path })
+              await dropDuplicate('presets', result, item.title, importedPreset.path)
+            }
             continue
           }
           if (part.kind === 'prompts') {
@@ -240,7 +306,10 @@ export function createTransferImport(deps) {
             if (!materials) throw new Error('剧本与素材导入不可用')
             const imported = await materials.importOne({ title: item.title, content })
             result.added += 1
-            if (imported && imported.path) result.created.push({ kind: 'scripts', title: item.title, path: imported.path })
+            if (imported && imported.path) {
+              result.created.push({ kind: 'scripts', title: item.title, path: imported.path })
+              await dropDuplicate('scripts', result, item.title, imported.path)
+            }
             continue
           }
           if (part.kind === 'chats') {

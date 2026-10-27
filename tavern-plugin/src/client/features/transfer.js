@@ -374,7 +374,7 @@ function createTransferFeatureModule() {
 							h("span", { className: "dsh-tavern-transfer-result-detail" },
 								(row.added ? "新增 " + row.added + " 项" : "") +
 								(row.overwritten ? (row.added ? " · " : "") + (row.kind === "plugin-data" ? "覆盖 " : "合并 ") + row.overwritten + " 项" : "") +
-								(row.skipped ? (row.added || row.overwritten ? " · " : "") + "跳过 " + row.skipped + " 项" : "") +
+								(row.skipped ? (row.added || row.overwritten ? " · " : "") + "跳过 " + row.skipped + " 项" + ((row.duplicates || []).length ? "（内容相同 " + row.duplicates.length + " 项）" : "") : "") +
 								(failed ? (row.added || row.overwritten || row.skipped ? " · " : "") + failed + " 项失败" : "") +
 								(!row.added && !row.overwritten && !row.skipped && !failed ? "未处理" : "")
 							)

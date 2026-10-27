@@ -95,8 +95,13 @@ function environment(options = {}) {
 
   const catalog = createTransferCatalog({
     fileResources,
-    cardPreparation: { present: ({ card }) => ({ name: '作家', description: '写东西的人', extensions: {} }) },
-    readCardWorkspace: async () => ({}),
+    cardPreparation: {
+      present: ({ card }) => {
+        const value = JSON.parse(card.text)
+        return { name: value.name, description: value.description || '', extensions: value.extensions || {} }
+      }
+    },
+    readCardWorkspace: async path => ({ text: state.cards.get(path) }),
     worldBooks,
     presetLibrary,
     promptDocuments,
@@ -126,7 +131,11 @@ function environment(options = {}) {
       state.presets.set('presets/' + payload.name, payload.text)
       return { path: 'presets/' + payload.name }
     },
-    backup: async (name, text) => { state.backups.push({ name, text }); return 'backups/transfer/20261027-160000/' + name }
+    backup: async (name, text) => { state.backups.push({ name, text }); return 'backups/transfer/20261027-160000/' + name },
+    removeCreated: async (kind, path) => {
+      const map = { cards: state.cards, worldbooks: state.worldbooks, presets: state.presets }[kind]
+      if (map) map.delete(path)
+    }
   })
 
   return { state, catalog, importer }
@@ -166,7 +175,12 @@ test('收集所选条目：清单条目带哈希，文件内容与清单一致',
 })
 
 test('预览指出同名冲突，应用时全部新建、不覆盖，并在写设置前备份', async () => {
-  const from = environment()
+  // Same names, different content: a copy is the right outcome, not a skip.
+  const from = environment({
+    cards: new Map([['cards/作家.json', JSON.stringify({ name: '作家', description: '另一台机器的版本', extensions: {} })]]),
+    presets: new Map([['presets/默认.json', JSON.stringify({ prompts: [{ identifier: 'main', content: 'other' }] })]]),
+    worldbooks: new Map([['worldbooks/世界观总纲.json', JSON.stringify({ name: '世界观总纲', entries: { 1: { uid: 1, key: ['a'], content: 'x' } } })]])
+  })
   const bundle = await bundleFrom(from, { cards: ['cards/作家.json'], worldbooks: ['worldbooks/世界观总纲.json'], presets: ['presets/默认.json'], prompts: ['current'], profile: ['default'], regex: ['rx-1'], settings: ['current'] })
 
   const to = environment()
@@ -216,4 +230,24 @@ test('导入结果记录新建文件的路径，供撤销使用', async () => {
   assert.deepEqual(cards.created, [{ kind: 'cards', title: '作家', path: 'cards/作家.json' }])
   assert.deepEqual(presets.created, [{ kind: 'presets', title: '默认', path: 'presets/默认.json' }])
   assert.deepEqual(result.results.find(row => row.kind === 'chats'), undefined)
+})
+
+test('同一个包导入第二次：内容相同就跳过，不再堆副本', async () => {
+  const from = environment()
+  const bundle = await bundleFrom(from, { cards: ['cards/作家.json'], presets: ['presets/默认.json'] })
+
+  const to = environment({ cards: [], presets: [] })
+  const first = await to.importer.apply({ manifest: bundle.manifest, files: bundle.files, policies: {} })
+  assert.equal(first.results.find(row => row.kind === 'cards').added, 1)
+  assert.equal(to.state.cards.size, 1)
+
+  const second = await to.importer.apply({ manifest: bundle.manifest, files: bundle.files, policies: {} })
+  const cards = second.results.find(row => row.kind === 'cards')
+  const presets = second.results.find(row => row.kind === 'presets')
+  assert.equal(cards.added, 0, '第二次不再新增')
+  assert.equal(cards.skipped, 1, '按跳过计数')
+  assert.deepEqual(cards.duplicates, ['作家'])
+  assert.equal(presets.added, 0)
+  assert.equal(to.state.cards.size, 1, '本机仍只有一张卡')
+  assert.equal(to.state.presets.size, 1, '预设也没有变多')
 })
