@@ -5,10 +5,12 @@ import { createGameSaveSnapshot } from '../tavern-plugin/lib/domain/game-save-sn
 import { readGameSave } from '../tavern-plugin/lib/domain/game-save.js'
 import { computeSceneTarget } from '../tavern-plugin/lib/domain/scene-illustration.js'
 
-function fixture({ images = true, missing = false, pluginFailure = false, mutate = false, worldbook = false, boundWorldbook = worldbook } = {}) {
+function fixture({ images = true, missing = false, pluginFailure = false, mutate = false, worldbook = false, boundWorldbook = worldbook, preset = false, presetPath = 'presets/play.json' } = {}) {
   const chat = { id: 'chat-a', sessionId: 'session-a', cardPath: 'cards/a.json', cardName: '卡', mode: 'script',
     _storageRevision: 2, messages: [{ role: 'assistant', turn: 1, text: '正文' }],
     cardDefinitionSnapshot: { raw: { name: '卡' } }, timeline: { checkpoints: [{ turn: 2, beforeRevision: 1 }] },
+    ...(preset ? { runtimePresetPath: presetPath, runtimePresetSnapshot: { presetPath, presetName: '默认', digest: 'digest-1',
+      regexScripts: [{ scriptName: '去掉括号', findRegex: '/(\\()/g', replaceString: '（' }], front: [], middle: [], back: [] } } : {}),
     ...(worldbook ? { openingWorldbookSnapshot: { version: 1, libraryDigest: 'wb-digest', source: { kind: 'standalone', path: 'worldbooks/w.json' },
       document: { name: '书', entries: { '0': { uid: 0, key: ['a'], content: '很长的一本世界书'.repeat(50) } }, extensions: {} } } } : {}) }
   const old = { ...chat, _storageRevision: 1, timeline: { checkpoints: [] } }
@@ -98,4 +100,20 @@ test('卡没有绑定世界书时，即使包里带了别的书也保留这局�
   const save = readGameSave(Buffer.from((await exporter('session-a', { embedWorldbook: false })).base64, 'base64'))
   assert.ok(save.chat.openingWorldbookSnapshot?.document)
   assert.ok(save.revisions[0].state.openingWorldbookSnapshot?.document)
+})
+
+test('同包带走预设时存档不再内嵌预设快照，但保留 runtimePresetPath 供导入重新冻结', async () => {
+  const { exporter } = fixture({ preset: true })
+  const full = readGameSave(Buffer.from((await exporter('session-a')).base64, 'base64'))
+  assert.ok(full.chat.runtimePresetSnapshot?.regexScripts, '单独导出照旧自带快照')
+
+  const slim = readGameSave(Buffer.from((await exporter('session-a', { embedPreset: false })).base64, 'base64'))
+  assert.equal(slim.chat.runtimePresetSnapshot, undefined)
+  assert.equal(slim.chat.runtimePresetPath, 'presets/play.json', '记住这局用的是哪份预设')
+  assert.equal(slim.revisions[0].state.runtimePresetSnapshot, undefined, '回退历史也不存')
+
+  // 没有记下预设路径的局，导入端无从重新冻结，快照就必须留着。
+  const noPath = fixture({ preset: true, presetPath: '' })
+  const kept = readGameSave(Buffer.from((await noPath.exporter('session-a', { embedPreset: false })).base64, 'base64'))
+  assert.ok(kept.chat.runtimePresetSnapshot)
 })

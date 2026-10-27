@@ -88,7 +88,10 @@ export function createTransferChats(deps) {
       if (!chat) throw new Error('对话不存在：' + key)
       const title = titleOf(chat)
       let exported
-      try { exported = await exportSave(chat.sessionId, { images: options.images !== false, embedWorldbook: options.embedWorldbook !== false }) }
+      try {
+        exported = await exportSave(chat.sessionId, { images: options.images !== false,
+          embedWorldbook: options.embedWorldbook !== false, embedPreset: options.embedPreset !== false })
+      }
       catch (error) { throw new Error('导出「' + title + '」失败：' + messageOf(error)) }
       const base64 = str(exported && exported.base64)
       if (!base64) throw new Error('导出「' + title + '」失败：存档内容为空')

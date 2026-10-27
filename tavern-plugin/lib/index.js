@@ -1396,6 +1396,28 @@ export async function apply(ctx) {
     prepareGameSaveResources: createGameSaveResources({ resources: fileResources, cardPreparation }),
     getAttachments: () => ctx.get('attachments'), newChatId: () => uid('chat'),
     rawWriteChat, conversationRegistry, profileData, sceneWorldbookArchive,
+    // 导出时可以不带预设快照（同包已带预设），导入时按这局记下的预设重新冻结一份：
+    // 目标机刚装回来的就是它，渲染路径照旧只读快照。
+    restorePresetSnapshot: async function (chat) {
+      if (!chat || chat.runtimePresetSnapshot !== undefined) return chat
+      const presetPath = str(chat.runtimePresetPath)
+      if (presetPath === '') return chat
+      try {
+        const snapshot = await runtimePresets.fullSnapshot(presetPath)
+        if (snapshot) return { ...chat, runtimePresetSnapshot: snapshot }
+      } catch (error) {
+        // 这局记下的预设没跟着来（或被改名）：宁可改用当前预设，也不要让正文在无预设下渲染。
+        try {
+          const fallback = await runtimePresets.fullSnapshot()
+          console.warn('dsh-tavern: 存档的预设「' + presetPath + '」不可用（' + str(error?.message || error) + '），改按当前预设渲染')
+          if (fallback) return { ...chat, runtimePresetSnapshot: fallback, runtimePresetPath: str(fallback.presetPath) || presetPath }
+        } catch (fallbackError) {
+          console.warn('dsh-tavern: 导入的存档缺少预设快照，按当前预设重建失败：' + str(fallbackError?.message || fallbackError))
+        }
+        return chat
+      }
+      return chat
+    },
     pluginApi: { importGame: input => pluginApi.importGame(input) },
     sessions: {
       create: ({ sessionId, events, cwd, preset }) => {

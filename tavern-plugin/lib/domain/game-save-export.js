@@ -26,6 +26,17 @@ function withoutWorldbookSnapshot(chat, embed) {
   return next
 }
 
+// The runtime preset snapshot is the frozen preset a game renders with (regex, templates, prompt
+// pieces). It is per game and never shared, so a bundle that already carries the preset itself
+// makes it duplication too. Import re-freezes it from the preset the chat points at
+// (`runtimePresetPath`), which is what the importing install just installed.
+function withoutPresetSnapshot(chat, embed) {
+  if (embed || !chat || !chat.runtimePresetSnapshot) return chat
+  const next = { ...chat }
+  delete next.runtimePresetSnapshot
+  return next
+}
+
 // Export options: `images` (scene pictures) and `embedWorldbook` (keep the opening worldbook
 // copy inside the save). Both default to keeping everything, so a lone save stays self-contained.
 export function createGameSaveExporter({ chatForSession, gameSaveSnapshot, readChatRevision,
@@ -39,8 +50,11 @@ export function createGameSaveExporter({ chatForSession, gameSaveSnapshot, readC
       // snapshot is the only world this game has, so it stays even when the bundle carries books.
       const embedWorldbook = options.embedWorldbook !== false ||
         !(await hasBoundWorldbook(str(chat.cardPath)).catch(() => false))
+      // Without a recorded preset path there is nothing to re-freeze from on import.
+      const embedPreset = options.embedPreset !== false || str(chat.runtimePresetPath) === ''
+      const thin = value => withoutPresetSnapshot(withoutWorldbookSnapshot(value, embedWorldbook), embedPreset)
       const revisions = (await collectSaveRevisions(chat, readChatRevision))
-        .map(item => ({ revision: item.revision, state: withoutWorldbookSnapshot(item.state, embedWorldbook) }))
+        .map(item => ({ revision: item.revision, state: thin(item.state) }))
       let cardPayload = null
       try { cardPayload = await fileResources.originalCardPayload(chat.cardPath) } catch {}
       if (!cardPayload && chat.cardDefinitionSnapshot?.raw) cardPayload = { kind: 'text', name: str(chat.cardName || 'card') + '.json', text: JSON.stringify(chat.cardDefinitionSnapshot.raw) }
@@ -70,7 +84,7 @@ export function createGameSaveExporter({ chatForSession, gameSaveSnapshot, readC
       if (scene) scene.attachments = attachments
       else if (attachments.length) scene = { files: [], worldbooks: [], attachments }
       const plugins = await pluginSaveContents(chat)
-      const buffer = buildGameSave({ chat: withoutWorldbookSnapshot(chat, embedWorldbook), revisions, session,
+      const buffer = buildGameSave({ chat: thin(chat), revisions, session,
         card: { path: chat.cardPath, payload: cardPayload }, script, scene, plugins,
         tavernVersion: tavernVersion, exportedAt: Date.now() })
       const name = (sessionTitleOf(session.events) || str(chat.title) || str(chat.cardName) || 'game').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 60)
