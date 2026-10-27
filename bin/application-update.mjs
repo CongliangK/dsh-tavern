@@ -299,9 +299,35 @@ export async function updateApplication(options = { host: RUNTIME_HOST, statusFi
         catch (startError) { failure = new Error(`${String(failure?.message || failure)}\n${String(startError?.message || startError)}`) }
       }
     }
+    // Android swaps the source directory in place and only rolls back from the
+    // installer's own trap. Cancellation ends that whole process tree, so the new
+    // source would stay on disk with dependencies half installed while the app
+    // still reports the old version (#388). Undo the swap here, once the tree is
+    // verified stopped: setup.sh --restore-previous moves the backup back.
+    if (options.host === 'android' && safeToRelease && !restored) {
+      const appRoot = options.installedSourceRoot || process.env.DSH_TAVERN_ANDROID_APP_DIR || sourceRoot
+      const setupScript = path.join(appRoot, 'android', 'setup.sh')
+      let supportsRestore = false
+      try { supportsRestore = readFileSync(setupScript, 'utf8').includes('--restore-previous') } catch {}
+      if (supportsRestore) {
+        try {
+          const restoredRun = await promisify(execFile)('bash', [setupScript, '--restore-previous', appRoot], {
+            windowsHide: true, timeout: 120_000, maxBuffer: 4 * 1024 * 1024, cwd: os.tmpdir(),
+            env: { ...runtimeEnvironment(), DSH_HOME: dshHome, DSH_TAVERN_SOURCE_ROOT: appRoot, DSH_TAVERN_ANDROID_APP_DIR: appRoot },
+          })
+          if (restoredRun.stdout) log(restoredRun.stdout.trim())
+          restored = true
+        } catch (rollbackError) {
+          // Exit code 3: the swap never completed, so there is nothing to undo.
+          if (Number(rollbackError?.code) !== 3) {
+            failure = new Error(`${String(failure?.message || failure)}\n恢复原版本失败：${String(rollbackError?.stderr || rollbackError?.message || rollbackError)}`)
+          }
+        }
+      }
+    }
     await writeUpdateStatus({
       phase: safeToRelease ? 'failed' : 'blocked', attemptId, ...(restored ? {} : { repairRequired: true, repairSince: Date.now() }), host: options.host, failedAt: Date.now(),
-      error: (restored ? '更新未完成，已恢复原版本并继续运行。' : '') + String(failure?.message || failure),
+      error: (restored ? (options.host === 'android' ? '更新未完成，已恢复更新前的源码。' : '更新未完成，已恢复原版本并继续运行。') : '') + String(failure?.message || failure),
       ...(targetCommit ? { targetCommit } : {}),
     })
     throw failure

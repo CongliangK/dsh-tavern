@@ -722,3 +722,28 @@ test('APK 升级用内置快照离线替换源码与依赖，保留用户数据'
   assert.match(stale.stdout, /内置快照版本变化/)
   assert.equal(await readFile(path.join(appDir, 'version.txt'), 'utf8'), 'bundle\n')
 })
+
+test('setup.sh --restore-previous 只恢复更新前的源码，没有备份时不动源码', { skip: process.platform === 'win32' }, async (t) => {
+  const home = await mkdtemp(path.join(tmpdir(), 'dsh-android-restore-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  const app = path.join(home, 'apps/dsh-tavern')
+  const leftover = path.join(home, 'apps/.dsh-tavern-download.fixture')
+  await mkdir(path.join(leftover, 'previous-source'), { recursive: true })
+  await mkdir(app, { recursive: true })
+  await writeFile(path.join(app, 'package.json'), JSON.stringify({ version: '3.1.0' }))
+  await writeFile(path.join(leftover, 'previous-source/package.json'), JSON.stringify({ version: '3.0.1' }))
+  await writeFile(path.join(leftover, 'previous-source/pnpm-lock.yaml'), 'lock')
+  await writeFile(path.join(app, 'pnpm-lock.yaml'), 'lock')
+  const setup = new URL('../android/setup.sh', import.meta.url).pathname
+
+  const run = () => execute('bash', [setup, '--restore-previous', app], { env: { ...process.env, DSH_HOME: home } })
+  const { stdout } = await run()
+  assert.match(stdout, /已恢复更新前的源码 v3\.0\.1/)
+  assert.equal(JSON.parse(await readFile(path.join(app, 'package.json'), 'utf8')).version, '3.0.1')
+  // 换下来的那一份留在临时目录里，便于事后排查。
+  assert.equal(JSON.parse(await readFile(path.join(leftover, 'failed-source/package.json'), 'utf8')).version, '3.1.0')
+
+  // 再次调用时备份已经不在原位：退出码 3 表示没有可恢复的东西，且不删源码。
+  await assert.rejects(run, error => { assert.equal(error.code, 3); return true })
+  assert.equal(JSON.parse(await readFile(path.join(app, 'package.json'), 'utf8')).version, '3.0.1')
+})
