@@ -59,14 +59,23 @@ export function buildTransferManifest({ name, createdAt = Date.now(), source = {
   }
 }
 
+// A bundle larger than this is stored on disk and streamed to the page (rpc/transfer.js), so the
+// export is not carried through a JSON reply. One game save alone runs to tens of megabytes, so
+// the whole library has to fit: keeping the 50 MB ZIP default here made big saves impossible to
+// export at all. The import side keeps its own caps.
+export const MAX_EXPORT_BYTES = 1024 * 1024 * 1024
+export const MAX_EXPORT_EXPANDED_BYTES = 2 * 1024 * 1024 * 1024
+
 /** Pack the manifest and its part files. The bundle is still a ZIP, so any unzip tool opens it. */
-export function packTransferBundle({ manifest, files }) {
+export function packTransferBundle({ manifest, files, maxArchiveBytes = MAX_EXPORT_BYTES, maxExpandedBytes = MAX_EXPORT_EXPANDED_BYTES }) {
   const entries = [{ path: MANIFEST_ENTRY, content: JSON.stringify(manifest, null, 2) + '\n' }]
   for (const [entry, content] of files) entries.push({ path: entry, content })
   return writeZipEntries(entries, {
     readable: true,
     label: '导出包',
-    oversized: () => '，请先取消部分板块或用「逐项下载」'
+    maxArchiveBytes,
+    maxExpandedBytes,
+    oversized: () => '，请取消一部分板块后分两次导出'
   })
 }
 

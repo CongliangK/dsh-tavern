@@ -60,3 +60,22 @@ test('不是导出包或版本不符时给出明确错误', () => {
   const buffer = packTransferBundle({ manifest: older, files })
   assert.throws(() => readTransferBundle(buffer), /不支持的导出包版本/)
 })
+
+test('一局几十兆的存档也打得进导出包：不再被通用 ZIP 的 50 MB 上限挡住', async () => {
+  const { randomBytes } = await import('node:crypto')
+  // Well above the 50 MB ZIP default and 60 MB expanded: the case a whole library of saves hits.
+  const save = randomBytes(60 * 1024 * 1024)
+  const item = transferItem({ key: 'chats/game', title: '作家', entry: 'parts/chats/game.dshsave', content: save })
+  const manifest = buildTransferManifest({ name: '大备份', parts: [{ kind: 'chats', label: '对话与存档', items: [item] }] })
+  const buffer = packTransferBundle({ manifest, files: new Map([['parts/chats/game.dshsave', save]]) })
+  assert.ok(buffer.length > 50 * 1024 * 1024, '压缩后的包本身就超过 50 MB')
+  const read = readTransferBundle(buffer)
+  assert.deepEqual(read.issues, [])
+  assert.equal(read.files.get('parts/chats/game.dshsave').length, save.length)
+})
+
+test('仍超出自带上限时报出实际大小，并给出分次导出的做法', () => {
+  const { manifest, files } = sampleBundle()
+  assert.throws(() => packTransferBundle({ manifest, files, maxArchiveBytes: 64 }),
+    /导出包超过 0 MB，请取消一部分板块后分两次导出/)
+})
