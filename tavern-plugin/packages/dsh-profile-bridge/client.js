@@ -31,13 +31,16 @@ window.__ModuleLoader__.load({
       loading: '读取中…',
       cliHint: '当前不是桌面版。命令行用户直接用 dsh --profile <名称> 选择即可。',
       failure: '操作失败',
+      lastFailure: '上次切换失败',
+      recoveryRequired: '切换结果需要人工确认，请勿再次切换；请检查日志中的入口和备份路径，必要时恢复原入口。',
+      logLocation: '日志：',
       more: '说明与日志',
       shortcut: '添加桌面快捷方式',
       shortcutHint: '首次安装会自动添加「DSH 酒馆」桌面快捷方式，点开即可打开酒馆。可随时删除，更新时不会重新添加；需要时可在这里恢复。',
       shortcutDone: '已添加到桌面：',
       shortcutExists: '桌面上已经有了：',
       logEmpty: '（还没有日志）',
-      why: '桌面版固定读取 profiles/desktop。进入 DSH 酒馆时，会把它链接到 profiles/tavern（Windows 用 junction，macOS/Linux 用符号链接）；原版配置先备份为 desktop.fresh-*，切回原版时恢复。切换需要桌面版先退出：重启走正常退出流程，有任务时会先请你确认，不会强制结束进程。',
+      why: '桌面版固定读取 profiles/desktop。进入 DSH 酒馆时，会把它链接到 profiles/tavern（Windows 用 junction，macOS/Linux 用符号链接）；原版配置先备份为 desktop.fresh-*，切回原版时恢复。切换需要桌面版先退出：重启走正常退出流程，有任务时会先请你确认。Windows 目录仍被占用时，只会在桌面退出后清理已核实属于本次桌面的残留子进程，不会按路径批量结束其他会话。',
     }
     const en = {
       sectionTavern: 'Original DSH',
@@ -54,13 +57,16 @@ window.__ModuleLoader__.load({
       loading: 'Loading…',
       cliHint: 'This is not the Desktop app. Command-line users can pick one with dsh --profile <name>.',
       failure: 'Failed',
+      lastFailure: 'The last switch failed',
+      recoveryRequired: 'This switch needs manual inspection. Do not switch again; check the entry and backup paths in the log, and restore the original entry if needed.',
+      logLocation: 'Log: ',
       more: 'Details and log',
       shortcut: 'Add desktop shortcut',
       shortcutHint: 'The first installation adds a "DSH 酒馆" desktop shortcut to open the Tavern. You can delete it; updates will not recreate it. Restore it here whenever you need it.',
       shortcutDone: 'Added to the desktop: ',
       shortcutExists: 'Already on the desktop: ',
       logEmpty: '(no log yet)',
-      why: 'Desktop always reads profiles/desktop. Opening DSH Tavern links it to profiles/tavern (a junction on Windows, a symlink elsewhere); the original is first backed up as desktop.fresh-* and restored when you switch back. Desktop has to exit first: restarting is a normal quit that asks for confirmation when tasks are running, never a forced kill.',
+      why: 'Desktop always reads profiles/desktop. Opening DSH Tavern links it to profiles/tavern (a junction on Windows, a symlink elsewhere); the original is first backed up as desktop.fresh-* and restored when you switch back. Desktop has to exit first: restarting is a normal quit that asks for confirmation when tasks are running. If a Windows directory remains busy after Desktop exits, only verified leftover descendants of this Desktop session may be stopped; other sessions are not killed by path matching.',
     }
 
     /** Scoped stylesheet; class names are prefixed so they never leak into the host. */
@@ -123,6 +129,32 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [call])
 
+      // A quit can be cancelled or time out without closing this page. Keep the
+      // durable result visible in that case, as well as after the app reopens.
+      const pending = status?.lastResult?.status === 'pending'
+      React.useEffect(() => {
+        if (!pending) return
+        let alive = true
+        let timer
+        const refresh = async () => {
+          try {
+            const result = await call('status', {})
+            if (!alive) return
+            if (result?.ok === true) {
+              setStatus(result.value)
+              if (['failed', 'succeeded'].includes(result.value?.lastResult?.status)) {
+                setApplied(null)
+                return
+              }
+            }
+          } catch { /* Desktop may be between stopping and restarting. */ }
+          if (alive) timer = setTimeout(refresh, 1500)
+        }
+        timer = setTimeout(refresh, 1500)
+        return () => { alive = false; clearTimeout(timer) }
+      }, [call, pending])
+      const lastFailure = status?.lastResult?.status === 'failed' ? status.lastResult : null
+
       // Which side this page is on comes from the page itself, the same as the menu name.
       const side = inTavern() ? 'tavern' : 'original'
       const standalone = status?.desktopApp === false
@@ -162,7 +194,10 @@ window.__ModuleLoader__.load({
         setFailure(null)
         try {
           const result = target ? await call('link', { target }) : await call('unlink', {})
-          if (result?.ok === true) setApplied(result.value ?? {})
+          if (result?.ok === true) {
+            setApplied(result.value ?? {})
+            setStatus(previous => ({ ...previous, lastResult: { status: 'pending', stamp: result.value?.stamp } }))
+          }
           else setFailure(describeFailure(result?.error))
         } catch (error) {
           setFailure(describeFailure({ message: error?.message ?? String(error) }))
@@ -184,12 +219,18 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', className: 'pb-btn', disabled: busy, onClick: () => void openOriginal() }, t('openOriginal')),
         ) : blocked ? h('p', { className: 'pb-error' }, blocked) : h('div', { className: 'pb-bar' },
           h('span', { className: 'pb-bar-text' },
-            applied === null ? '' : applied.closesApp ? t('restarting') : t('quitHint'),
+            applied === null ? (pending ? t('restarting') : '') : applied.closesApp ? t('restarting') : t('quitHint'),
             ...(applied?.warnings ?? []).map((warning) => h('span', { key: warning, style: { display: 'block', opacity: 0.75 } }, `• ${warning}`)),
           ),
-          applied !== null ? null : h('button', { type: 'button', className: 'pb-btn', disabled: busy, onClick: () => void apply() },
+          applied !== null ? null : h('button', { type: 'button', className: 'pb-btn', disabled: busy || pending || lastFailure?.recoveryRequired, onClick: () => void apply() },
             busy ? t('restarting') : target ? t('toTavern') : t('toOriginal')),
         ),
+        lastFailure ? h('div', { className: 'pb-error', role: 'alert' },
+          h('strong', null, t('lastFailure')),
+          h('div', null, lastFailure.message),
+          lastFailure.recoveryRequired ? h('div', null, t('recoveryRequired')) : null,
+          h('div', null, t('logLocation') + (lastFailure.logPath || status.logPath || '')),
+        ) : null,
         failure !== null ? h('p', { className: 'pb-error' }, `${t('failure')}: ${failure}`) : null,
         !isDesktop || standalone ? null : h('div', { className: 'pb-shortcut' },
           h('div', { className: 'pb-bar-text' },

@@ -20,6 +20,7 @@ async function mount(status, calls = [], options = {}) {
   const { act } = await import('react')
   const rpc = async (_channel, endpoint, payload) => {
     calls.push([endpoint, payload])
+    if (options.rpc) return options.rpc(endpoint, payload)
     if (endpoint === 'shortcut') return { ok: true, value: { path: '/Users/me/Desktop/DSH 酒馆.app', existed: false } }
     return endpoint === 'status' ? { ok: true, value: status } : { ok: true, value: { closesApp: true } }
   }
@@ -38,7 +39,7 @@ async function mount(status, calls = [], options = {}) {
   const root = createRoot(dom.window.document.getElementById('root'))
   await act(async () => { root.render(React.createElement(page, registered.inject())) })
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
-  return { dom, act, label: () => registered.label(), text: () => dom.window.document.body.textContent, button: () => dom.window.document.querySelector('.pb-bar .pb-btn'), calls, dispose: () => root.unmount() }
+  return { dom, act, label: () => registered.label(), text: () => dom.window.document.body.textContent, button: () => dom.window.document.querySelector('.pb-bar .pb-btn'), calls, dispose: () => act(() => root.unmount()) }
 }
 
 const tavernProfile = { name: 'tavern', bundles: ['dsh-tavern-plugin', 'dsh-profile-bridge'], hasNodeModules: true }
@@ -96,5 +97,59 @@ test('快捷方式打开的独立酒馆窗口：不给切换按钮，只说明�
   assert.ok(open, '给一个直接打开原版 DSH 的按钮')
   await page.act(async () => { open.click() })
   assert.deepEqual(page.calls.at(-1), ['openOriginal', {}])
+  page.dispose()
+})
+
+
+test('重开页面后切换失败显示在折叠日志之外；文本不会解析成 HTML', async () => {
+  const page = await mount({ appKind: 'desktop', profiles: [tavernProfile], lastResult: {
+    status: 'failed', message: '<img src=x onerror=alert(1)> EBUSY desktop', logPath: 'C:\\dsh\\profile-bridge\\last-run.log',
+  } })
+  const alert = page.dom.window.document.querySelector('[role="alert"]')
+  assert.ok(alert)
+  assert.equal(alert.closest('details'), null)
+  assert.match(alert.textContent, /上次切换失败.*EBUSY desktop/)
+  assert.match(alert.textContent, /last-run.log/)
+  assert.equal(alert.querySelector('img'), null)
+  await page.act(async () => { page.button().click() })
+  assert.equal(page.dom.window.document.querySelector('[role="alert"]'), null, 'accepted retry replaces previous failure with pending')
+  page.dispose()
+})
+
+test('自动恢复失败时保留备份指引并阻止再次切换', async () => {
+  const page = await mount({ appKind: 'desktop', profiles: [tavernProfile], lastResult: {
+    status: 'failed', message: 'backup at desktop.fresh-1', recoveryRequired: true,
+  } })
+  assert.match(page.text(), /切换结果需要人工确认/)
+  assert.equal(page.button().disabled, true)
+  page.dispose()
+})
+
+test('成功结果不从历史日志误报失败', async () => {
+  const page = await mount({ appKind: 'desktop', profiles: [tavernProfile], lastResult: { status: 'succeeded' }, logTail: 'ERROR: an earlier switch failed' })
+  assert.equal(page.dom.window.document.querySelector('[role="alert"]'), null)
+  assert.equal(page.button().disabled, false)
+  page.dispose()
+})
+
+test('等待退出时禁用重复切换，超时结果不需要重新打开页面即可看到', async () => {
+  let status = { appKind: 'desktop', profiles: [tavernProfile], lastResult: { status: 'pending', stamp: '1' } }
+  const page = await mount(status, [], { rpc: async () => ({ ok: true, value: status }) })
+  assert.equal(page.button().disabled, true)
+  status = { ...status, lastResult: { status: 'failed', stamp: '1', message: '等待桌面退出超时' } }
+  await page.act(async () => { await new Promise(resolve => setTimeout(resolve, 1600)) })
+  assert.match(page.dom.window.document.querySelector('[role="alert"]').textContent, /等待桌面退出超时/)
+  assert.equal(page.button().disabled, false)
+  page.dispose()
+})
+
+test('重试请求被拒绝时不抹去原切换失败证据', async () => {
+  const status = { appKind: 'desktop', profiles: [tavernProfile], lastResult: { status: 'failed', message: 'original failure' } }
+  const page = await mount(status, [], { rpc: async endpoint => endpoint === 'status'
+    ? { ok: true, value: status } : { ok: false, error: { message: 'busy' } } })
+  await page.act(async () => { page.button().click() })
+  assert.match(page.dom.window.document.querySelector('[role="alert"]').textContent, /original failure/)
+  assert.match(page.text(), /busy/)
+  assert.equal(page.button().disabled, false)
   page.dispose()
 })
