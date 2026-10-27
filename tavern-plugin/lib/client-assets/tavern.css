@@ -4618,6 +4618,8 @@ body .dsh-tavern-picker-error { background: linear-gradient(color-mix(in srgb, v
    按会话视图的 railTurns 另画一列等距刻度；点击仍转给宿主原来的刻度按钮。 */
 /* 只做视觉隐藏：display:none 会让宿主的虚拟列表量到 0 高度，连它自己的刻度都不再渲染。 */
 [data-dsh-tavern-rail-hidden] { visibility: hidden !important; pointer-events: none !important; }
+/* 宿主那列藏了，但它的悬浮预览（role=tooltip）要留着：我们的刻度替它收指针事件。 */
+nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !important; }
 .dsh-tavern-turn-rail { position: fixed; z-index: 6; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; margin: 0; padding: 0; max-height: min(60vh, 420px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; transform: translateY(-50%); }
 .dsh-tavern-turn-rail::-webkit-scrollbar { display: none; }
 .dsh-tavern-turn-rail-tick { position: relative; flex: none; box-sizing: border-box; width: 20px; height: 10px; margin: 0; padding: 0; border: 0; border-radius: 8px; background: none; cursor: pointer; }

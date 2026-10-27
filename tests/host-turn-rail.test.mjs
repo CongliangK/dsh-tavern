@@ -131,5 +131,9 @@ test('surfaceTurns：表面里还有节点的轮次，清理标记不算', () =>
   assert.deepEqual(surfaceTurns({ events, nodes: [] }), [], '表面空就是没有轮次')
   assert.deepEqual(surfaceTurns({ events: [], nodes: [1] }), [])
   assert.deepEqual(surfaceTurns({}), [])
-  assert.deepEqual(surfaceTurns({ events, nodes: [99] }), [3], '超出最后一条 turn/start 的节点算最后一轮')
+  assert.deepEqual(surfaceTurns({ events, nodes: [99] }), [], '没有对应事件的 seq 不算正文')
+  // 只有系统消息的轮次（第 3 轮）也不算：跳过去只会滚一段空气。
+  const withSystem = [...events, { seq: 8, type: 'system/message', data: { turn: 3, message: { role: 'system', content: [{ type: 'text', text: '系统' }] } } }]
+  assert.deepEqual(surfaceTurns({ events: withSystem, nodes: [1, 8] }), [1], '系统消息撑不起一根能跳的刻度')
+  assert.deepEqual(surfaceTurns({ events: withSystem, nodes: [1, 4, 5] }), [1, 2], '玩家输入与助手正文照常算')
 })

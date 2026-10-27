@@ -22,6 +22,16 @@ function createTurnRailFilter(root, options) {
 	function hostMarks() {
 		return Array.from(scope.querySelectorAll(markSelector)).filter(mark => turnOf(mark) !== null);
 	}
+	// 宿主的悬浮预览由它自己那根刻度的事件驱动；我们的刻度替它收发同样的指针/焦点事件，
+	// 预览面板本身保持可见（见 tavern.css 里 nav[data-dsh-tavern-rail-hidden] [role=tooltip]）。
+	function preview(mark, on) {
+		try {
+			const related = on ? undefined : doc.body;
+			const type = on ? "pointermove" : "pointerout";
+			if (typeof host.PointerEvent === "function") mark.dispatchEvent(new host.PointerEvent(type, { bubbles: true, relatedTarget: related }));
+			if (on && typeof host.FocusEvent === "function") mark.dispatchEvent(new host.FocusEvent("focusin", { bubbles: true }));
+		} catch (error) { /* 预览只是锦上添花，宿主改结构时不能挡住跳转 */ }
+	}
 	function build(turns, marks) {
 		const box = doc.createElement("nav");
 		box.className = "dsh-tavern-turn-rail";
@@ -36,6 +46,10 @@ function createTurnRailFilter(root, options) {
 			button.setAttribute("aria-label", jumpLabel.replace("{turn}", String(turn)));
 			button.setAttribute("data-turn", String(turn));
 			button.addEventListener("click", function () { mark.click(); });
+			button.addEventListener("pointerenter", function () { preview(mark, true); });
+			button.addEventListener("pointerleave", function () { preview(mark, false); });
+			button.addEventListener("focus", function () { preview(mark, true); });
+			button.addEventListener("blur", function () { preview(mark, false); });
 			ticks.set(turn, button);
 			box.appendChild(button);
 		}

@@ -32,6 +32,15 @@ function isEmptyMarker(event) {
   return Array.isArray(data.content) && data.content.length === 0
 }
 
+// 能跳的轮次：正文里有读者看得到的东西——助手正文，或者玩家自己那一句。
+// 只剩系统消息、工具行、上下文注入的轮次也能「有节点」，但点过去只会滚一段空气。
+function isReaderTurn(event) {
+  if (!event) return false
+  if (event.type === 'assistant/message') return true
+  if (event.type !== 'user/message') return false
+  return String(event.data && event.data.source && event.data.source.kind || '') === 'user'
+}
+
 function boundaryTurn(bounds, seq) {
   let low = 0, high = bounds.length - 1, found = -1
   while (low <= high) {
@@ -56,8 +65,12 @@ function liveTurns(session, bounds) {
     if (!Number.isSafeInteger(seq)) continue
     const event = read === null ? undefined : read(seq)
     const turn = Number(event && event.data && event.data.turn)
-    if (Number.isSafeInteger(turn) && turn > 0) { live.add(turn); continue }
+    if (Number.isSafeInteger(turn) && turn > 0) {
+      if (read === null || isReaderTurn(event)) live.add(turn)
+      continue
+    }
     if (isEmptyMarker(event)) continue
+    if (read !== null && !isReaderTurn(event)) continue
     const mapped = boundaryTurn(bounds, seq)
     if (mapped > 0) live.add(mapped)
   }
@@ -92,9 +105,9 @@ export function surfaceTurns(input) {
     const seq = Number(raw)
     if (!Number.isSafeInteger(seq)) continue
     const event = bySeq.get(seq)
-    const turn = Number(event && event.data && event.data.turn)
+    if (!isReaderTurn(event)) continue
+    const turn = Number(event.data.turn)
     if (Number.isSafeInteger(turn) && turn > 0) { live.add(turn); continue }
-    if (isEmptyMarker(event)) continue
     const mapped = boundaryTurn(bounds, seq)
     if (mapped > 0) live.add(mapped)
   }
