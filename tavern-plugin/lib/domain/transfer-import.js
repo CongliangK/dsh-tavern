@@ -145,32 +145,48 @@ export function createTransferImport(deps) {
     return ''
   }
 
-  async function preview(manifest) {
+  async function preview(manifest, files = new Map()) {
     const index = await existingIndex()
+    const contents = typeof removeCreated === 'function' ? await contentIndex() : null
+    // Only these kinds can be compared byte-for-byte after import; prompts/regex have no local twin.
+    const dedupeKinds = new Set(['cards', 'worldbooks', 'presets', 'scripts'])
     const parts = manifest.parts.map(function (part) {
       if (!IMPORTABLE.includes(part.kind)) {
-        return { kind: part.kind, label: part.label, importable: false, conflicts: 0,
+        return { kind: part.kind, label: part.label, importable: false, conflicts: 0, selectable: 0,
           note: part.kind === 'logs' ? '诊断日志只导出，不导入' : '下一版支持，这次不会导入', items: part.items.map(function (item) {
-            return { key: item.key, title: item.title, bytes: item.bytes, conflict: false, reason: '' }
+            return { key: item.key, title: item.title, bytes: item.bytes, usable: false, conflict: false, duplicate: false, reason: '不导入' }
           }) }
       }
       const items = part.items.map(function (item) {
-        return { key: item.key, title: item.title, bytes: item.bytes, conflict: itemConflict(index, part.kind, item) !== '',
-          reason: itemConflict(index, part.kind, item) }
+        const usable = item.usable !== false && (files.size === 0 || files.has(item.entry))
+        if (!usable) return { key: item.key, title: item.title, bytes: item.bytes, usable: false, conflict: false, duplicate: false, reason: '包内文件损坏或缺失，已跳过' }
+        const conflictReason = itemConflict(index, part.kind, item)
+        let duplicate = false, reason = conflictReason
+        const packed = files.get(item.entry)
+        if (contents && packed && dedupeKinds.has(part.kind)) {
+          const text = packed.toString('utf8')
+          if (contents.get(part.kind).has(contentHashOf(part.kind, text))) {
+            duplicate = true
+            reason = '本机已有相同内容，默认不导入'
+          }
+        }
+        return { key: item.key, title: item.title, bytes: item.bytes, usable: true, conflict: conflictReason !== '', duplicate, reason }
       })
       return { kind: part.kind, label: part.label, importable: true,
         conflicts: items.filter(function (item) { return item.conflict }).length,
+        selectable: items.filter(function (item) { return item.usable && !item.duplicate }).length,
         overwriteAllowed: part.kind === SETTINGS_PART || part.kind === 'plugin-data', items }
     })
     return {
       parts,
-      canApply: parts.some(function (part) { return part.importable && part.items.length }),
+      canApply: parts.some(function (part) { return part.importable && part.selectable > 0 }),
       totals: { items: parts.reduce(function (sum, part) { return sum + part.items.length }, 0),
+        selectable: parts.reduce(function (sum, part) { return sum + part.selectable }, 0),
         conflicts: parts.reduce(function (sum, part) { return sum + part.conflicts }, 0) }
     }
   }
 
-  async function apply({ manifest, files, policies = {} }) {
+  async function apply({ manifest, files, policies = {}, selection = null }) {
     const index = await existingIndex()
     const contents = typeof removeCreated === 'function' ? await contentIndex() : null
     const used = {
@@ -204,7 +220,10 @@ export function createTransferImport(deps) {
       const policy = policies[part.kind] === 'skip' ? 'skip' : 'apply'
       if (policy === 'skip') { result.skipped = part.items.length; continue }
 
+      const picked = selection && Array.isArray(selection[part.kind]) ? new Set(selection[part.kind]) : null
       for (const item of part.items) {
+        if (item.usable === false) { result.failed.push({ title: item.title, error: '包内文件损坏或缺失' }); continue }
+        if (picked && !picked.has(item.key)) { result.skipped += 1; continue }
         const content = files.get(item.entry)
         if (content === undefined) { result.failed.push({ title: item.title, error: '包内缺少该文件' }); continue }
         const text = content.toString('utf8')

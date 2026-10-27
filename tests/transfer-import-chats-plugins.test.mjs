@@ -131,3 +131,33 @@ test('写作 Skill 走 importOne，重名在预览里提示', async () => {
   assert.equal(result.results[0].added, 1);
   assert.deepEqual(calls, [{ key: 'noir', size: 4 }]);
 });
+
+test('只导入勾选的条目，未勾选的按跳过计', async () => {
+  const importer = baseImport({
+    importCard: async payload => { return { path: 'cards/' + payload.name } }
+  });
+  const manifest = manifestWith([{ kind: 'cards', label: '人物卡', items: [
+    { key: 'cards/a.json', title: 'A', entry: 'parts/cards/a.json', bytes: 1, sha256: '' },
+    { key: 'cards/b.json', title: 'B', entry: 'parts/cards/b.json', bytes: 1, sha256: '' }
+  ] }]);
+  const files = new Map([
+    ['parts/cards/a.json', Buffer.from('{"name":"A"}')],
+    ['parts/cards/b.json', Buffer.from('{"name":"B"}')]
+  ]);
+  const result = await importer.apply({ manifest, files, selection: { cards: ['cards/a.json'] } });
+  assert.equal(result.results[0].added, 1);
+  assert.equal(result.results[0].skipped, 1);
+});
+
+test('单条损坏只记失败，其他条目照常导入', async () => {
+  const importer = baseImport({
+    importCard: async payload => { return { path: 'cards/' + payload.name } }
+  });
+  const manifest = manifestWith([{ kind: 'cards', label: '人物卡', items: [
+    { key: 'cards/bad.json', title: '坏卡', entry: 'parts/cards/bad.json', bytes: 1, sha256: '', usable: false },
+    { key: 'cards/good.json', title: '好卡', entry: 'parts/cards/good.json', bytes: 1, sha256: '' }
+  ] }]);
+  const result = await importer.apply({ manifest, files: new Map([['parts/cards/good.json', Buffer.from('{"name":"好卡"}')]]) });
+  assert.equal(result.results[0].added, 1);
+  assert.deepEqual(result.results[0].failed.map(row => row.title), ['坏卡']);
+});

@@ -4775,7 +4775,9 @@ nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !importa
 .dsh-tavern-transfer-item + .dsh-tavern-transfer-item { border-top: 1px dashed var(--dsw-alias-border-l2); }
 .dsh-tavern-transfer-item input { width: 14px; height: 14px; margin: 0; accent-color: var(--dsh-tavern-accent); flex: 0 0 auto; }
 .dsh-tavern-transfer-item-name { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-tavern-transfer-item-note { margin-left: auto; font-size: 10.5px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.dsh-tavern-transfer-item-note { margin-left: auto; max-width: 46%; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.dsh-tavern-transfer-item.is-bad { opacity: .55; }
+.dsh-tavern-transfer-items.is-pick { max-height: 320px; }
 .dsh-tavern-transfer-item-size { font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary); min-width: 54px; text-align: right; white-space: nowrap; }
 .dsh-tavern-transfer-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

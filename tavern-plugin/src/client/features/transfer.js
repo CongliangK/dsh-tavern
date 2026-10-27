@@ -27,15 +27,39 @@ function createTransferFeatureModule() {
 		return policies
 	}
 
-	function planTotals(bundle, policies) {
+	function defaultSelection(bundle) {
+		const selection = {}
+		;(bundle && bundle.parts || []).forEach(function (part) {
+			if (!part.importable) return
+			const keys = (part.items || []).filter(function (item) { return item.usable !== false && !item.duplicate }).map(function (item) { return item.key })
+			if (keys.length) selection[part.kind] = Object.fromEntries(keys.map(function (key) { return [key, true] }))
+		})
+		return selection
+	}
+
+	function planTotals(bundle, policies, selection) {
 		const totals = { added: 0, skipped: 0, conflicts: 0 }
 		;(bundle && bundle.parts || []).forEach(function (part) {
-			if (!part.importable) { totals.skipped += part.items.length; return }
-			if ((policies && policies[part.kind]) === "skip") { totals.skipped += part.items.length; return }
-			totals.added += part.items.length
-			totals.conflicts += part.conflicts
+			const items = part.items || []
+			const chosen = part.importable ? items.filter(function (item) { return selection && selection[part.kind] && selection[part.kind][item.key] }) : []
+			totals.skipped += items.length - chosen.length
+			if (!part.importable) return
+			if ((policies && policies[part.kind]) === "skip") { totals.skipped += chosen.length; return }
+			const usable = chosen.filter(function (item) { return item.usable !== false })
+			totals.added += usable.length
+			totals.conflicts += usable.filter(function (item) { return item.conflict }).length
+			totals.skipped += chosen.length - usable.length
 		})
 		return totals
+	}
+
+	function selectionPayload(selection) {
+		const payload = {}
+		Object.entries(selection || {}).forEach(function (entry) {
+			const keys = Object.keys(entry[1] || {})
+			if (keys.length) payload[entry[0]] = keys
+		})
+		return payload
 	}
 
 	function TavernTransferPanel(props) {
@@ -48,6 +72,7 @@ function createTransferFeatureModule() {
 		const [exported, setExported] = React.useState(null)
 		const [includeImages, setIncludeImages] = React.useState(false)
 		const [importing, setImporting] = React.useState(null)
+		const [openImport, setOpenImport] = React.useState({})
 		const [error, setError] = usePersistentError("导出与导入")
 		const fileInput = React.useRef(null)
 		const bodyRef = React.useRef(null)
@@ -177,7 +202,8 @@ function createTransferFeatureModule() {
 				try { reply = await response.json() } catch (_error) { /* the route answers JSON */ }
 				if (!reply || !reply.ok) throw new Error(reply && reply.error || "上传失败（HTTP " + response.status + "）")
 				const result = await rpc("previewTransferBundle", { uploadId: reply.uploadId }, sessionId)
-				setImporting({ stage: "preview", fileName: file.name, token: result.token, bundle: result.bundle, policies: defaultPolicies(result.bundle) })
+				setImporting({ stage: "preview", fileName: file.name, token: result.token, bundle: result.bundle, policies: defaultPolicies(result.bundle), selection: defaultSelection(result.bundle) })
+				setOpenImport({})
 				window.setTimeout(function () { if (bodyRef.current) bodyRef.current.scrollTop = 0 }, 30)
 			} catch (err) {
 				setImporting(null)
@@ -199,7 +225,7 @@ function createTransferFeatureModule() {
 			setError("")
 			setBusy(true)
 			setImporting(function (current) { return Object.assign({}, current, { stage: "applying" }) })
-			rpc("applyTransferBundle", { token: importing.token, policies: importing.policies }, sessionId).then(function (result) {
+			rpc("applyTransferBundle", { token: importing.token, policies: importing.policies, selection: selectionPayload(importing.selection) }, sessionId).then(function (result) {
 				setImporting(function (current) { return Object.assign({}, current, { stage: "done", result }) })
 				notifyTavernDataChanged(["cards", "worldbooks", "presets", "sessions", "plugins"], "transfer")
 				void refresh()
@@ -301,6 +327,32 @@ function createTransferFeatureModule() {
 			}, function (err) { setError(String(err && err.message || err)) }).finally(function () { setBusy(false) })
 		}
 
+		function toggleImportPart(part) {
+			setImporting(function (current) {
+				if (!current) return current
+				const items = (part.items || []).filter(function (item) { return item.usable !== false })
+				const selected = Object.assign({}, current.selection && current.selection[part.kind] || {})
+				const all = items.length > 0 && items.every(function (item) { return selected[item.key] })
+				const next = Object.assign({}, current.selection)
+				if (all) delete next[part.kind]
+				else next[part.kind] = Object.fromEntries(items.map(function (item) { return [item.key, true] }))
+				return Object.assign({}, current, { selection: next })
+			})
+		}
+
+		function toggleImportItem(part, item, checked) {
+			setImporting(function (current) {
+				if (!current) return current
+				const next = Object.assign({}, current.selection)
+				const selected = Object.assign({}, next[part.kind] || {})
+				if (checked) selected[item.key] = true
+				else delete selected[item.key]
+				if (Object.keys(selected).length) next[part.kind] = selected
+				else delete next[part.kind]
+				return Object.assign({}, current, { selection: next })
+			})
+		}
+
 		function renderImport() {
 			const state = importing
 			if (!state) {
@@ -329,7 +381,7 @@ function createTransferFeatureModule() {
 				)
 			}
 			const bundle = state.bundle || { parts: [] }
-			const totals = planTotals(bundle, state.policies)
+			const totals = planTotals(bundle, state.policies, state.selection)
 			return h("div", { className: "dsh-tavern-transfer-body", ref: bodyRef },
 				h("div", { className: "dsh-tavern-transfer-bundle" },
 					h("div", { className: "dsh-tavern-transfer-bundle-name" }, bundle.name || state.fileName),
@@ -340,18 +392,32 @@ function createTransferFeatureModule() {
 					bundle.issues && bundle.issues.length ? h("p", { className: "dsh-tavern-transfer-warn" }, "有 " + bundle.issues.length + " 项损坏，已跳过：" + bundle.issues[0]) : null
 				),
 				(bundle.parts || []).map(function (part) {
-					const overwrite = part.kind === "settings"
+					const items = part.items || []
+					const selected = (state.selection && state.selection[part.kind]) || {}
+					const chosen = items.filter(function (item) { return selected[item.key] })
+					const allChecked = items.length > 0 && items.every(function (item) { return selected[item.key] })
+					const someChecked = chosen.length > 0 && !allChecked
+					const open = openImport[part.kind] === true
+					const disabled = !part.importable || items.length === 0
 					return h("article", { className: "dsh-tavern-transfer-part is-import", key: part.kind },
 						h("div", { className: "dsh-tavern-transfer-part-head" },
+							h("label", { className: "dsh-tavern-transfer-check" },
+								h("input", {
+									type: "checkbox", checked: allChecked, disabled: busy || disabled,
+									ref: function (node) { if (node) node.indeterminate = someChecked },
+									onChange: function () { toggleImportPart(part) },
+									"aria-label": "选择" + part.label
+								})
+							),
 							h("div", { className: "dsh-tavern-transfer-part-main" },
 								h("div", { className: "dsh-tavern-transfer-part-name" },
 									h("strong", null, part.label),
-									part.conflicts ? h("span", { className: "dsh-tavern-transfer-tag is-warn" }, "同名 " + part.conflicts) : h("span", { className: "dsh-tavern-transfer-tag is-muted" }, "无冲突")
+									part.importable ? null : h("span", { className: "dsh-tavern-transfer-tag is-muted" }, "不导入"),
+									part.conflicts ? h("span", { className: "dsh-tavern-transfer-tag is-warn" }, "同名 " + part.conflicts) : null
 								),
-								part.items && part.items.length && part.items[0].reason ? h("p", { className: "dsh-tavern-transfer-note" }, part.items[0].reason) : null
+								h("p", { className: "dsh-tavern-transfer-note" }, chosen.length + "/" + items.length + " 项已选" + (part.note ? " · " + part.note : ""))
 							),
 							h("div", { className: "dsh-tavern-transfer-part-side" },
-								h("span", { className: "dsh-tavern-transfer-count" }, (part.items || []).length + " 项"),
 								h("select", {
 									className: "dsh-tavern-transfer-policy", value: (state.policies && state.policies[part.kind]) || "new",
 									disabled: busy || !part.importable,
@@ -360,9 +426,29 @@ function createTransferFeatureModule() {
 								},
 									h("option", { value: "new" }, part.kind === "settings" ? "合并设置" : part.kind === "plugin-data" ? "覆盖数据" : "新建副本"),
 									h("option", { value: "skip" }, "跳过")
-								)
+								),
+								items.length ? h("button", {
+									type: "button", className: "dsh-tavern-transfer-expand",
+									"aria-label": (open ? "收起" : "展开") + part.label,
+									onClick: function () { setOpenImport(function (current) { const next = Object.assign({}, current); if (next[part.kind]) delete next[part.kind]; else next[part.kind] = true; return next }) }
+								}, h("svg", { width: 12, height: 12, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, h("path", { d: "M4 6l4 4 4-4" }))) : null
 							)
-						)
+						),
+						open && items.length ? h("div", { className: "dsh-tavern-transfer-items is-pick" },
+							items.map(function (item) {
+								const bad = item.usable === false
+								return h("label", { className: "dsh-tavern-transfer-item" + (bad ? " is-bad" : ""), key: part.kind + ":" + item.key },
+									h("input", {
+										type: "checkbox", checked: selected[item.key] === true,
+										disabled: busy || disabled || bad,
+										onChange: function (event) { toggleImportItem(part, item, event.target.checked) }
+									}),
+									h("span", { className: "dsh-tavern-transfer-item-name" }, item.title),
+									item.reason ? h("span", { className: "dsh-tavern-transfer-item-note" }, item.reason) : null,
+									h("span", { className: "dsh-tavern-transfer-item-size" }, fmtBytes(item.bytes))
+								)
+							})
+						) : null
 					)
 				}),
 				state.stage === "done" && state.result ? h("div", { className: "dsh-tavern-transfer-result" },
@@ -394,7 +480,7 @@ function createTransferFeatureModule() {
 						h("span", null, "跳过 " + totals.skipped + " 项"),
 						totals.conflicts ? h("span", { className: "is-warn" }, "其中 " + totals.conflicts + " 项同名会加副本") : null
 					),
-					h("button", { type: "button", className: "dsh-tavern-btn primary", disabled: busy || !bundle.canApply, onClick: applyImport }, busy ? "导入中…" : "开始导入")
+					h("button", { type: "button", className: "dsh-tavern-btn primary", disabled: busy || totals.added === 0, onClick: applyImport }, busy ? "导入中…" : "确认导入")
 				) : null
 			)
 		}

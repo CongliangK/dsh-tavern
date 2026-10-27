@@ -157,7 +157,7 @@ export function createTransferHandlers(deps) {
         const buffer = await readFile(upload.file)
         if (buffer.length > MAX_IMPORT_BYTES) throw new Error('导出包超过 ' + Math.round(MAX_IMPORT_BYTES / 1048576) + ' MB，暂不支持这么大的包')
         const bundle = readTransferBundle(buffer)
-        const preview = await importer.preview(bundle.manifest)
+        const preview = await importer.preview(bundle.manifest, bundle.files)
         const token = randomUUID()
         tokens.set(token, { at: Date.now(), manifest: bundle.manifest, files: bundle.files })
         return {
@@ -184,7 +184,8 @@ export function createTransferHandlers(deps) {
       const entry = tokens.get(token)
       if (!entry) throw new Error('导入会话已过期，请重新选择导出包')
       const policies = args && args.policies && typeof args.policies === 'object' && !Array.isArray(args.policies) ? args.policies : {}
-      const result = await importer.apply({ manifest: entry.manifest, files: entry.files, policies })
+      const selection = args && args.selection && typeof args.selection === 'object' && !Array.isArray(args.selection) ? args.selection : null
+      const result = await importer.apply({ manifest: entry.manifest, files: entry.files, policies, selection })
       tokens.delete(token)
       // Record what was created and its hash now, so undo can refuse files edited since.
       const records = []
