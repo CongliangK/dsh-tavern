@@ -29163,6 +29163,7 @@ function createConversationSettingsModule({
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,
                 toggle("posture", "人物姿势", "每轮总结人物的位置、动作和姿势，供前台保持一致。", tasks.posture, checked => ({ backgroundTasks: { posture: checked } })),
                 toggle("styleReference", "文风联想", "仅自由模式。每轮后台凭记忆摘一段风格相近的小说原文，供下一轮正文借鉴笔调。多一次后台请求。", tasks.styleReference === true, checked => ({ backgroundTasks: { styleReference: checked } })),
+                toggle("worldbookScreening", "世界书模型筛选", "条目太多时请后台模型挑选相关条目，被排除的条目 10 轮内不再放入。多一次后台请求。", tasks.worldbookScreening === true, checked => ({ backgroundTasks: { worldbookScreening: checked } })),
                 toggle("webSearchEnabled", "联网搜索", "前台和后台可按需搜索。", features.webSearchEnabled, checked => ({ webSearchEnabled: checked }))),
             error || key && reasoning.key === key && reasoning.error ? h("p", { role: "alert", className: "dsh-tavern-prompt-error" }, error || reasoning.error) : null,
             notice ? h("p", { role: "status" }, notice) : null,

@@ -20,7 +20,7 @@ function unreadCharacterDesigns(worldBook, chat) {
 export function createForegroundWorldbook({ bound, runtime, globalVariables, scanText = () => '', filterCandidates }) {
   return async function project({ chat, card, userText, userTextInHistory = false, worldBook: snapshot, purpose = 'generation', signal }) {
     try {
-      let worldBook = snapshot || await bound(chat.cardPath, card, chat)
+      let worldBook = snapshot || await bound(chat.cardPath, card, chat, {purpose,userText})
       const turn = Number([...(chat.messages || [])].reverse().find(message => message?.role === 'assistant')?.turn) || 0
       const randomState = worldbookRandomState(chat, turn)
       // Older versions recorded the next-turn preview as a read. Let the first
@@ -31,13 +31,17 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
           if (Number(reads[ref]?.turn) === Number(chat.preparedWorldBook.turn)) delete reads[ref]
         }
       }
+      // Model screening is a per-game switch (off by default): while off, the model is never
+      // asked and its earlier exclusions stop cooling entries down.
+      const screeningOn = Boolean(filterCandidates) && chat.backgroundTasks?.worldbookScreening === true
+      if (!screeningOn) for (const ref of Object.keys(reads)) if (reads[ref]?.kind === 'screened') delete reads[ref]
       const templateRuntime = await runtime(chat.sessionId), globals = await globalVariables()
       worldBook = await prepareTemplateWorldbook(worldBook, templateRuntime, chat, globals)
       const preparedActivations = [...(worldBook?.templateActivationRequests || []), ...unreadCharacterDesigns(worldBook, chat), ...(worldBook?.pluginActivationRequests || [])]
       let activationRequests = preparedActivations, recalled, projected
       const tokenCosts = {}
       // Only the post-reply prefilter may ask a model; sending and history import stay local.
-      let screeningDone = purpose !== 'prefilter' || !filterCandidates, screening, allowedRefs
+      let screeningDone = purpose !== 'prefilter' || !screeningOn, screening, allowedRefs
       const protectedRefs = () => new Set(activationRequests.flatMap(request => [request.ref, request.sourceRef]))
       // Rebuild from the same snapshot and original scopes; speculative passes never mutate Chat.
       // Only requests from controllers still selected survive to the next pass.
