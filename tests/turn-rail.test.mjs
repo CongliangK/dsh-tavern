@@ -56,7 +56,7 @@ test('还没加载的轮次照列：点了会先拉历史再跳', t => {
   filter.dispose()
 })
 
-test('点我们的刻度走宿主原来的按钮，当前轮镜像宿主的 aria-current', t => {
+test('行在页面里就自己滚到这一轮的开头，当前轮镜像宿主的 aria-current', t => {
   const { dom, document, scope, create, clicked } = rail([1, 2, 3], { rows: [[1, 60], [2, 60], [3, 60]] })
   t.after(() => dom.window.close())
   const filter = create(scope)
@@ -65,8 +65,22 @@ test('点我们的刻度走宿主原来的按钮，当前轮镜像宿主的 aria
   hostMark.setAttribute('aria-current', 'true')
   filter.sync()
   assert.deepEqual([...document.querySelectorAll('.dsh-tavern-turn-rail [data-active]')].map(node => node.getAttribute('data-turn')), ['3'])
+  // 行带绝对位置：第 2 轮的行在 900px 处，滚动应落在它的开头。
+  const row = scope.querySelector('[data-row="2"]')
+  row.getBoundingClientRect = () => ({ height: 60, width: 400, top: 940, bottom: 1000, left: 0, right: 400 })
   document.querySelector('.dsh-tavern-turn-rail [data-turn="2"]').click()
-  assert.deepEqual(clicked, [2], '委托给宿主刻度：加载历史与跳转逻辑不变')
+  assert.equal(scope.scrollTop, 940 - 40 - 8, '对齐到行首（会话区顶部 + 8px 留白）')
+  assert.deepEqual(clicked, [], '不用再麻烦宿主，它那套负载轮次根本不动')
+  filter.dispose()
+})
+
+test('行不在页面里才交给宿主拉历史', t => {
+  const { dom, document, scope, create, clicked } = rail([1, 2], { rows: [[1, 60]], unloaded: [2] })
+  t.after(() => dom.window.close())
+  const filter = create(scope)
+  filter.apply()
+  document.querySelector('.dsh-tavern-turn-rail [data-turn="2"]').click()
+  assert.deepEqual(clicked, [2], '没有行：委托宿主刻度')
   filter.dispose()
 })
 
@@ -113,8 +127,8 @@ test('目录里说不出内容的轮次不出刻度（预览也不会为空）',
   const filter = create(scope)
   // 目录说：1、3 有正文；2 只有系统消息；4 是空的尝试轮。
   filter.apply({ text: new Set([1, 3]) })
-  assert.deepEqual(tickTurns(document), [1], '第 2 轮有行但目录里没内容；第 3 轮目录有内容却没画出来；第 4 轮目录是空的')
+  assert.deepEqual(tickTurns(document), [1, 3], '第 2 轮有行但目录里没内容；第 4 轮目录是空的；第 3 轮目录有正文，留着可往前翻')
   filter.apply({ text: new Set([1, 2, 3, 4]) })
-  assert.deepEqual(tickTurns(document), [1, 2, 4], '目录都说有内容时，按行高和加载状态来')
+  assert.deepEqual(tickTurns(document), [1, 2, 3, 4], '目录都说有内容时全列，点不到的行会往前翻历史')
   filter.dispose()
 })

@@ -49,13 +49,53 @@ function createTurnRailFilter(root, options) {
 		if (mark.getAttribute("aria-current") === "true") return true;
 		// 目录里说得出这一轮写了什么的才留：目录两样都空的轮次（只剩系统消息、工具行、
 		// 被清空的尝试）没有正文可落，悬浮预览也是空的。
-		if (textTurns !== null) {
-			if (!textTurns.has(turn)) return false;
-			if (/markUnloaded/.test(String(mark.className || ""))) return true;
-			return visible.has(turn);
-		}
+		if (textTurns !== null && !textTurns.has(turn)) return false;
 		if (/markUnloaded/.test(String(mark.className || ""))) return true;
-		return visible.has(turn);
+		if (visible.has(turn)) return true;
+		// 画不出来、目录里却有正文的轮次：留着，点了往前翻历史再落。
+		return textTurns !== null && textTurns.has(turn);
+	}
+	// 跳到这一轮的开头：自己滚，别指望宿主——它那套「先加载再落点」对已经是负载状态、
+	// 只是离得很远的轮次根本不动（实测点了 scrollTop 一直是 0）。
+	function rowFor(turn) {
+		for (const row of scope.querySelectorAll('[data-chat-turn="' + turn + '"], [data-turn="' + turn + '"]')) {
+			if (row.getBoundingClientRect().height > 0) return row;
+		}
+		return null;
+	}
+	function scrollToTurn(turn) {
+		const row = rowFor(turn);
+		if (!row) return false;
+		const scroller = scope;
+		const top = scroller.scrollTop + row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 8;
+		try {
+			const reduced = typeof host.matchMedia === "function" && host.matchMedia("(prefers-reduced-motion: reduce)").matches;
+			scroller.scrollTo({ top: Math.max(0, top), behavior: reduced ? "auto" : "smooth" });
+		} catch (error) { scroller.scrollTop = Math.max(0, top); }
+		return true;
+	}
+	// 行还没进页面：一边按宿主的「加载更早」往前翻，一边等这一轮的行出现，出现后对齐开头。
+	// 宿主自己那套「加载并跳转」对这类轮次不动（实测点了 scrollTop 一直是 0）。
+	function loadEarlier() {
+		const box = scope.querySelector('[class*="_older"]');
+		const button = box ? box.querySelector("button") : null;
+		if (!button || button.disabled) return false;
+		button.click();
+		return true;
+	}
+	function alignLater(turn, mark) {
+		let tries = 0, idle = 0;
+		mark.click();
+		const timer = host.setInterval(function () {
+			if (scrollToTurn(turn)) { host.clearInterval(timer); return; }
+			if (loadEarlier()) { idle = 0; return; }
+			if (++idle > 6 || ++tries > 60) host.clearInterval(timer);
+			else tries++;
+		}, 350);
+	}
+	function navigate(turn, mark) {
+		if (scrollToTurn(turn)) return;
+		alignLater(turn, mark);
 	}
 	function build(turns, marks) {
 		const box = doc.createElement("nav");
@@ -71,7 +111,7 @@ function createTurnRailFilter(root, options) {
 			button.className = "dsh-tavern-turn-rail-tick";
 			button.setAttribute("aria-label", jumpLabel.replace("{turn}", String(turn)));
 			button.setAttribute("data-turn", String(turn));
-			button.addEventListener("click", function () { mark.click(); });
+			button.addEventListener("click", function () { navigate(turn, mark); });
 			button.addEventListener("pointerenter", function () { preview(mark, true); });
 			button.addEventListener("pointerleave", function () { preview(mark, false); });
 			button.addEventListener("focus", function () { preview(mark, true); });
@@ -112,10 +152,15 @@ function createTurnRailFilter(root, options) {
 		const hostNav = marks.length ? marks[0].closest("nav") : null;
 		if (hostNav) hostNav.setAttribute(hiddenAttribute, "");
 		const pairs = marks.map(mark => ({ mark, turn: turnOf(mark) }));
-		const visible = accept !== null || allowed !== null ? null : visibleTurns();
-		const turns = pairs
-			.filter(pair => accept !== null ? accept(pair.turn) : allowed !== null ? allowed.has(pair.turn) : defaultAccept(pair.turn, pair.mark, visible))
-			.map(pair => pair.turn);
+		const visible = visibleTurns();
+		const active = pairs.find(pair => pair.mark.getAttribute("aria-current") === "true");
+		const keep = pair => {
+			if (active && pair.turn === active.turn) return true;
+			if (accept !== null) return Boolean(accept(pair.turn));
+			if (allowed !== null) return allowed.has(pair.turn);
+			return defaultAccept(pair.turn, pair.mark, visible);
+		};
+		const turns = pairs.filter(keep).map(pair => pair.turn);
 		const key = turns.join(",");
 		if (key !== turnsKey) {
 			turnsKey = key;
@@ -135,8 +180,9 @@ function createTurnRailFilter(root, options) {
 		textTurns = null;
 		if (typeof turns === "function") accept = turns;
 		else if (turns && !Array.isArray(turns) && typeof turns === "object") {
+			if (typeof turns.accept === "function") accept = turns.accept;
 			if (turns.text && typeof turns.text.has === "function") textTurns = turns.text;
-			else if (Array.isArray(turns.turns) && turns.turns.length) allowed = new Set(turns.turns.map(Number));
+			if (Array.isArray(turns.turns) && turns.turns.length) allowed = new Set(turns.turns.map(Number));
 		} else if (Array.isArray(turns) && turns.length) {
 			allowed = new Set(turns.map(Number).filter(turn => Number.isSafeInteger(turn) && turn > 0));
 		}

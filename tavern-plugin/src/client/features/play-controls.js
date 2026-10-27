@@ -1041,12 +1041,16 @@
 				}
 				return turns;
 			}, [outline]);
+			// 正文行计划：每个存档轮次由哪个原生轮次画正文。重试、撤回的尝试轮不在其中。
+			const railPlan = React.useMemo(function () { return state.view ? tavernPlanOf(state.view) : null; }, [state.view && state.view.transcriptTurns, state.view && state.view.transcriptFrom]);
+			const railAccept = railPlan ? function (turn) { return tavernPlanShowsRow(railPlan, turn, "reply"); } : null;
+			const railPlanKey = railPlan ? JSON.stringify(railPlan) : "";
 			const canRewind = !!(state.view && state.view.canRegenerate === true);
 			const draft = props.useInput(snapshot => snapshot.draft);
 			const draftRef = React.useRef(draft);
 			draftRef.current = draft;
 			const revision = turns.join(",") + ":" + (Array.isArray(hiddenTurns) ? "saved:" + hiddenTurns.join(",") : "local") + ":" + String(replayTurn || "")
-				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind + ":outline:" + outlineKey;
+				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind + ":outline:" + outlineKey + ":plan:" + railPlanKey;
 			// Clearing a failed tail is the first half of both recovery actions.
 			async function clearFailedTail() {
 				const result = await rpc("rollbackTurn", { expectedTurn: null }, props.sessionId);
@@ -1099,7 +1103,7 @@
                     },
                     onError: function (error) { tavernErrorHub.report("保存错误提示状态失败", error); }
                 });
-				const apply = function () { projection.apply(turns); controls.apply(); rail.apply({ text: textTurns }); };
+				const apply = function () { projection.apply(turns); controls.apply(); rail.apply({ accept: railAccept, text: textTurns }); };
 				apply();
 				const observer = observeTurnErrorProjection(root, apply);
 				return function () { observer.disconnect(); controls.dispose(); projection.dispose(); rail.dispose(); };
