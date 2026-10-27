@@ -288,6 +288,7 @@ import { createAssetLibraryHandlers } from './rpc/asset-library.js'
 import { stageSkinChoice, stageSkinPackIds } from './domain/stage-skin-choice.js'
 import { createConversationHandlers } from './rpc/conversations.js'
 import { createPlayHandlers } from './rpc/play.js'
+import { createTransferHandlers } from './rpc/transfer.js'
 // dsh-tavern 宿主插件（profile 组合行）
 // RPC：同源 HTTP 路由 /api/dsh-tavern/<method>（客户端 fetch 调用）
 // DSH 生命周期负责回合状态；模型工具只处理按需读取和明确修改。
@@ -3439,7 +3440,7 @@ export async function apply(ctx) {
     listTavernSessions, liveCardUpdate, llm, manualCharacterDesign, manualLedger, mobileCardImport,
     modelRequestLog, mvuDiagnostics, notifyPluginTimeline, openingPreparation, pagesInFront, phoneChat,
     playCardSnapshots, pluginApi, pluginDataStore, pluginGalleryItems, pluginMediaForTurn, pluginMediaTurns,
-    pluginSettlementProgress, prepareConversationFork, preparedSaveSessions, presentSystemPrompts,
+    pluginSettlementProgress, prepareConversationFork, preparedSaveSessions, presentSystemPrompts, promptDocuments,
     presentUserPreferenceProfile, presetLibrary, previewPreset, projectOpeningWindow,
     readBackgroundSuppression, readCard, readCardExtensions, readCardExtensionSources, readCardWorkspace, readChat, readChatCard,
     readOpeningWindow, readScript, readSessionMap, readTavernSettings, reconcileStory, reconcileWhenIdle,
@@ -3468,7 +3469,8 @@ export async function apply(ctx) {
     createPluginHandlers(rpcDeps),
     createAssetLibraryHandlers(rpcDeps),
     createConversationHandlers(rpcDeps),
-    createPlayHandlers(rpcDeps))
+    createPlayHandlers(rpcDeps),
+    createTransferHandlers(rpcDeps))
 
   async function dispatchMethod(method, args, serverTemplate = false) {
     if (method.startsWith('gameplay.')) return await gameplayApi.call(method.slice(9), args || {})

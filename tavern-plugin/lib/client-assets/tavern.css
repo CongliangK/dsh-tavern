@@ -4629,3 +4629,245 @@ nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !importa
 .dsh-tavern-turn-rail-tick:focus-visible { outline: none; }
 .dsh-tavern-turn-rail-tick:focus-visible::before { background: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); transform: translateY(-50%) scaleX(1); }
 @media (prefers-reduced-motion: reduce) { .dsh-tavern-turn-rail-tick::before { transition: none; } }
+
+/* ── 导出与导入（.dshtransfer） ───────────────────────────────────────── */
+.dsh-tavern-transfer {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-sidebar-fill);
+  font-family: var(--dsh-tavern-font-sans);
+}
+.dsh-tavern-transfer-head { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.dsh-tavern-transfer-head .dsh-tavern-status-title { font-size: 16px; }
+.dsh-tavern-transfer-modes {
+  display: inline-flex;
+  align-self: flex-start;
+  min-width: 220px;
+  gap: 4px;
+  margin: 0 12px 10px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+}
+.dsh-tavern-transfer-mode {
+  flex: 0 0 auto;
+  min-width: 96px;
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.dsh-tavern-transfer-mode.is-on {
+  background: var(--dsw-alias-bg-base);
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+.dsh-tavern-transfer-error {
+  margin: 0 12px 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--dsh-tavern-accent-error) 40%, transparent);
+  background: color-mix(in srgb, var(--dsh-tavern-accent-error) 10%, transparent);
+  color: var(--dsh-tavern-accent-error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dsh-tavern-transfer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dsh-tavern-transfer-quick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dsh-tavern-transfer-quick-label { font-size: 11px; color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-transfer-chip {
+  appearance: none;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+}
+.dsh-tavern-transfer-chip:hover { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-transfer-group { display: flex; flex-direction: column; gap: 6px; }
+.dsh-tavern-transfer-group-title {
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  color: var(--dsw-alias-label-secondary);
+  padding: 6px 2px 0;
+}
+.dsh-tavern-transfer-part {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+  overflow: hidden;
+}
+.dsh-tavern-transfer-part.is-empty { opacity: .62; }
+.dsh-tavern-transfer-part-head { display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px; }
+.dsh-tavern-transfer-check { display: inline-flex; margin-top: 2px; }
+.dsh-tavern-transfer-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--dsh-tavern-accent); cursor: pointer; }
+.dsh-tavern-transfer-part-main { min-width: 0; flex: 1 1 auto; }
+.dsh-tavern-transfer-part-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dsh-tavern-transfer-part-name strong { font-size: 13px; font-weight: 600; }
+.dsh-tavern-transfer-note {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--dsw-alias-label-secondary);
+}
+.dsh-tavern-transfer-tag {
+  font-size: 9.5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-1);
+  white-space: nowrap;
+}
+.dsh-tavern-transfer-tag.is-muted { opacity: .75; }
+.dsh-tavern-transfer-tag.is-warn {
+  color: var(--dsh-tavern-accent-active);
+  border-color: var(--dsh-tavern-accent-border);
+  background: var(--dsh-tavern-accent-soft);
+}
+.dsh-tavern-transfer-part-side { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.dsh-tavern-transfer-count { font-size: 10.5px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.dsh-tavern-transfer-size { font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); white-space: nowrap; }
+.dsh-tavern-transfer-expand {
+  appearance: none;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+.dsh-tavern-transfer-items {
+  border-top: 1px dashed var(--dsw-alias-border-l2);
+  padding: 4px 10px 8px 34px;
+  background: var(--dsw-alias-bg-layer-1);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.dsh-tavern-transfer-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+.dsh-tavern-transfer-item + .dsh-tavern-transfer-item { border-top: 1px dashed var(--dsw-alias-border-l2); }
+.dsh-tavern-transfer-item input { width: 14px; height: 14px; margin: 0; accent-color: var(--dsh-tavern-accent); flex: 0 0 auto; }
+.dsh-tavern-transfer-item-name { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-tavern-transfer-item-note { margin-left: auto; font-size: 10.5px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.dsh-tavern-transfer-item-size { font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary); min-width: 54px; text-align: right; white-space: nowrap; }
+.dsh-tavern-transfer-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 12px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+}
+.dsh-tavern-transfer-bar.is-inline { border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; margin-top: 2px; }
+.dsh-tavern-transfer-summary { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--dsw-alias-label-secondary); min-width: 0; }
+.dsh-tavern-transfer-summary strong { font-size: 12.5px; color: var(--dsw-alias-label-primary); }
+.dsh-tavern-transfer-summary .is-warn { color: var(--dsh-tavern-accent-active); }
+.dsh-tavern-transfer-bar .dsh-tavern-btn.primary {
+  margin-left: auto;
+  background: var(--dsh-tavern-accent-active);
+  color: #fff;
+  font-weight: 600;
+  border-color: transparent;
+}
+.dsh-tavern-transfer-bar .dsh-tavern-btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+.dsh-tavern-transfer-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 26px 16px;
+  border: 1.5px dashed var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: inherit;
+}
+.dsh-tavern-transfer-drop:hover:not(:disabled) { border-color: var(--dsh-tavern-accent-border); color: var(--dsw-alias-label-primary); }
+.dsh-tavern-transfer-drop strong { font-size: 13px; color: var(--dsw-alias-label-primary); }
+.dsh-tavern-transfer-drop span { font-size: 11.5px; }
+.dsh-tavern-transfer-hint { margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-transfer-warn { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--dsh-tavern-accent-active); }
+.dsh-tavern-transfer-bundle {
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+}
+.dsh-tavern-transfer-bundle-name { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.dsh-tavern-transfer-bundle-meta { margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 10.5px; color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-transfer-part.is-import .dsh-tavern-transfer-part-head { align-items: center; }
+.dsh-tavern-transfer-policy {
+  appearance: none;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+.dsh-tavern-transfer-policy:disabled { opacity: .5; cursor: default; }
+.dsh-tavern-transfer-result {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+}
+.dsh-tavern-transfer-result strong { font-size: 12.5px; }
+.dsh-tavern-transfer-result-row { display: flex; gap: 10px; font-size: 11.5px; padding-top: 5px; border-top: 1px dashed var(--dsw-alias-border-l2); }
+.dsh-tavern-transfer-result-name { flex: 0 0 84px; font-weight: 600; }
+.dsh-tavern-transfer-result-detail { min-width: 0; color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-transfer-exported { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dsh-tavern-transfer-file {
+  display: flex; align-items: center; gap: 9px; min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 9px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.dsh-tavern-transfer-file-icon {
+  flex: 0 0 auto;
+  width: 30px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: 5px;
+  border: 1px solid var(--dsh-tavern-accent-border);
+  background: var(--dsh-tavern-accent-soft);
+  color: var(--dsh-tavern-accent-active);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.dsh-tavern-transfer-file-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.dsh-tavern-transfer-file-sub { font-size: 10.5px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+.dsh-tavern-transfer-progress { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; background: var(--dsw-alias-bg-base); }
+.dsh-tavern-transfer-progress strong { font-size: 12.5px; }
+.dsh-tavern-transfer-progress span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
+@media (max-width: 520px) {
+  .dsh-tavern-transfer-item-note { display: none; }
+  .dsh-tavern-transfer-bar .dsh-tavern-btn.primary { width: 100%; margin-left: 0; }
+}

@@ -916,6 +916,8 @@ window.__ModuleLoader__.load({
 
 // @include features/worldbook-switcher.js
 
+// @include features/transfer.js
+
 // @include features/card-plugins.js
 
 // @include features/card-library.js
@@ -989,7 +991,8 @@ window.__ModuleLoader__.load({
 					"dsh-tavern:cards": "人物卡库",
 					"dsh-tavern:presets": "预设",
 					"dsh-tavern:worldbooks": "世界书库",
-					"dsh-tavern:resources": "剧本与素材库"
+					"dsh-tavern:resources": "剧本与素材库",
+					"dsh-tavern:transfer": "导出与导入"
 				};
 				function visit(node) {
 					if (!node) return;
@@ -1146,7 +1149,8 @@ window.__ModuleLoader__.load({
 					}
 				});
 			}, "dsh-tavern: worldbook switcher panel");
-			cardLibraryFeature.register({ ctx: ctx, appendMention: appendMention });
+cardLibraryFeature.register({ ctx: ctx, appendMention: appendMention });
+			transferFeature.register({ ctx: ctx });
 			ctx.effect(function () {
 				reconcileLibraryTabTitles();
 				if (typeof ctx.betterSidebar.subscribeState !== "function") return;
