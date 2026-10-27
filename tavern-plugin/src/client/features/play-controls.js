@@ -1011,6 +1011,15 @@
 			const filteredStreak = Number(state.view && state.view.filteredFailureStreak) || 0;
 			// 正文表面里还有内容的轮次：右侧「轮次导航」只留这几根刻度（重试留下的空轮不算）。
 			const railTurns = state.view && Array.isArray(state.view.railTurns) ? state.view.railTurns : null;
+			// 会话刚打开时视图里还没有这一栏（表面尚未挂上），一次性地重读视图把它取回来。
+			const railRetried = React.useRef("");
+			const railReady = Array.isArray(railTurns) && railTurns.length > 0;
+			React.useEffect(function () {
+				if (railReady || railRetried.current === props.sessionId) return;
+				railRetried.current = props.sessionId;
+				const timer = window.setTimeout(function () { liveTavernView.invalidate(props.sessionId); }, 800);
+				return function () { window.clearTimeout(timer); };
+			}, [props.sessionId, railReady]);
 			const canRewind = !!(state.view && state.view.canRegenerate === true);
 			const draft = props.useInput(snapshot => snapshot.draft);
 			const draftRef = React.useRef(draft);

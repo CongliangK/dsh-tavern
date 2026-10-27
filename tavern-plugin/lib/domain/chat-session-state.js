@@ -212,7 +212,8 @@ export function createSessionStateView({ activity: activityOf, evidence: evidenc
       staleDshErrorTurns: failures.staleTurns,
       filteredFailureStreak: failures.filteredStreak,
       // 对话右侧的轮次导航按轮次画刻度：正文表面里还有内容的那几轮才该出现（重试留下的空轮不算）。
-      railTurns: Array.isArray(nodes) ? surfaceTurns({ events, nodes }) : [],
+      // 会话还没挂上（读不到表面）时不写这一栏：不知道就别筛，免得把能跳的轮次一起藏掉。
+      ...(Array.isArray(nodes) && Array.isArray(events) ? { railTurns: surfaceTurns({ events, nodes }) } : {}),
       canRegenerate: hasRound && !isRescuedHistoryMessage(chat, chat.messages?.findLast(message => message.role === 'assistant')),
       canEditBody: hasRound,
       rollbackTargetTurn: settlementTurn(chat),
