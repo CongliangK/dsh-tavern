@@ -67,3 +67,35 @@ test('对话不会判定为冲突：导入总是新建一局', async () => {
   assert.equal(preview.parts[0].conflicts, 0);
   assert.equal(preview.parts[0].items[0].conflict, false);
 });
+
+test('导入剧本素材走 unique 写入，同名在预览里提示加序号', async () => {
+  const calls = [];
+  const importer = baseImport({
+    materials: {
+      async list() { return [{ key: 'materials/设定.md', title: '设定', meta: '资料', bytes: 3 }] },
+      async importOne({ title, content }) { calls.push({ title, size: content.length }); return { path: 'materials/设定 (1).md' } }
+    }
+  });
+  const manifest = manifestWith([{ kind: 'scripts', label: '剧本与素材', items: [{ key: 'materials/设定.md', title: '设定', entry: 'parts/scripts/设定.md', bytes: 3, sha256: '' }] }]);
+  const preview = await importer.preview(manifest);
+  assert.equal(preview.parts[0].conflicts, 1);
+  const result = await importer.apply({ manifest, files: new Map([['parts/scripts/设定.md', Buffer.from('abc')]]) });
+  assert.equal(result.results[0].added, 1);
+  assert.deepEqual(calls, [{ title: '设定', size: 3 }]);
+});
+
+test('导入字体走 importOne，并接受返回的新 id', async () => {
+  const calls = [];
+  const importer = baseImport({
+    fonts: {
+      async list() { return [{ key: 'noto-sans', title: 'Noto Sans', meta: '2 个字重', bytes: 10 }] },
+      async importOne({ key, content }) { calls.push({ key, size: content.length }); return { id: key + '-2' } }
+    }
+  });
+  const manifest = manifestWith([{ kind: 'fonts', label: '字体', items: [{ key: 'noto-sans', title: 'Noto Sans', entry: 'parts/fonts/noto-sans.zip', bytes: 4, sha256: '' }] }]);
+  const preview = await importer.preview(manifest);
+  assert.equal(preview.parts[0].conflicts, 1);
+  const result = await importer.apply({ manifest, files: new Map([['parts/fonts/noto-sans.zip', Buffer.from('zip!')]]) });
+  assert.equal(result.results[0].added, 1);
+  assert.deepEqual(calls, [{ key: 'noto-sans', size: 4 }]);
+});

@@ -51,8 +51,8 @@ const PART_DEFS = [
     note: '插件文件夹原样打包；导入只复制，不启用、不执行' },
   { kind: 'plugin-data', group: 'ext', label: '插件数据', unit: '个', supported: false, note: '下一版支持' },
   { kind: 'assets', group: 'ext', label: '素材包与皮肤', unit: '包', supported: false, note: '下一版支持' },
-  { kind: 'fonts', group: 'ext', label: '字体', unit: '族', supported: false, note: '下一版支持' },
-  { kind: 'scripts', group: 'ext', label: '剧本与素材', unit: '个', supported: false, note: '下一版支持' },
+  { kind: 'fonts', group: 'ext', label: '字体', unit: '族', supported: true, note: '只带走自装字体；插件内置字体不重复打包' },
+  { kind: 'scripts', group: 'ext', label: '剧本与素材', unit: '个', supported: true, note: '导入的参考资料原样带走；同名导入会加序号' },
   { kind: 'skills', group: 'ext', label: '写作 Skill', unit: '个', supported: false, note: '下一版支持' },
   { kind: 'logs', group: 'ext', label: '诊断日志', unit: '局', supported: false, privacy: '含私人剧情', note: '下一版支持' }
 ]
@@ -70,7 +70,7 @@ export const TRANSFER_GROUPS = Object.freeze([
  */
 export function createTransferCatalog(deps) {
   const { fileResources, cardPreparation, readCardWorkspace, worldBooks, presetLibrary, promptDocuments,
-    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins } = deps
+    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins, materials, fonts } = deps
 
   async function sizeOf(relative) {
     try { return await fileSize(relative) } catch { return 0 }
@@ -151,6 +151,8 @@ export function createTransferCatalog(deps) {
     profile: listProfiles, regex: listRegex, settings: listSettings }
   if (chats) LISTS.chats = () => chats.list()
   if (plugins) LISTS.plugins = () => plugins.list()
+  if (materials) LISTS.scripts = () => materials.list()
+  if (fonts) LISTS.fonts = () => fonts.list()
 
   async function listParts() {
     const parts = []
@@ -252,6 +254,16 @@ export function createTransferCatalog(deps) {
     if (chats && selected(selection, 'chats').length) {
       const exports = await chats.collect(selected(selection, 'chats'), { images: options.images !== false })
       for (const item of exports) add('chats', '对话与存档', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'game.dshsave'), item.content)
+    }
+
+    if (fonts && selected(selection, 'fonts').length) {
+      const exports = await fonts.collect(selected(selection, 'fonts'))
+      for (const item of exports) add('fonts', '字体', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'font.zip'), item.content)
+    }
+
+    if (materials && selected(selection, 'scripts').length) {
+      const exports = await materials.collect(selected(selection, 'scripts'))
+      for (const item of exports) add('scripts', '剧本与素材', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'material.txt'), item.content)
     }
 
     if (plugins && selected(selection, 'plugins').length) {

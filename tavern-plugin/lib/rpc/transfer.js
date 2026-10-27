@@ -4,7 +4,9 @@ import path from 'node:path'
 import { buildTransferManifest, packTransferBundle, readTransferBundle, safeTransferFileName, TRANSFER_EXTENSION } from '../domain/transfer-bundle.js'
 import { createTransferCatalog } from '../domain/transfer-catalog.js'
 import { createTransferChats } from '../domain/transfer-chats.js'
+import { createTransferFonts } from '../domain/transfer-fonts.js'
 import { createTransferImport } from '../domain/transfer-import.js'
+import { createTransferMaterials } from '../domain/transfer-materials.js'
 import { createTransferPlugins } from '../domain/transfer-plugins.js'
 
 function str(value) {
@@ -40,6 +42,8 @@ export function createTransferHandlers(deps) {
 
   const chats = createTransferChats({ listSessions: listTavernSessions, readChat, exportSave: exportGameSave, importSave: importGameSave })
   const plugins = createTransferPlugins({ pluginsDir: userPluginInstaller.pluginsDir, listPlugins: () => userPluginInstaller.list() })
+  const materials = createTransferMaterials({ fileResources })
+  const fonts = createTransferFonts({ fontsDir: path.join(dataRoot, 'fonts') })
 
   const catalog = createTransferCatalog({
     fileResources,
@@ -54,12 +58,14 @@ export function createTransferHandlers(deps) {
     tavernVersion: TAVERN_PACKAGE_VERSION,
     fileSize: async relative => (await stat(fileResources.absolute(relative))).size,
     chats,
-    plugins
+    plugins,
+    materials,
+    fonts
   })
 
   const importer = createTransferImport({
     fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins, materials, fonts
   })
 
   const tokens = new Map()
