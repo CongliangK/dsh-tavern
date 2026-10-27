@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync, readFileSync, renameSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync, readFileSync, renameSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -111,4 +111,93 @@ test('linked terminal management journal is never trusted', { skip: process.plat
   writeFileSync(target, JSON.stringify({ schemaVersion: 1, phase: 'completed' }))
   symlinkSync(target, path.join(f.home, 'profile-bridge/installation-operation.json'), 'file')
   assert.throws(() => location.resolveInstallationApp({ dshHome: f.home }), { code: 'INSTALLATION_LOCATION_UNSAFE' })
+})
+
+// Native Windows uses real directory junctions; POSIX uses directory symlinks.
+// Fixtures never touch the current user's configured home.
+function redirectedFixture(t, { nested = false } = {}) {
+  const root = mkdtempSync(path.join(tmpdir(), 'tavern-home-redirect-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const physicalUser = path.join(root, 'physical user 中文'), logicalUser = path.join(root, 'user-link')
+  mkdirSync(physicalUser)
+  symlinkSync(physicalUser, logicalUser, process.platform === 'win32' ? 'junction' : 'dir')
+  const suffix = nested ? 'nested/user/.dsh' : '.dsh'
+  const home = path.join(logicalUser, suffix), physical = path.join(physicalUser, suffix)
+  return { root, home, physical, logicalUser, physicalUser }
+}
+for (const nested of [false, true]) test(`configured user-home ${nested ? 'ancestor' : 'itself'} redirect allows missing managed home`, t => {
+  const f = redirectedFixture(t, { nested })
+  assert.equal(location.resolveInstallationApp({ dshHome: f.home }), path.join(f.home, 'apps/dsh-tavern'))
+  assert.equal(location.trustedHome(f.home).physical, f.physical)
+  mkdirSync(path.join(f.physical, 'profile-bridge'), { recursive: true })
+  assert.equal(location.resolveInstallationApp({ dshHome: f.home }), path.join(f.home, 'apps/dsh-tavern'))
+})
+for (const physicalRecord of [false, true]) test(`migrated install under redirected home accepts ${physicalRecord ? 'physical' : 'legacy logical'} registry`, t => {
+  const f = redirectedFixture(t), home = physicalRecord ? f.physical : f.home
+  mkdirSync(path.join(home, 'profile-bridge'), { recursive: true })
+  const destination = path.join(f.root, 'relocated'), appDir = path.join(home, 'apps/dsh-tavern')
+  const entries = ['app', 'profile', 'data'].map(kind => ({ kind, from: kind === 'app' ? appDir : path.join(home, kind === 'profile' ? 'profiles/tavern' : 'profile-data/tavern'), to: path.join(destination, kind) }))
+  for (const entry of entries) {
+    mkdirSync(entry.to, { recursive: true }); mkdirSync(path.dirname(entry.from), { recursive: true })
+    symlinkSync(entry.to, entry.from, process.platform === 'win32' ? 'junction' : 'dir')
+  }
+  const filename = path.join(home, 'profile-bridge/installation.json')
+  writeFileSync(filename, JSON.stringify({ schemaVersion: 1, phase: 'completed', destination, appDir, entries }))
+  const before = readFileSync(filename, 'utf8')
+  for (const request of [undefined, path.join(f.home, 'apps/dsh-tavern'), path.join(f.physical, 'apps/dsh-tavern'), entries[0].to]) {
+    assert.equal(location.resolveInstallationApp({ dshHome: f.home, appDir: request }), entries[0].to)
+  }
+  assert.equal(readFileSync(filename, 'utf8'), before)
+  unlinkSync(entries[0].from); symlinkSync(f.root, entries[0].from, process.platform === 'win32' ? 'junction' : 'dir')
+  assert.throws(() => location.resolveInstallationApp({ dshHome: f.home }), { code: 'INSTALLATION_LOCATION_UNSAFE' })
+})
+for (const managed of ['', 'profile-bridge']) test(`user redirect does not authorize linked managed ${managed || 'home'}`, t => {
+  const f = redirectedFixture(t), target = path.join(f.root, 'malicious')
+  mkdirSync(target)
+  if (managed) mkdirSync(f.physical)
+  symlinkSync(target, path.join(f.physical, managed), process.platform === 'win32' ? 'junction' : 'dir')
+  assert.throws(() => location.resolveInstallationApp({ dshHome: f.home }), { code: 'INSTALLATION_LOCATION_UNSAFE' })
+})
+test('redirected home rejects linked registry and retains specific CLI failure on stderr', { skip: process.platform === 'win32' }, t => {
+  const f = redirectedFixture(t)
+  mkdirSync(path.join(f.physical, 'profile-bridge'), { recursive: true })
+  const target = path.join(f.root, 'record.json')
+  writeFileSync(target, '{}')
+  symlinkSync(target, path.join(f.home, 'profile-bridge/installation.json'))
+  assert.throws(() => execFileSync(process.execPath, ['bin/installation-location.cjs', f.home], { encoding: 'utf8', stdio: 'pipe' }), error => {
+    assert.equal(error.stdout, '')
+    assert.match(error.stderr, /安装记录不能是链接/)
+    return true
+  })
+})
+test('a dangling user-home redirect is rejected, not treated as a missing prefix', t => {
+  const f = redirectedFixture(t)
+  rmSync(f.physicalUser, { recursive: true })
+  assert.throws(() => location.resolveInstallationApp({ dshHome: f.home }), { code: 'INSTALLATION_LOCATION_UNSAFE' })
+})
+
+test('read-only redirected home can be resolved without writes', { skip: process.platform === 'win32' }, t => {
+  const f = redirectedFixture(t)
+  mkdirSync(path.join(f.physical, 'profile-bridge'), { recursive: true })
+  chmodSync(f.physical, 0o500)
+  try { assert.equal(location.resolveInstallationApp({ dshHome: f.home }), path.join(f.home, 'apps/dsh-tavern')) }
+  finally { chmodSync(f.physical, 0o700) }
+})
+test('inaccessible user-home ancestry reports permissions, not migration', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, t => {
+  const f = redirectedFixture(t, { nested: true })
+  mkdirSync(path.dirname(f.physical), { recursive: true })
+  chmodSync(f.physicalUser, 0)
+  try { assert.throws(() => location.resolveInstallationApp({ dshHome: f.home }), /EACCES/) }
+  finally { chmodSync(f.physicalUser, 0o700) }
+})
+
+test('trusted parent identity also supports a custom app sibling without trusting its links', t => {
+  const f = redirectedFixture(t)
+  mkdirSync(f.physical)
+  const custom = path.join(f.logicalUser, 'custom-app')
+  assert.equal(location.trustedHome(f.home).map(custom), path.join(f.physicalUser, 'custom-app'))
+  assert.equal(location.resolveInstallationApp({ dshHome: f.home, appDir: custom }), custom)
+  const untrusted = path.join(f.root, 'other-link')
+  symlinkSync(f.physicalUser, untrusted, process.platform === 'win32' ? 'junction' : 'dir')
+  assert.equal(location.trustedHome(f.home).map(untrusted), untrusted)
 })

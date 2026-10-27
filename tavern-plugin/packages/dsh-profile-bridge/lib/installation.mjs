@@ -3,14 +3,12 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { renameWithRetry } from './helper.mjs'
+import { trustedHome, withinPath } from './trusted-home.mjs'
 
 const present = p => { try { fs.lstatSync(p); return true } catch (e) { if (e.code === 'ENOENT') return false; throw e } }
 const json = p => JSON.parse(fs.readFileSync(p, 'utf8'))
 const same = (left, right) => process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
-const within = (child, root) => {
-  const relative = path.relative(root, child)
-  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))
-}
+const within = withinPath
 const fail = message => { throw Object.assign(new Error(message), { code: 'installation-unsafe' }) }
 const save = (file, value) => {
   const temp = file + '.' + randomUUID() + '.tmp'
@@ -32,11 +30,15 @@ function ordinaryAncestors(p, includeLeaf = true) {
 function canonicalAbsolute(value) {
   return typeof value === 'string' && path.isAbsolute(value) && same(path.resolve(value), value) && !/[\0\r\n]/u.test(value)
 }
-function registered(paths) {
+function registered(paths, trust) {
   const file = path.join(paths.stateDir, 'installation.json')
   if (!present(file)) return null
   ordinaryAncestors(file)
   const value = json(file)
+  // Preserve old logical records on disk; use trusted physical identity in memory.
+  if (canonicalAbsolute(value.appDir)) value.appDir = trust.map(value.appDir)
+  if (canonicalAbsolute(value.destination)) value.destination = trust.map(value.destination)
+  if (Array.isArray(value.entries)) value.entries = value.entries.map(entry => ({ ...entry, from: canonicalAbsolute(entry.from) ? trust.map(entry.from) : entry.from, to: canonicalAbsolute(entry.to) ? trust.map(entry.to) : entry.to }))
   if (value.phase === 'uninstalled') fail('酒馆已移除；数据与备份仍保留。')
   if (value.schemaVersion !== 1 || value.phase !== 'completed' || !Array.isArray(value.entries) || value.entries.length !== 3) fail('安装位置记录不完整，请先恢复安装记录。')
   if (!canonicalAbsolute(value.destination) || !canonicalAbsolute(value.appDir)) fail('安装位置登记必须是规范绝对路径。')
@@ -48,12 +50,13 @@ function registered(paths) {
     const entry = value.entries.find(e => e.kind === kind)
     if (!entry || !canonicalAbsolute(entry.from) || !canonicalAbsolute(entry.to) || !same(entry.from, expected[kind]) || !same(entry.to, path.join(value.destination, kind))) fail('安装位置登记不一致。')
     ordinaryAncestors(entry.from, false); ordinaryAncestors(entry.to)
-    if (!fs.lstatSync(entry.from).isSymbolicLink() || !same(path.resolve(path.dirname(entry.from), fs.readlinkSync(entry.from)), entry.to) || !same(fs.realpathSync(entry.from), entry.to)) fail(`安装位置链接已改变：${entry.from}`)
+    if (!fs.lstatSync(entry.from).isSymbolicLink() || !same(trust.map(path.resolve(path.dirname(entry.from), fs.readlinkSync(entry.from))), entry.to) || !same(fs.realpathSync(entry.from), entry.to)) fail(`安装位置链接已改变：${entry.from}`)
   }
   return value
 }
 function discover(paths) {
-  const home = path.resolve(paths.home), stateDir = path.resolve(paths.stateDir)
+  const trust = trustedHome(paths.home)
+  const home = trust.home, stateDir = trust.map(paths.stateDir)
   ordinaryAncestors(home); ordinaryAncestors(stateDir)
   const journalFile = path.join(stateDir, 'installation-operation.json')
   if (present(journalFile)) {
@@ -61,10 +64,10 @@ function discover(paths) {
     try { ordinaryAncestors(journalFile); journal = json(journalFile) } catch { /* malformed journals are never treated as permission to retry */ }
     if (journal?.schemaVersion !== 1 || !['completed', 'rolled-back'].includes(journal?.phase)) throw Object.assign(new Error(`上次安装管理记录不完整或尚未安全结束，请保留目录与日志并恢复：${journalFile}`), { code: 'recovery-required', recoveryRequired: true })
   }
-  const record = registered({ ...paths, home, stateDir })
+  const record = registered({ ...paths, home, stateDir }, trust)
   const receipt = json(path.join(home, 'logs/tavern-installation.json'))
-  if (receipt.host !== 'desktop' || !same(path.resolve(receipt.dshHome || ''), home) || !path.isAbsolute(receipt.sourceRoot || '')) fail('仅支持具有桌面安装记录的酒馆。')
-  const appDir = record?.appDir || path.resolve(receipt.sourceRoot)
+  if (receipt.host !== 'desktop' || !same(trust.map(receipt.dshHome || ''), home) || !path.isAbsolute(receipt.sourceRoot || '')) fail('仅支持具有桌面安装记录的酒馆。')
+  const appDir = record?.appDir || trust.map(receipt.sourceRoot)
   if (appDir === path.join(home, 'apps') || (within(appDir, home) && !within(appDir, path.join(home, 'apps')))) fail('DSH 目录内仅支持 apps 下的酒馆程序。')
   for (const reserved of ['profiles', 'profile-data', 'profile-bridge', 'logs', 'backups', 'credentials']) {
     const protectedRoot = path.join(home, reserved)
@@ -75,7 +78,7 @@ function discover(paths) {
     { kind: 'profile', from: path.join(home, 'profiles/tavern'), to: path.join(home, 'profiles/tavern') },
     { kind: 'data', from: path.join(home, 'profile-data/tavern'), to: path.join(home, 'profile-data/tavern') },
   ]
-  if (record && ![appDir, entries.find(e => e.kind === 'app').to].some(p => same(p, path.resolve(receipt.sourceRoot)))) fail('安装回执与迁移位置不匹配。')
+  if (record && ![appDir, entries.find(e => e.kind === 'app').to].some(p => same(p, trust.map(receipt.sourceRoot)))) fail('安装回执与迁移位置不匹配。')
   for (const entry of entries) {
     ordinaryAncestors(entry.to)
     if (!fs.lstatSync(entry.to).isDirectory()) fail(`安装目录不是独立文件夹：${entry.to}`)
@@ -84,15 +87,15 @@ function discover(paths) {
   const app = entries.find(e => e.kind === 'app').to
   if (app === home || within(home, app) || present(path.join(app, '.git')) || !tavern(app) || !tavern(entries.find(e => e.kind === 'profile').to)) fail('仅支持已安装的酒馆，不支持源码目录或其他 profile。')
   const local = json(path.join(app, '.dsh-tavern-local.json'))
-  if (local.host !== 'desktop' || !same(path.resolve(local.dshHome || ''), home)) fail('酒馆安装归属与 DSH 目录不匹配。')
+  if (local.host !== 'desktop' || !same(trust.map(local.dshHome || ''), home)) fail('酒馆安装归属与 DSH 目录不匹配。')
   return { appDir: app, logicalAppDir: appDir, profileDir: entries.find(e => e.kind === 'profile').to, dataDir: entries.find(e => e.kind === 'data').to, sharedHome: home, available: true, relocated: !!record, destination: record?.destination, entries, home, stateDir }
 }
 export function inspectInstallation(paths) {
   try { return discover(paths) } catch (error) { return { available: false, sharedHome: paths.home, reason: error.message, recoveryRequired: error.recoveryRequired === true } }
 }
-function destinationCheck(destination, installation) {
+function destinationCheck(destination, installation, identity) {
   if (typeof destination !== 'string' || !path.isAbsolute(destination) || destination.trim() !== destination || destination === path.parse(destination).root) fail('请选择绝对路径的空文件夹，不能选择磁盘根目录。')
-  destination = path.resolve(destination)
+  destination = identity.map(destination)
   ordinaryAncestors(destination)
   if (present(destination)) destination = fs.realpathSync(destination)
   else if (present(path.dirname(destination))) destination = path.join(fs.realpathSync(path.dirname(destination)), path.basename(destination))
@@ -104,9 +107,9 @@ function destinationCheck(destination, installation) {
 export function validateInstallationRequest(paths, mode, payload) {
   if (!['relocate', 'uninstall'].includes(mode) || payload?.confirmed !== true) fail('请先确认安装管理操作。')
   const installation = discover(paths)
-  if (paths.activeDir && !same(path.resolve(paths.activeDir), path.join(installation.home, 'profiles/desktop'))) fail('只能在官方桌面的 desktop 配置管理酒馆安装。')
-  const destination = mode === 'relocate' ? destinationCheck(payload.destination, installation) : undefined
-  return { mode, home: installation.home, stateDir: installation.stateDir, profilesRoot: path.join(installation.home, 'profiles'), liveDir: paths.activeDir || path.join(installation.home, 'profiles/desktop'), installation, destination }
+  if (paths.activeDir && !same(trustedHome(paths.home).map(paths.activeDir), path.join(installation.home, 'profiles/desktop'))) fail('只能在官方桌面的 desktop 配置管理酒馆安装。')
+  const destination = mode === 'relocate' ? destinationCheck(payload.destination, installation, trustedHome(paths.home)) : undefined
+  return { mode, home: paths.home, stateDir: installation.stateDir, profilesRoot: path.join(installation.home, 'profiles'), liveDir: paths.activeDir ? trustedHome(paths.home).map(paths.activeDir) : path.join(installation.home, 'profiles/desktop'), installation, destination }
 }
 function mapTarget(target, entries) {
   for (const e of entries) for (const base of [e.source, e.from]) if (within(target, base)) return path.join(e.to, path.relative(base, target))
@@ -129,11 +132,11 @@ function sourceInventory(entries, heartbeat) {
   for (const entry of entries) visit(entry.source)
   return digest.digest('hex')
 }
-function copyVerified(source, target, entry, entries, heartbeat) {
+function copyVerified(source, target, entry, entries, heartbeat, identity) {
   heartbeat()
   const info = fs.lstatSync(source)
   if (info.isSymbolicLink()) {
-    const original = path.resolve(path.dirname(source), fs.readlinkSync(source))
+    const original = identity(path.resolve(path.dirname(source), fs.readlinkSync(source)))
     const mapped = mapTarget(original, entries)
     const internal = entries.some(e => within(original, e.source) || within(original, e.from))
     if (!internal && (entry.kind === 'data' || !source.split(path.sep).includes('node_modules'))) fail(`未迁移不明外部链接：${source}`)
@@ -144,7 +147,7 @@ function copyVerified(source, target, entry, entries, heartbeat) {
   }
   if (info.isDirectory()) {
     fs.mkdirSync(target, { mode: 0o700 })
-    for (const name of fs.readdirSync(source)) copyVerified(path.join(source, name), path.join(target, name), entry, entries, heartbeat)
+    for (const name of fs.readdirSync(source)) copyVerified(path.join(source, name), path.join(target, name), entry, entries, heartbeat, identity)
     fs.chmodSync(target, info.mode)
   } else if (info.isFile()) {
     const input = fs.openSync(source, 'r'), buffer = Buffer.allocUnsafe(1024 * 1024)
@@ -179,6 +182,8 @@ export async function performInstallation(request, { retry = {}, rename = fs.ren
   heartbeat(true)
   const paths = { home: request.home, stateDir: request.stateDir, activeDir: request.liveDir }
   const fresh = validateInstallationRequest(paths, request.mode, { confirmed: true, destination: request.destination })
+  const identity = trustedHome(request.home)
+  if (!same(identity.home, fresh.installation.home)) fail('DSH 目录入口已改变，请刷新后重试。')
   if (JSON.stringify(fresh.installation.entries) !== JSON.stringify(request.installation.entries)) fail('安装目录已改变，请刷新后重试。')
   if (request.mode === 'uninstall') {
     if (fs.lstatSync(request.liveDir).isSymbolicLink() || tavern(request.liveDir)) fail('请先恢复原版 DSH，再移除酒馆。')
@@ -207,7 +212,7 @@ export async function performInstallation(request, { retry = {}, rename = fs.ren
       if (!present(request.destination)) guard(() => fs.mkdirSync(request.destination))
       // All copies and hashes finish before any old registration changes.
       const inventory = sourceInventory(entries, heartbeat)
-      for (const e of entries) copyVerified(e.source, e.to, e, entries, heartbeat)
+      for (const e of entries) copyVerified(e.source, e.to, e, entries, heartbeat, identity.map)
       await afterCopy()
       heartbeat(true)
       if (sourceInventory(entries, heartbeat) !== inventory) fail('复制期间源目录发生变化，未切换位置；请关闭其他使用酒馆的程序后重试。')

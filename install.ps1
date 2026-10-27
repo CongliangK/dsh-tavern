@@ -75,7 +75,7 @@ function ordinaryAncestors(directory) {
     } catch (error) {
       if (error.code !== 'ENOENT') {
         if (error.code === 'INSTALLATION_LOCATION_UNSAFE') throw error
-        fail(`无法验证目录祖先：${current}`)
+        fail(`无法验证目录祖先：${current} (${error.code || error.name})`)
       }
     }
     const parent = path.dirname(current)
@@ -83,14 +83,47 @@ function ordinaryAncestors(directory) {
     current = parent
   }
 }
+// Only the configured home's parent chain is trusted to contain user-profile
+// redirects. Never realpath a managed child: that would hide a replaced .dsh,
+// state directory, or installation alias before it can be validated.
+function trustedHome(dshHome) {
+  const logical = path.resolve(dshHome)
+  let ancestor = path.dirname(logical)
+  const missing = []
+  for (;;) {
+    try {
+      const physicalParent = fs.realpathSync(ancestor)
+      if (!fs.statSync(physicalParent).isDirectory()) fail('用户目录祖先不是目录')
+      const logicalParent = path.dirname(logical)
+      const canonicalParent = path.join(physicalParent, ...missing.reverse())
+      const physical = path.join(canonicalParent, path.basename(logical))
+      ordinaryAncestors(physical)
+      return { logical, physical, map(value) {
+        const resolved = path.resolve(value)
+        return same(resolved, logicalParent) || inside(resolved, logicalParent) ? path.join(canonicalParent, path.relative(logicalParent, resolved)) : resolved
+      } }
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        if (error.code === 'INSTALLATION_LOCATION_UNSAFE') throw error
+        fail(`无法验证用户目录祖先：${ancestor} (${error.code || 'UNKNOWN'})`)
+      }
+      // An existing dangling redirect is not a missing ordinary directory.
+      try { if (fs.lstatSync(ancestor).isSymbolicLink()) fail(`用户目录链接不可用：${ancestor}`) }
+      catch (error) { if (error.code !== 'ENOENT') throw error }
+      const parent = path.dirname(ancestor)
+      if (parent === ancestor) fail('无法解析用户目录')
+      missing.push(path.basename(ancestor)); ancestor = parent
+    }
+  }
+}
 function absolute(value) {
   if (typeof value !== 'string' || !path.isAbsolute(value) || /[\0\r\n]/u.test(value) || !same(path.resolve(value), value)) fail('路径不是规范的绝对路径')
   return value
 }
 function resolveInstallationApp({ dshHome, appDir } = {}) {
-  const home = path.resolve(dshHome)
+  const trusted = trustedHome(dshHome), home = trusted.physical
   ordinaryAncestors(path.join(home, 'profile-bridge'))
-  const requested = appDir ? path.resolve(appDir) : path.join(home, 'apps', 'dsh-tavern')
+  const requested = appDir ? path.resolve(appDir) : path.join(trusted.logical, 'apps', 'dsh-tavern')
   const journal = path.join(home, 'profile-bridge', 'installation-operation.json')
   try {
     if (fs.lstatSync(journal).isSymbolicLink()) fail('安装管理事务记录不能是链接')
@@ -99,7 +132,7 @@ function resolveInstallationApp({ dshHome, appDir } = {}) {
   } catch (error) {
     if (error.code !== 'ENOENT') {
       if (error.code === 'INSTALLATION_LOCATION_UNSAFE') throw error
-      fail(`无法读取安装管理事务记录：${journal}`)
+      fail(`无法读取安装管理事务记录：${journal} (${error.code || error.name})`)
     }
   }
   const filename = path.join(home, 'profile-bridge', 'installation.json')
@@ -110,18 +143,18 @@ function resolveInstallationApp({ dshHome, appDir } = {}) {
   } catch (error) {
     if (error.code === 'ENOENT') return requested
     if (error.code === 'INSTALLATION_LOCATION_UNSAFE') throw error
-    fail(`无法读取 ${filename}`)
+    fail(`无法读取 ${filename} (${error.code || error.name})`)
   }
   if (record?.schemaVersion !== 1 || record.phase !== 'completed' || !Array.isArray(record.entries)) fail('迁移尚未完成或记录格式不受支持')
-  const destination = absolute(record.destination)
-  const logicalApp = absolute(record.appDir)
+  const destination = trusted.map(absolute(record.destination))
+  const logicalApp = trusted.map(absolute(record.appDir))
   if (overlaps(destination, home) || overlaps(destination, logicalApp)) fail('迁移目标不能与共享 DSH 或原安装目录重叠')
   ordinaryAncestors(destination)
   const entries = record.entries
   if (entries.length !== 3 || new Set(entries.map(e => e?.kind)).size !== 3 || entries.some(e => !['app', 'profile', 'data'].includes(e?.kind))) fail('迁移目录清单不完整')
   const seen = new Set()
   for (const entry of entries) {
-    const from = absolute(entry.from), to = absolute(entry.to)
+    const from = trusted.map(absolute(entry.from)), to = trusted.map(absolute(entry.to))
     if (overlaps(destination, from)) fail('迁移目标不能与原目录重叠')
     ordinaryAncestors(path.dirname(from))
     const expected = entry.kind === 'app' ? logicalApp : entry.kind === 'profile' ? path.join(home, 'profiles', 'tavern') : path.join(home, 'profile-data', 'tavern')
@@ -130,17 +163,17 @@ function resolveInstallationApp({ dshHome, appDir } = {}) {
     try {
       // No aliased destination ancestors: copied trees must remain on the chosen volume.
       if (!same(fs.realpathSync(destination), destination) || !same(fs.realpathSync(to), to) || !fs.lstatSync(to).isDirectory()) fail('迁移目标包含链接或不是目录')
-      if (!fs.lstatSync(from).isSymbolicLink() || !same(path.resolve(path.dirname(from), fs.readlinkSync(from)), to) || !same(fs.realpathSync(from), to)) fail('原目录入口已被更改')
+      if (!fs.lstatSync(from).isSymbolicLink() || !same(trusted.map(path.resolve(path.dirname(from), fs.readlinkSync(from))), to) || !same(fs.realpathSync(from), to)) fail('原目录入口已被更改')
     } catch (error) {
       if (error.code === 'INSTALLATION_LOCATION_UNSAFE') throw error
       fail(`目录不可用：${from} → ${to}`)
     }
   }
-  const physicalApp = entries.find(entry => entry.kind === 'app').to
-  if (appDir && !same(requested, logicalApp) && !same(requested, physicalApp)) fail('指定目录与已迁移的酒馆冲突')
+  const physicalApp = trusted.map(entries.find(entry => entry.kind === 'app').to)
+  if (appDir && !same(trusted.map(requested), logicalApp) && !same(trusted.map(requested), physicalApp)) fail('指定目录与已迁移的酒馆冲突')
   return physicalApp
 }
-module.exports = { resolveInstallationApp }
+module.exports = { resolveInstallationApp, trustedHome }
 if (require.main === module) {
   try { console.log(resolveInstallationApp({ dshHome: process.argv[2], appDir: process.argv[3] || undefined })) }
   catch (error) { console.error(error.message); process.exitCode = 1 }
@@ -1312,8 +1345,20 @@ if (require.main === module) {
   # Resolve under the installation lease before any source/profile writes.
   $InstallationLocationModule = Join-Path $TempDir 'installation-location.cjs'
   [IO.File]::WriteAllText($InstallationLocationModule, $InstallationLocationModuleSource, (New-Object Text.UTF8Encoding($false)))
-  $ResolvedAppDir = & node $InstallationLocationModule $DshRoot $env:DSH_TAVERN_APP_DIR
-  Assert-LastCommand '安装目录迁移记录无法安全验证，请先恢复迁移。'
+  # Keep stdout exclusively for the resolved path; surface the resolver's actual
+  # reason instead of classifying every filesystem failure as a migration error.
+  $LocationErrorFile = Join-Path $TempDir 'installation-location-error.log'
+  $PreviousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $ResolvedAppDir = & node $InstallationLocationModule $DshRoot $env:DSH_TAVERN_APP_DIR 2> $LocationErrorFile
+    $LocationExitCode = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $PreviousPreference }
+  if ($LocationExitCode -ne 0) {
+    $LocationReason = (Get-Content -LiteralPath $LocationErrorFile -Raw -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($LocationReason)) { $LocationReason = '无法验证安装目录；请检查目录权限与链接。' }
+    throw "安装目录安全检查失败，未修改安装：$LocationReason"
+  }
   $AppDir = ($ResolvedAppDir -join "`n").Trim()
   $env:DSH_TAVERN_APP_DIR = $AppDir
   if ($InstallHost -eq 'cli') {

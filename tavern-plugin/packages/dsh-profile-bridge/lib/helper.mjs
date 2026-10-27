@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync, lstatSync, renameSync, symlinkSync, unlinkSync, readFileSync, readdirSync, realpathSync, statSync, rmSync, copyFileSync } from 'node:fs'
 import { join, dirname, resolve, relative, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { trustedHome, withinPath } from './trusted-home.mjs'
 
 /** A lock older than this without a live helper is safe to reclaim. */
 const PENDING_STALE_MS = 3 * 60 * 1000
@@ -20,21 +21,29 @@ const present = path => { try { lstatSync(path); return true } catch (e) { if (e
 // Never generalize this exception to arbitrary external profiles or links.
 export function registeredTavernTarget(profilesRoot, targetDir) {
   try {
-    const home = dirname(resolve(profilesRoot))
-    const record = JSON.parse(readFileSync(join(home, 'profile-bridge', 'installation.json'), 'utf8'))
-    if (record.schemaVersion !== 1 || record.phase !== 'completed' || !Array.isArray(record.entries) || record.entries.length !== 3) return undefined
-    if (!samePath(resolve(targetDir), join(home, 'profiles', 'tavern'))) return undefined
-    if (typeof record.destination !== 'string' || resolve(record.destination) !== record.destination || !samePath(realpathSync(record.destination), record.destination)) return undefined
+    const trust = trustedHome(dirname(resolve(profilesRoot))), home = trust.home
     const recordFile = join(home, 'profile-bridge', 'installation.json')
+    trust.ordinary(recordFile)
+    const record = JSON.parse(readFileSync(recordFile, 'utf8'))
+    const canonical = value => typeof value === 'string' && isAbsolute(value) && samePath(resolve(value), value) && !/[\0\r\n]/u.test(value)
+    if (!canonical(record.appDir) || !canonical(record.destination)) return undefined
+    record.appDir = trust.map(record.appDir); record.destination = trust.map(record.destination)
+    if (Array.isArray(record.entries)) {
+      if (record.entries.some(entry => !canonical(entry?.from) || !canonical(entry?.to))) return undefined
+      record.entries = record.entries.map(entry => ({ ...entry, from: trust.map(entry.from), to: trust.map(entry.to) }))
+    }
+    if (record.schemaVersion !== 1 || record.phase !== 'completed' || !Array.isArray(record.entries) || record.entries.length !== 3) return undefined
+    if (!samePath(trust.map(targetDir), join(home, 'profiles', 'tavern'))) return undefined
+    if (typeof record.destination !== 'string' || resolve(record.destination) !== record.destination || !samePath(realpathSync(record.destination), record.destination)) return undefined
     if (lstatSync(recordFile).isSymbolicLink() || !samePath(realpathSync(dirname(recordFile)), dirname(recordFile))) return undefined
-    const overlaps = (a, b) => { const rel = relative(a, b); return rel === '' || (!rel.startsWith('..' + (process.platform === 'win32' ? '\\' : '/')) && rel !== '..' && !isAbsolute(rel)) }
+    const overlaps = (a, b) => withinPath(b, a)
     if (overlaps(home, record.destination) || overlaps(record.destination, home)) return undefined
     const expected = { app: record.appDir, profile: join(home, 'profiles', 'tavern'), data: join(home, 'profile-data', 'tavern') }
     for (const kind of ['app', 'profile', 'data']) {
       const entries = record.entries.filter(entry => entry.kind === kind)
       if (entries.length !== 1) return undefined
       const entry = entries[0]
-      if (typeof entry.from !== 'string' || !isAbsolute(entry.from) || resolve(entry.from) !== entry.from || entry.from !== expected[kind] || entry.to !== join(record.destination, kind)) return undefined
+      if (typeof entry.from !== 'string' || !isAbsolute(entry.from) || resolve(entry.from) !== entry.from || !samePath(entry.from, expected[kind]) || entry.to !== join(record.destination, kind)) return undefined
       if (overlaps(entry.from, record.destination) || overlaps(record.destination, entry.from)) return undefined
       if (!lstatSync(entry.from).isSymbolicLink() || !lstatSync(entry.to).isDirectory() || lstatSync(entry.to).isSymbolicLink()) return undefined
       if (!samePath(realpathSync(entry.to), entry.to) || !samePath(realpathSync(dirname(entry.from)), dirname(entry.from)) || !samePath(realpathSync(entry.from), realpathSync(entry.to))) return undefined
@@ -244,6 +253,7 @@ function busyError(lock, detail = '') {
  * @returns {{ lock: string, reclaimed: boolean }} claimed lock and whether an old one was archived.
  */
 export function acquirePendingLock(stateDir, { alive = processAlive, now = Date.now, keep = STALE_LIMIT } = {}) {
+  trustedHome(dirname(resolve(stateDir))).ordinary(stateDir)
   assertBridgeUpdateComplete(stateDir)
   mkdirSync(stateDir, { recursive: true })
   const lock = join(stateDir, 'pending')
@@ -272,7 +282,7 @@ function assertBridgeUpdateComplete(stateDir) {
   const file = join(stateDir, 'bridge-update.json')
   if (!present(file)) return
   try {
-    if (lstatSync(file).isSymbolicLink() || !samePath(realpathSync(dirname(file)), dirname(file))) throw new Error('unsafe journal')
+    trustedHome(dirname(resolve(stateDir))).ordinary(file)
     const record = JSON.parse(readFileSync(file, 'utf8'))
     if (record.schemaVersion === 1 && ['completed', 'rolled-back'].includes(record.phase)) return
   } catch {}
@@ -283,7 +293,7 @@ function assertManagementJournalComplete(stateDir) {
   const file = join(stateDir, 'installation-operation.json')
   if (!present(file)) return
   try {
-    if (lstatSync(file).isSymbolicLink() || !samePath(realpathSync(dirname(file)), dirname(file))) throw new Error('unsafe journal')
+    trustedHome(dirname(resolve(stateDir))).ordinary(file)
     const record = JSON.parse(readFileSync(file, 'utf8'))
     if (record.schemaVersion === 1 && ['completed', 'rolled-back'].includes(record.phase)) return
   } catch {}

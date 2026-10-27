@@ -34,7 +34,11 @@ function moveWithRetry(from, to, rename) {
   }
 }
 export function beginOriginalBridgeUpdate({ home, sourceRoot, checkStopped = () => assertDesktopStopped([home], { requireGuiClosed: true }), copy = copyTreeSync, rename = renameSync }) {
-  home = path.resolve(home)
+  // Trust only configured-home ancestors, never a redirect inside managed DSH.
+  // Pin filesystem work to that physical identity for the whole transaction.
+  const trusted = installationLocation.trustedHome(home)
+  home = trusted.physical
+  sourceRoot = trusted.map(path.resolve(sourceRoot))
   const profiles = path.join(home, 'profiles'), live = path.join(profiles, 'desktop')
   const state = path.join(home, 'profile-bridge'), journalFile = path.join(state, 'bridge-update.json')
   ordinary(profiles); ordinary(state)
@@ -43,7 +47,7 @@ export function beginOriginalBridgeUpdate({ home, sourceRoot, checkStopped = () 
     const previous = JSON.parse(readFileSync(journalFile, 'utf8'))
     if (previous.schemaVersion !== 1 || !['completed', 'rolled-back'].includes(previous.phase)) throw unsafe(`切换组件更新尚未恢复，请保留备份并检查：${journalFile}`)
   }
-  installationLocation.resolveInstallationApp({ dshHome: home })
+  installationLocation.resolveInstallationApp({ dshHome: trusted.logical })
   if (!present(path.join(state, 'installation.json'))) ordinary(path.join(profiles, 'tavern'))
   const managementFile = path.join(state, 'installation-operation.json')
   const previousManagement = present(managementFile) ? readFileSync(managementFile, 'utf8') : null

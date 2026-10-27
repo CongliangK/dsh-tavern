@@ -76,6 +76,7 @@ export const REQUIRED_SOURCE_FILES = [
   'bin/desktop-profile-installation.mjs',
   'bin/original-bridge-update.mjs',
   'tavern-plugin/packages/dsh-profile-bridge/lib/helper.mjs',
+  'tavern-plugin/packages/dsh-profile-bridge/lib/trusted-home.mjs',
   'cordis.patch.yml',
   path.join('config', 'legacy-profile-patch-v0.6.yml'),
   'pnpm-workspace.yaml',
