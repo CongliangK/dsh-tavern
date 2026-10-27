@@ -46,6 +46,7 @@ function createTransferFeatureModule() {
 		const [openParts, setOpenParts] = React.useState({})
 		const [busy, setBusy] = React.useState(false)
 		const [exported, setExported] = React.useState(null)
+		const [includeImages, setIncludeImages] = React.useState(false)
 		const [importing, setImporting] = React.useState(null)
 		const [error, setError] = usePersistentError("导出与导入")
 		const fileInput = React.useRef(null)
@@ -121,6 +122,11 @@ function createTransferFeatureModule() {
 			return payload
 		}, [selected, parts])
 
+		const chatsSelected = React.useMemo(function () {
+			const part = parts.find(function (row) { return row.kind === "chats" })
+			return Boolean(part && chosenItems(part).length)
+		}, [selected, parts])
+
 		const stats = React.useMemo(function () {
 			let count = 0, bytes = 0, kinds = 0
 			parts.forEach(function (part) {
@@ -137,7 +143,7 @@ function createTransferFeatureModule() {
 			if (!stats.count) { setError("先选至少一个板块"); return }
 			setError("")
 			setBusy(true)
-			rpc("createTransferExport", { selection }, sessionId).then(function (result) {
+			rpc("createTransferExport", { selection, includeImages }, sessionId).then(function (result) {
 				const bytes = Uint8Array.from(atob(result.base64), function (value) { return value.charCodeAt(0) })
 				downloadTavernBlob(new Blob([bytes], { type: "application/zip" }), result.filename)
 				setExported({ name: result.filename, bytes: result.bytes, totals: result.totals, parts: result.parts })
@@ -186,7 +192,7 @@ function createTransferFeatureModule() {
 			setImporting(function (current) { return Object.assign({}, current, { stage: "applying" }) })
 			rpc("applyTransferBundle", { token: importing.token, policies: importing.policies }, sessionId).then(function (result) {
 				setImporting(function (current) { return Object.assign({}, current, { stage: "done", result }) })
-				notifyTavernDataChanged(["cards", "worldbooks", "presets", "sessions"], "transfer")
+				notifyTavernDataChanged(["cards", "worldbooks", "presets", "sessions", "plugins"], "transfer")
 				void refresh()
 			}, function (err) {
 				setImporting(function (current) { return Object.assign({}, current, { stage: "preview" }) })
@@ -199,7 +205,7 @@ function createTransferFeatureModule() {
 				h("input", { type: "checkbox", checked: isSelected(part, item), onChange: function (event) { toggleItem(part, item, event.target.checked) } }),
 				h("span", { className: "dsh-tavern-transfer-item-name" }, item.title),
 				item.meta ? h("span", { className: "dsh-tavern-transfer-item-note" }, item.meta) : null,
-				h("span", { className: "dsh-tavern-transfer-item-size" }, fmtBytes(item.bytes))
+				h("span", { className: "dsh-tavern-transfer-item-size" }, Number(item.bytes) > 0 ? fmtBytes(item.bytes) : "导出时生成")
 			)
 		}
 
@@ -209,7 +215,9 @@ function createTransferFeatureModule() {
 			const partial = chosen.length > 0 && !all
 			const open = openParts[part.kind] === true
 			const disabled = !part.supported || part.items.length === 0
-			const size = chosen.length ? fmtBytes(partBytes(part)) + (all ? "" : " / " + fmtBytes(totalBytes(part))) : (part.items.length ? "共 " + fmtBytes(totalBytes(part)) : "—")
+			const total = totalBytes(part)
+			const sizeText = total > 0 ? fmtBytes(total) : "按需生成"
+			const size = chosen.length ? (partBytes(part) > 0 ? fmtBytes(partBytes(part)) + (all ? "" : " / " + sizeText) : sizeText) : (part.items.length ? "共 " + sizeText : "—")
 			return h("article", { className: "dsh-tavern-transfer-part" + (disabled ? " is-empty" : ""), key: part.kind },
 				h("div", { className: "dsh-tavern-transfer-part-head" },
 					h("label", { className: "dsh-tavern-transfer-check" },
@@ -392,7 +400,13 @@ function createTransferFeatureModule() {
 				h("div", { className: "dsh-tavern-transfer-summary" },
 					h("strong", null, stats.kinds + " 个板块"),
 					h("span", null, stats.count + " 项"),
-					h("span", null, "约 " + fmtBytes(stats.bytes))
+					h("span", null, "约 " + fmtBytes(stats.bytes)),
+					chatsSelected ? h("span", { className: "is-warn" }, "对话按实际大小打包") : null,
+					stats.bytes > 45 * 1024 * 1024 ? h("span", { className: "is-warn" }, "超过 45 MB，可能打包失败") : null
+				),
+				h("label", { className: "dsh-tavern-transfer-switch" },
+					h("input", { type: "checkbox", checked: includeImages, onChange: function (event) { setIncludeImages(event.target.checked) } }),
+					h("span", null, "含对话配图")
 				),
 				h("button", { type: "button", className: "dsh-tavern-btn primary", disabled: busy || !stats.count, onClick: submitExport }, busy ? "打包中…" : "生成导出包")
 			) : null

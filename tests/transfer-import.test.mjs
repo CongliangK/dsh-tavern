@@ -147,8 +147,10 @@ test('目录列出可导出板块与条目，未支持的板块也保留位置',
   assert.equal(byKind.worldbooks.items[0].title, '世界观总纲')
   assert.equal(byKind.presets.items[0].title, '默认')
   assert.equal(byKind.regex.items[0].title, '去掉思维链')
-  assert.equal(byKind.chats.supported, false)
-  assert.equal(byKind.chats.items.length, 0)
+  assert.equal(byKind.chats.supported, true, '对话与存档已加入')
+  assert.equal(byKind.plugins.supported, true, '插件已加入')
+  assert.equal(byKind.scene.supported, false, '配图仍留给下一版')
+  assert.equal(byKind.scene.items.length, 0)
 })
 
 test('收集所选条目：清单条目带哈希，文件内容与清单一致', async () => {

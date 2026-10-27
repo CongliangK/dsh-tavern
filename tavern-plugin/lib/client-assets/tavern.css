@@ -4787,6 +4787,8 @@ nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !importa
 .dsh-tavern-transfer-summary { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--dsw-alias-label-secondary); min-width: 0; }
 .dsh-tavern-transfer-summary strong { font-size: 12.5px; color: var(--dsw-alias-label-primary); }
 .dsh-tavern-transfer-summary .is-warn { color: var(--dsh-tavern-accent-active); }
+.dsh-tavern-transfer-switch { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.dsh-tavern-transfer-switch input { width: 13px; height: 13px; margin: 0; accent-color: var(--dsh-tavern-accent); }
 .dsh-tavern-transfer-bar .dsh-tavern-btn.primary {
   margin-left: auto;
   background: var(--dsh-tavern-accent-active);
@@ -4869,5 +4871,7 @@ nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !importa
 .dsh-tavern-transfer-progress span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
 @media (max-width: 520px) {
   .dsh-tavern-transfer-item-note { display: none; }
-  .dsh-tavern-transfer-bar .dsh-tavern-btn.primary { width: 100%; margin-left: 0; }
+  .dsh-tavern-transfer-switch { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.dsh-tavern-transfer-switch input { width: 13px; height: 13px; margin: 0; accent-color: var(--dsh-tavern-accent); }
+.dsh-tavern-transfer-bar .dsh-tavern-btn.primary { width: 100%; margin-left: 0; }
 }

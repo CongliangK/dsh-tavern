@@ -8,7 +8,7 @@ function stemOf(value) {
   return path.posix.basename(str(value), path.posix.extname(str(value))) || '未命名'
 }
 
-const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings'])
+const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins'])
 const SETTINGS_PART = 'settings'
 
 /** A name that does not collide: 名字, 名字 (2), 名字 (3), … */
@@ -33,7 +33,7 @@ function errorText(error) {
  */
 export function createTransferImport(deps) {
   const { fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup } = deps
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins } = deps
 
   async function cardIndex() {
     const names = new Set(), stems = new Set()
@@ -57,6 +57,7 @@ export function createTransferImport(deps) {
       userPreferenceProfile.read().then(library => library.profiles || []).catch(() => [])
     ])
     const regex = await regexManager.read('').catch(() => ({ global: [] }))
+    const pluginFolders = plugins ? new Set((await plugins.list().catch(() => [])).map(row => str(row.key).toLowerCase())) : new Set()
     const settings = readTavernSettings()
     return {
       cardNames: new Set([...cards.names].map(value => value.toLowerCase())),
@@ -67,7 +68,8 @@ export function createTransferImport(deps) {
       presetStems: new Set(presets.map(row => stemOf(row.path).toLowerCase())),
       promptNames: new Set((((settings.promptSets || {}).sets) || []).map(row => str(row.name).toLowerCase())),
       profileNames: new Set(profiles.map(row => str(row.name).toLowerCase())),
-      regexIds: new Set((regex.global || []).map(row => str(row.id)))
+      regexIds: new Set((regex.global || []).map(row => str(row.id))),
+      pluginFolders
     }
   }
 
@@ -80,6 +82,8 @@ export function createTransferImport(deps) {
     if (kind === 'prompts') return index.promptNames.has(title) ? '本机已有同名方案，会加新方案' : ''
     if (kind === 'profile') return index.profileNames.has(title) ? '本机已有同名长期偏好，会加新的一份' : ''
     if (kind === 'regex') return index.regexIds.has(str(item.key)) ? '同编号的正则已存在，会换新编号' : ''
+    if (kind === 'chats') return ''
+    if (kind === 'plugins') return index.pluginFolders.has(stemOf(item.entry).toLowerCase()) ? '同文件夹的插件已存在，会加序号' : ''
     if (kind === 'settings') return '按白名单字段合并；写入前备份当前设置'
     return ''
   }
@@ -113,7 +117,8 @@ export function createTransferImport(deps) {
     const index = await existingIndex()
     const used = {
       cardStems: new Set(index.cardStems), worldStems: new Set(index.worldStems), presetStems: new Set(index.presetStems),
-      promptNames: new Set(index.promptNames), profileNames: new Set(index.profileNames)
+      promptNames: new Set(index.promptNames), profileNames: new Set(index.profileNames),
+      pluginFolders: new Set(index.pluginFolders)
     }
     const results = []
     let backupPath = ''
@@ -188,6 +193,20 @@ export function createTransferImport(deps) {
             if (!Array.isArray(scripts) || !scripts.length) throw new Error('包里没有正则')
             const imported = await regexManager.importGlobal({ text: JSON.stringify(scripts), fileName: item.title })
             result.added += Number(imported.imported) || 0
+            continue
+          }
+          if (part.kind === 'chats') {
+            if (!chats) throw new Error('对话导入不可用')
+            const imported = await chats.importOne({ title: item.title, content })
+            result.added += 1
+            result.chatIds = (result.chatIds || []).concat(imported.chatId ? [imported.chatId] : [])
+            continue
+          }
+          if (part.kind === 'plugins') {
+            if (!plugins) throw new Error('插件导入不可用')
+            const imported = await plugins.importOne({ key: item.key, title: item.title, content })
+            used.pluginFolders.add(str(imported.folder).toLowerCase())
+            result.added += 1
             continue
           }
           if (part.kind === 'settings') {

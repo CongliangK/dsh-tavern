@@ -43,12 +43,12 @@ const PART_DEFS = [
     note: '全局正则；导入按规则合并，重复的自动换号' },
   { kind: 'settings', group: 'style', label: '酒馆设置', unit: '份', supported: true, privacy: '不含密钥',
     note: '显示偏好、候选策略、舞台开关等白名单字段；不含 API Key 与账号' },
-  { kind: 'chats', group: 'story', label: '对话与存档', unit: '局', supported: false,
-    note: '下一版支持：一局一个 .dshsave，可挑选' },
+  { kind: 'chats', group: 'story', label: '对话与存档', unit: '局', supported: true, privacy: '含剧情',
+    note: '一局一个 .dshsave；导出时才生成，体积看剧情长度' },
   { kind: 'scene', group: 'story', label: '场景配图', unit: '张', supported: false, note: '下一版随存档一起走' },
   { kind: 'memory', group: 'story', label: '游玩记忆', unit: '局', supported: false, note: '下一版支持' },
-  { kind: 'plugins', group: 'ext', label: '插件', unit: '个', supported: false, privacy: '可执行代码',
-    note: '下一版支持：只复制不启用' },
+  { kind: 'plugins', group: 'ext', label: '插件', unit: '个', supported: true, privacy: '可执行代码',
+    note: '插件文件夹原样打包；导入只复制，不启用、不执行' },
   { kind: 'plugin-data', group: 'ext', label: '插件数据', unit: '个', supported: false, note: '下一版支持' },
   { kind: 'assets', group: 'ext', label: '素材包与皮肤', unit: '包', supported: false, note: '下一版支持' },
   { kind: 'fonts', group: 'ext', label: '字体', unit: '族', supported: false, note: '下一版支持' },
@@ -70,7 +70,7 @@ export const TRANSFER_GROUPS = Object.freeze([
  */
 export function createTransferCatalog(deps) {
   const { fileResources, cardPreparation, readCardWorkspace, worldBooks, presetLibrary, promptDocuments,
-    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion } = deps
+    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins } = deps
 
   async function sizeOf(relative) {
     try { return await fileSize(relative) } catch { return 0 }
@@ -149,6 +149,8 @@ export function createTransferCatalog(deps) {
 
   const LISTS = { cards: listCards, worldbooks: listWorldBooks, presets: listPresets, prompts: listPrompts,
     profile: listProfiles, regex: listRegex, settings: listSettings }
+  if (chats) LISTS.chats = () => chats.list()
+  if (plugins) LISTS.plugins = () => plugins.list()
 
   async function listParts() {
     const parts = []
@@ -174,7 +176,7 @@ export function createTransferCatalog(deps) {
   }
 
   /** Build the part files for one selection; keys are re-checked against this install. */
-  async function collect(selection) {
+  async function collect(selection, options = {}) {
     const parts = new Map(), files = new Map(), used = new Set()
     function add(kind, label, item, fileName, content) {
       const entry = uniqueEntry(used, 'parts/' + kind + '/' + fileName)
@@ -245,6 +247,16 @@ export function createTransferCatalog(deps) {
         })
       if (scripts.length) add('regex', '正则库', { key: 'global', title: scripts.length + ' 条正则' }, 'regex-library.json',
         JSON.stringify(scripts, null, 2) + '\n')
+    }
+
+    if (chats && selected(selection, 'chats').length) {
+      const exports = await chats.collect(selected(selection, 'chats'), { images: options.images !== false })
+      for (const item of exports) add('chats', '对话与存档', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'game.dshsave'), item.content)
+    }
+
+    if (plugins && selected(selection, 'plugins').length) {
+      const exports = await plugins.collect(selected(selection, 'plugins'))
+      for (const item of exports) add('plugins', '插件', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'plugin.zip'), item.content)
     }
 
     if (wanted(selection, 'settings', 'current')) {

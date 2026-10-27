@@ -3,7 +3,9 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { buildTransferManifest, packTransferBundle, readTransferBundle, safeTransferFileName, TRANSFER_EXTENSION } from '../domain/transfer-bundle.js'
 import { createTransferCatalog } from '../domain/transfer-catalog.js'
+import { createTransferChats } from '../domain/transfer-chats.js'
 import { createTransferImport } from '../domain/transfer-import.js'
+import { createTransferPlugins } from '../domain/transfer-plugins.js'
 
 function str(value) {
   return typeof value === 'string' ? value : (value === undefined || value === null ? '' : String(value))
@@ -25,7 +27,8 @@ function stamp() {
 export function createTransferHandlers(deps) {
   const { dataRoot, uploads, fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile,
     regexManager, readTavernSettings, updateTavernSettings, importCard, importPreset, readCardWorkspace,
-    cardPreparation, TAVERN_PACKAGE_VERSION } = deps
+    cardPreparation, TAVERN_PACKAGE_VERSION, listTavernSessions, readChat, exportGameSave, importGameSave,
+    userPluginInstaller } = deps
 
   async function writeBackup(name, text) {
     const directory = path.join(dataRoot, '..', 'backups', 'transfer', stamp())
@@ -34,6 +37,9 @@ export function createTransferHandlers(deps) {
     await writeFile(target, text)
     return path.relative(path.join(dataRoot, '..'), target).split(path.sep).join('/')
   }
+
+  const chats = createTransferChats({ listSessions: listTavernSessions, readChat, exportSave: exportGameSave, importSave: importGameSave })
+  const plugins = createTransferPlugins({ pluginsDir: userPluginInstaller.pluginsDir, listPlugins: () => userPluginInstaller.list() })
 
   const catalog = createTransferCatalog({
     fileResources,
@@ -46,12 +52,14 @@ export function createTransferHandlers(deps) {
     regexManager,
     readTavernSettings,
     tavernVersion: TAVERN_PACKAGE_VERSION,
-    fileSize: async relative => (await stat(fileResources.absolute(relative))).size
+    fileSize: async relative => (await stat(fileResources.absolute(relative))).size,
+    chats,
+    plugins
   })
 
   const importer = createTransferImport({
     fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins
   })
 
   const tokens = new Map()
@@ -66,7 +74,7 @@ export function createTransferHandlers(deps) {
 
     async createTransferExport(args) {
       const selection = args && typeof args.selection === 'object' && args.selection !== null ? args.selection : {}
-      const collected = await catalog.collect(selection)
+      const collected = await catalog.collect(selection, { images: args && args.includeImages !== false })
       if (!collected.parts.length) throw new Error('请至少选择一个板块')
       const name = safeTransferFileName(str(args && args.name) || 'DSH酒馆备份-' + stamp(), 'DSH酒馆备份')
       const manifest = buildTransferManifest({
