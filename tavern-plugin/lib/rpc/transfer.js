@@ -37,7 +37,7 @@ export function createTransferHandlers(deps) {
     regexManager, readTavernSettings, updateTavernSettings, importCard, importPreset, readCardWorkspace,
     cardPreparation, TAVERN_PACKAGE_VERSION, listTavernSessions, readChat, exportGameSave, importGameSave,
     userPluginInstaller, pluginDataStore, tavernSkills, transferExports, exportTavernLogs,
-    deleteCard, deletePreset, deleteResource } = deps
+    deleteCard, deletePreset, deleteResource, readRawTavernSettings, updateChat } = deps
 
   async function writeBackup(name, text) {
     const directory = path.join(dataRoot, '..', 'backups', 'transfer', stamp())
@@ -47,7 +47,7 @@ export function createTransferHandlers(deps) {
     return path.relative(path.join(dataRoot, '..'), target).split(path.sep).join('/')
   }
 
-  const chats = createTransferChats({ listSessions: listTavernSessions, readChat, exportSave: exportGameSave, importSave: importGameSave })
+  const chats = createTransferChats({ listSessions: listTavernSessions, readChat, exportSave: exportGameSave, importSave: importGameSave, updateChat })
   const plugins = createTransferPlugins({ pluginsDir: userPluginInstaller.pluginsDir, listPlugins: () => userPluginInstaller.list() })
   const materials = createTransferMaterials({ fileResources })
   const fonts = createTransferFonts({ fontsDir: path.join(dataRoot, 'fonts') })
@@ -87,8 +87,8 @@ export function createTransferHandlers(deps) {
 
   const importer = createTransferImport({
     fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills,
-    removeCreated
+    readTavernSettings, readSettingsDocument: readRawTavernSettings, updateTavernSettings, importCard, importPreset,
+    backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills, removeCreated
   })
 
   const tokens = new Map()

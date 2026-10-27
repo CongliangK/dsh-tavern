@@ -35,7 +35,7 @@ function errorText(error) {
 export function createTransferImport(deps) {
   const { fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
     readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts, pluginData, skills,
-    removeCreated } = deps
+    removeCreated, readSettingsDocument } = deps
 
   async function cardIndex() {
     const names = new Set(), stems = new Set()
@@ -68,6 +68,34 @@ export function createTransferImport(deps) {
     return JSON.stringify(picked)
   }
 
+  function stableStringify(value) {
+    if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
+    if (value && typeof value === 'object') {
+      return '{' + Object.keys(value).sort().filter(function (key) { return value[key] !== undefined }).map(function (key) {
+        return JSON.stringify(key) + ':' + stableStringify(value[key])
+      }).join(',') + '}'
+    }
+    return JSON.stringify(value === undefined ? null : value)
+  }
+
+  function fingerprintOf(value) {
+    return createHash('sha256').update(stableStringify(value)).digest('hex')
+  }
+
+  const trimmedOverrides = value => Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {})
+    .filter(function (entry) { return typeof entry[1] === 'string' && entry[1].trim() !== '' })
+    .map(function (entry) { return [entry[0], entry[1].trim()] }))
+
+  const regexBody = entry => ({
+    findRegex: str(entry && entry.findRegex), replaceString: str(entry && entry.replaceString),
+    trimStrings: Array.isArray(entry && entry.trimStrings) ? entry.trimStrings : [],
+    placement: Array.isArray(entry && entry.placement) ? entry.placement : [],
+    markdownOnly: entry && entry.markdownOnly === true, promptOnly: entry && entry.promptOnly === true,
+    runOnEdit: entry && entry.runOnEdit === true,
+    minDepth: entry && entry.minDepth === undefined ? null : entry.minDepth,
+    maxDepth: entry && entry.maxDepth === undefined ? null : entry.maxDepth
+  })
+
   function contentHashOf(kind, text) {
     if (kind === 'cards') {
       try { return createHash('sha256').update(cardFingerprint(text)).digest('hex') } catch { return createHash('sha256').update(text).digest('hex') }
@@ -87,6 +115,43 @@ export function createTransferImport(deps) {
       }
       index.set(kind, hashes)
     }
+
+    const promptHashes = new Set()
+    if (readSettingsDocument) {
+      const raw = await readSettingsDocument().catch(() => null)
+      const sets = raw && Array.isArray(raw.promptSets) && raw.promptSets.length ? raw.promptSets : [{ id: 'default' }]
+      const activeId = raw && typeof raw.activePromptSetId === 'string' && sets.some(set => set.id === raw.activePromptSetId) ? raw.activePromptSetId : sets[0].id
+      for (const set of sets) {
+        const active = set.id === activeId
+        promptHashes.add(fingerprintOf({
+          overrides: trimmedOverrides(active ? (raw && raw.promptOverrides) : set.promptOverrides),
+          append: active ? Boolean(raw && raw.systemAppendEnabled !== false) : set.systemAppendEnabled !== false
+        }))
+      }
+    }
+    index.set('prompts', promptHashes)
+
+    const profileHashes = new Set()
+    const library = await userPreferenceProfile.read().catch(() => ({ profiles: [] }))
+    for (const row of library.profiles || []) {
+      const profile = await userPreferenceProfile.read(row.id).catch(() => null)
+      if (profile && profile.confirmed) {
+        profileHashes.add(fingerprintOf({ summary: str(profile.confirmed.summary), injectionText: str(profile.confirmed.injectionText) }))
+      }
+    }
+    index.set('profile', profileHashes)
+
+    const chatHashes = new Set()
+    if (chats && typeof chats.importedHashes === 'function') {
+      for (const hash of await chats.importedHashes().catch(() => new Set())) chatHashes.add(hash)
+    }
+    index.set('chats', chatHashes)
+
+    const regexHashes = new Set()
+    const regexState = await regexManager.read('').catch(() => ({ global: [] }))
+    for (const row of regexState.global || []) regexHashes.add(fingerprintOf(regexBody(row)))
+    index.set('regex', regexHashes)
+
     return index
   }
 
@@ -147,7 +212,7 @@ export function createTransferImport(deps) {
 
   async function preview(manifest, files = new Map()) {
     const index = await existingIndex()
-    const contents = typeof removeCreated === 'function' ? await contentIndex() : null
+    const contents = await contentIndex()
     // Only these kinds can be compared byte-for-byte after import; prompts/regex have no local twin.
     const dedupeKinds = new Set(['cards', 'worldbooks', 'presets', 'scripts'])
     const parts = manifest.parts.map(function (part) {
@@ -163,6 +228,13 @@ export function createTransferImport(deps) {
         const conflictReason = itemConflict(index, part.kind, item)
         let duplicate = false, reason = conflictReason
         const packed = files.get(item.entry)
+        if (contents && packed && part.kind === 'chats') {
+          const hash = createHash('sha256').update(packed).digest('hex')
+          if (contents.get('chats') && contents.get('chats').has(hash)) {
+            duplicate = true
+            reason = '本机已有相同内容的存档，默认不导入'
+          }
+        }
         if (contents && packed && dedupeKinds.has(part.kind)) {
           const text = packed.toString('utf8')
           if (contents.get(part.kind).has(contentHashOf(part.kind, text))) {
@@ -188,7 +260,7 @@ export function createTransferImport(deps) {
 
   async function apply({ manifest, files, policies = {}, selection = null }) {
     const index = await existingIndex()
-    const contents = typeof removeCreated === 'function' ? await contentIndex() : null
+    const contents = await contentIndex()
     const used = {
       cardStems: new Set(index.cardStems), worldStems: new Set(index.worldStems), presetStems: new Set(index.presetStems),
       promptNames: new Set(index.promptNames), profileNames: new Set(index.profileNames),
@@ -196,7 +268,7 @@ export function createTransferImport(deps) {
       pluginDataNames: new Set(index.pluginDataNames), skillNames: new Set(index.skillNames)
     }
     async function dropDuplicate(kind, result, title, path) {
-      if (!contents || !contents.has(kind) || !path) return false
+      if (typeof removeCreated !== 'function' || !contents.has(kind) || !path) return false
       const text = await fileResources.readText(path).catch(() => undefined)
       if (typeof text !== 'string') return false
       const hash = contentHashOf(kind, text)
@@ -270,6 +342,13 @@ export function createTransferImport(deps) {
             let document
             try { document = JSON.parse(text) } catch { throw new Error('提示词文件不是有效的 JSON') }
             const patch = promptDocuments.import(document, item.title)
+            const promptHash = fingerprintOf({ overrides: trimmedOverrides(patch.promptOverrides), append: patch.systemAppendEnabled !== false })
+            if (contents.get('prompts').has(promptHash)) {
+              result.skipped += 1
+              result.duplicates = (result.duplicates || []).concat(item.title)
+              continue
+            }
+            contents.get('prompts').add(promptHash)
             const name = uniqueName(used.promptNames, patch.name || item.title)
             patch.name = name
             await updateTavernSettings({ promptSet: patch })
@@ -286,6 +365,13 @@ export function createTransferImport(deps) {
               const name = uniqueName(used.profileNames, str(row.name) || '导入的长期偏好')
               const content = str(row.injectionText).trim()
               if (!content) { result.failed.push({ title: name, error: '正文为空' }); continue }
+              const profileHash = fingerprintOf({ summary: str(row.summary), injectionText: content })
+              if (contents.get('profile').has(profileHash)) {
+                result.skipped += 1
+                result.duplicates = (result.duplicates || []).concat(name)
+                continue
+              }
+              contents.get('profile').add(profileHash)
               await userPreferenceProfile.manage({ action: 'create', name, content, summary: str(row.summary) })
               used.profileNames.add(name.toLowerCase())
               result.added += 1
@@ -296,7 +382,18 @@ export function createTransferImport(deps) {
             let scripts
             try { scripts = JSON.parse(text) } catch { throw new Error('正则文件不是有效的 JSON') }
             if (!Array.isArray(scripts) || !scripts.length) throw new Error('包里没有正则')
-            const imported = await regexManager.importGlobal({ text: JSON.stringify(scripts), fileName: item.title })
+            const fresh = scripts.filter(function (script) {
+              const hash = fingerprintOf(regexBody(script))
+              if (contents.get('regex').has(hash)) {
+                result.skipped += 1
+                result.duplicates = (result.duplicates || []).concat(str(script && (script.scriptName || script.name)) || item.title)
+                return false
+              }
+              contents.get('regex').add(hash)
+              return true
+            })
+            if (!fresh.length) continue
+            const imported = await regexManager.importGlobal({ text: JSON.stringify(fresh), fileName: item.title })
             result.added += Number(imported.imported) || 0
             continue
           }
@@ -333,7 +430,14 @@ export function createTransferImport(deps) {
           }
           if (part.kind === 'chats') {
             if (!chats) throw new Error('对话导入不可用')
-            const imported = await chats.importOne({ title: item.title, content })
+            const saveHash = createHash('sha256').update(content).digest('hex')
+            if (contents.get('chats').has(saveHash)) {
+              result.skipped += 1
+              result.duplicates = (result.duplicates || []).concat(item.title)
+              continue
+            }
+            const imported = await chats.importOne({ title: item.title, content, sha256: saveHash })
+            contents.get('chats').add(saveHash)
             result.added += 1
             result.chatIds = (result.chatIds || []).concat(imported.chatId ? [imported.chatId] : [])
             continue

@@ -484,6 +484,11 @@ export async function apply(ctx) {
     tavernSettingsDocument = await profileData.readJson(settingsPath)
     return presentTavernSettings(tavernSettingsDocument, promptDefaults())
   }
+  // Import dedupe needs the stored overrides; the presented settings drop them for inactive sets.
+  async function readRawTavernSettings() {
+    tavernSettingsDocument = await profileData.readJson(settingsPath)
+    return tavernSettingsDocument
+  }
   async function updateTavernSettings(patch) {
     if (patch && (Object.hasOwn(patch, 'backgroundModel') || Object.hasOwn(patch, 'backgroundTasks') || Object.hasOwn(patch, 'webSearchEnabled'))) throw new Error('后台配置已移至顶栏的本局设置')
     for (const name of ['defaultForegroundModel', 'defaultBackgroundModel', 'defaultWorkbenchModel']) {
@@ -3472,7 +3477,7 @@ export async function apply(ctx) {
     pluginSettlementProgress, prepareConversationFork, preparedSaveSessions, presentSystemPrompts, promptDocuments, transferExports,
     presentUserPreferenceProfile, presetLibrary, previewPreset, projectOpeningWindow,
     readBackgroundSuppression, readCard, readCardExtensions, readCardExtensionSources, readCardWorkspace, readChat, readChatCard,
-    readOpeningWindow, readScript, readSessionMap, readTavernSettings, reconcileStory, reconcileWhenIdle,
+    readOpeningWindow, readRawTavernSettings, readScript, readSessionMap, readTavernSettings, reconcileStory, reconcileWhenIdle,
     regenBody, regexLibrary, regexManager, removePluginGalleryItems, removePluginMediaVersion, renameResource,
     replayFailedTurn, requestPerformance, retrySettlement, retryStyleReference, rollbackTurn, rollbackToTurn,
     runtimeGeneration, runtimePresets, runtimePrompt, saveUpgrade, sceneIllustrations, scriptContinuity,

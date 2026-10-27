@@ -179,7 +179,9 @@ test('预览指出同名冲突，应用时全部新建、不覆盖，并在写�
   const from = environment({
     cards: new Map([['cards/作家.json', JSON.stringify({ name: '作家', description: '另一台机器的版本', extensions: {} })]]),
     presets: new Map([['presets/默认.json', JSON.stringify({ prompts: [{ identifier: 'main', content: 'other' }] })]]),
-    worldbooks: new Map([['worldbooks/世界观总纲.json', JSON.stringify({ name: '世界观总纲', entries: { 1: { uid: 1, key: ['a'], content: 'x' } } })]])
+    worldbooks: new Map([['worldbooks/世界观总纲.json', JSON.stringify({ name: '世界观总纲', entries: { 1: { uid: 1, key: ['a'], content: 'x' } } })]]),
+    profiles: [{ id: 'default', name: '默认长期偏好', confirmed: { injectionText: '来自另一台机器', summary: '另一台' } }],
+    regex: [{ id: 'rx-1', name: '去掉思维链', findRegex: '/<other>[\\s\\S]*?<\\/other>/g', replaceString: '', enabled: true, placement: [2], trimStrings: [] }]
   })
   const bundle = await bundleFrom(from, { cards: ['cards/作家.json'], worldbooks: ['worldbooks/世界观总纲.json'], presets: ['presets/默认.json'], prompts: ['current'], profile: ['default'], regex: ['rx-1'], settings: ['current'] })
 
@@ -205,7 +207,7 @@ test('预览指出同名冲突，应用时全部新建、不覆盖，并在写�
   assert.equal(to.state.imported.settings.filter(patch => !patch.promptSet).length, 1)
   assert.equal(to.state.backups.length, 1, '设置写入前留备份')
   assert.match(result.backupPath, /^backups\/transfer\//)
-  assert.equal(to.state.profiles.at(-1).confirmed.injectionText, '少写心理描写')
+  assert.equal(to.state.profiles.at(-1).confirmed.injectionText, '来自另一台机器')
 })
 
 test('策略 skip 不写入该板块；导入包里的损坏条目单独记失败', async () => {
@@ -250,4 +252,19 @@ test('同一个包导入第二次：内容相同就跳过，不再堆副本', as
   assert.equal(presets.added, 0)
   assert.equal(to.state.cards.size, 1, '本机仍只有一张卡')
   assert.equal(to.state.presets.size, 1, '预设也没有变多')
+})
+
+test('长期偏好与正则：内容相同就跳过，不再重复', async () => {
+  const from = environment()
+  const bundle = await bundleFrom(from, { profile: ['default'], regex: ['rx-1'] })
+  const to = environment()
+  const result = await to.importer.apply({ manifest: bundle.manifest, files: bundle.files, policies: {} })
+  const profile = result.results.find(row => row.kind === 'profile')
+  const regex = result.results.find(row => row.kind === 'regex')
+  assert.equal(profile.added, 0)
+  assert.equal(profile.skipped, 1)
+  assert.equal(regex.added, 0)
+  assert.equal(regex.skipped, 1)
+  assert.equal(to.state.profiles.length, 1, '本机画像没有变多')
+  assert.equal(to.state.imported.regex, 0)
 })
