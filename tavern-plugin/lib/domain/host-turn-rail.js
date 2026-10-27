@@ -64,6 +64,43 @@ function liveTurns(session, bounds) {
   return live
 }
 
+/**
+ * 表面里还有节点的轮次（升序）。查看层用同一套规则：`events` 是会话日志，`nodes` 是表面节点 seq。
+ * 失败的尝试轮、被撤回的输入、被重新生成取代的轮次在表面里一个节点都不剩，就不再算轮次。
+ * @param {{ events?: Array<object>, nodes?: Array<number> }} input - 会话日志与表面节点。
+ * @returns {number[]} 仍有内容的轮次号。
+ */
+export function surfaceTurns(input) {
+  const events = Array.isArray(input && input.events) ? input.events : []
+  const nodes = Array.isArray(input && input.nodes) ? input.nodes : []
+  if (!events.length || !nodes.length) return []
+  const bySeq = new Map()
+  const bounds = []
+  for (const event of events) {
+    const seq = Number(event && event.seq)
+    if (!Number.isSafeInteger(seq)) continue
+    bySeq.set(seq, event)
+    if (event.type !== 'turn/start') continue
+    const turn = Number(event.data && event.data.turn)
+    if (!Number.isSafeInteger(turn) || turn <= 0) continue
+    if (bounds.length && seq <= bounds[bounds.length - 1].seq) continue
+    bounds.push({ turn, seq })
+  }
+  if (!bounds.length) return []
+  const live = new Set()
+  for (const raw of nodes) {
+    const seq = Number(raw)
+    if (!Number.isSafeInteger(seq)) continue
+    const event = bySeq.get(seq)
+    const turn = Number(event && event.data && event.data.turn)
+    if (Number.isSafeInteger(turn) && turn > 0) { live.add(turn); continue }
+    if (isEmptyMarker(event)) continue
+    const mapped = boundaryTurn(bounds, seq)
+    if (mapped > 0) live.add(mapped)
+  }
+  return [...live].sort((left, right) => left - right)
+}
+
 function stampOf(session) {
   try {
     const surface = session && session.surface

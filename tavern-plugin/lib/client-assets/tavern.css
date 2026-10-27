@@ -4612,3 +4612,7 @@ body .dsh-tavern-picker-error { background: linear-gradient(color-mix(in srgb, v
 .dsh-tavern-rx-bulk-count { color: var(--dsw-alias-label-secondary); font-size: 10px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .dsh-tavern-rx-bulk .dsh-tavern-btn { min-height: 26px; padding: 2px 8px; font-size: 10px; }
 .dsh-tavern-rx-bulk .dsh-tavern-rx-spacer { flex: 1 1 auto; }
+
+/* ---------- 轮次导航：正文里没有内容的轮次不占刻度 ---------- */
+/* modules/turn-rail.js 按会话视图的 railTurns 给多余刻度打上标记；重试、撤回的尝试轮不再撑满整列。 */
+[data-dsh-tavern-rail-hidden] { display: none !important; }

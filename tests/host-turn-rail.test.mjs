@@ -1,7 +1,7 @@
 // 轮次导航（domain/host-turn-rail.js）：`turnOutline` 发出去之前裁到表面里还有内容的轮次。
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { installHostTurnRailFilter } from '../tavern-plugin/lib/domain/host-turn-rail.js'
+import { installHostTurnRailFilter, surfaceTurns } from '../tavern-plugin/lib/domain/host-turn-rail.js'
 
 const entry = (turn, seq) => ({ turn, seq, prompt: '第 ' + turn + ' 轮输入', response: '第 ' + turn + ' 轮正文' })
 
@@ -112,4 +112,24 @@ test('宿主接口不认识时原样放回，不抛错', () => {
   assert.deepEqual(host.snapshot(session(liveNodes)).values.turnOutline.map(item => item.turn), [1, 3])
   second()
   assert.equal(host.snapshot, nativeSnapshot, '最后一次卸载还原方法本身')
+})
+
+test('surfaceTurns：表面里还有节点的轮次，清理标记不算', () => {
+  const events = [
+    { seq: 0, type: 'turn/start', data: { turn: 1 } },
+    { seq: 1, type: 'user/message', data: { turn: 1, content: [{ type: 'text', text: '一' }], source: { kind: 'user' } } },
+    { seq: 2, type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: '答一' }] } } },
+    { seq: 3, type: 'turn/start', data: { turn: 2 } },
+    { seq: 4, type: 'user/message', data: { turn: 2, content: [{ type: 'text', text: '二' }], source: { kind: 'user' } } },
+    { seq: 5, type: 'assistant/message', data: { turn: 2, message: { content: [{ type: 'text', text: '答二' }] } } },
+    { seq: 6, type: 'turn/start', data: { turn: 3 } },
+    { seq: 7, type: 'user/message', data: { content: [], source: { kind: 'plugin:fixture-cleanup' } } },
+  ]
+  assert.deepEqual(surfaceTurns({ events, nodes: [1, 2, 5] }), [1, 2], '第 3 轮只剩清理标记，不算')
+  // tavern 自己写的、不带 turn 的正文按 turn/start 边界换算。
+  assert.deepEqual(surfaceTurns({ events, nodes: [1, 4, 7] }), [1, 2], '标记被跳过，seq 4 落在第 2 轮')
+  assert.deepEqual(surfaceTurns({ events, nodes: [] }), [], '表面空就是没有轮次')
+  assert.deepEqual(surfaceTurns({ events: [], nodes: [1] }), [])
+  assert.deepEqual(surfaceTurns({}), [])
+  assert.deepEqual(surfaceTurns({ events, nodes: [99] }), [3], '超出最后一条 turn/start 的节点算最后一轮')
 })

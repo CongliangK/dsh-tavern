@@ -924,6 +924,7 @@ window.__ModuleLoader__.load({
 // @include features/conversation-header.js
 // @include-domain play-interaction-flow.js
 // @include features/play-interaction-panels.js
+// @include modules/turn-rail.js
 // @include features/play-controls.js
 
 // @include features/request-context.js

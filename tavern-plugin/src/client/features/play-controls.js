@@ -1009,12 +1009,14 @@
 			const replayTurn = state.view && state.view.canReplayFailedTurn ? Number(state.view.replayFailedTurn) || null : null;
 			const staleTurns = state.view && state.view.staleDshErrorTurns || [];
 			const filteredStreak = Number(state.view && state.view.filteredFailureStreak) || 0;
+			// 正文表面里还有内容的轮次：右侧「轮次导航」只留这几根刻度（重试留下的空轮不算）。
+			const railTurns = state.view && Array.isArray(state.view.railTurns) ? state.view.railTurns : null;
 			const canRewind = !!(state.view && state.view.canRegenerate === true);
 			const draft = props.useInput(snapshot => snapshot.draft);
 			const draftRef = React.useRef(draft);
 			draftRef.current = draft;
 			const revision = turns.join(",") + ":" + (Array.isArray(hiddenTurns) ? "saved:" + hiddenTurns.join(",") : "local") + ":" + String(replayTurn || "")
-				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind;
+				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind + ":rail:" + (railTurns === null ? "unknown" : railTurns.join(","));
 			// Clearing a failed tail is the first half of both recovery actions.
 			async function clearFailedTail() {
 				const result = await rpc("rollbackTurn", { expectedTurn: null }, props.sessionId);
@@ -1031,6 +1033,7 @@
 				const root = marker.current && marker.current.closest("[data-conversation-scroll]");
 				if (!root) return;
 				const projection = createSupersededErrorProjection(root);
+				const rail = createTurnRailFilter(root);
 				const controls = createTurnErrorControls(root, {
                     sessionId: props.sessionId, storage: window.localStorage, hiddenTurns: hiddenTurns, replayTurn: replayTurn,
                     onToggle: !Array.isArray(hiddenTurns) ? undefined : async function (turn, hidden) {
@@ -1066,10 +1069,10 @@
                     },
                     onError: function (error) { tavernErrorHub.report("保存错误提示状态失败", error); }
                 });
-				const apply = function () { projection.apply(turns); controls.apply(); };
+				const apply = function () { projection.apply(turns); controls.apply(); rail.apply(railTurns); };
 				apply();
 				const observer = observeTurnErrorProjection(root, apply);
-				return function () { observer.disconnect(); controls.dispose(); projection.dispose(); };
+				return function () { observer.disconnect(); controls.dispose(); projection.dispose(); rail.dispose(); };
 			}, [props.sessionId, revision]);
 			return React.createElement("span", { ref: marker, hidden: true, "data-tavern-error-projection": props.sessionId });
 		}

@@ -6,6 +6,7 @@ import { rollbackAvailability, hasRollbackMessages, failedTurnReplayAvailability
 import { isRescuedHistoryMessage } from './chat-history-rescue.js'
 import { canUndoRollback } from './surface-restoration.js'
 import { failedErrorTurnStates } from './failed-error-visibility.js'
+import { surfaceTurns } from './host-turn-rail.js'
 
 export function pendingMvuSettlementState(chat) {
   if (Object.hasOwn(chat, 'pendingMvuSettlement')) return chat.pendingMvuSettlement
@@ -210,6 +211,8 @@ export function createSessionStateView({ activity: activityOf, evidence: evidenc
       suppressedDshErrorTurns: supersededRegenerationErrorTurns({ events: evidence.events || [], suppressedDshTurns: chat.suppressedDshTurns }),
       staleDshErrorTurns: failures.staleTurns,
       filteredFailureStreak: failures.filteredStreak,
+      // 对话右侧的轮次导航按轮次画刻度：正文表面里还有内容的那几轮才该出现（重试留下的空轮不算）。
+      railTurns: Array.isArray(nodes) ? surfaceTurns({ events, nodes }) : [],
       canRegenerate: hasRound && !isRescuedHistoryMessage(chat, chat.messages?.findLast(message => message.role === 'assistant')),
       canEditBody: hasRound,
       rollbackTargetTurn: settlementTurn(chat),
