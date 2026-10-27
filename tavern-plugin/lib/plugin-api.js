@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { isMvuUpdateEntry } from './domain/worldbook-recall.js'
 import { createPluginTaskExecution } from './domain/plugin-task-execution.js'
 import { bounded, untilAborted } from './domain/plugin-callback.js'
 import path from 'node:path'
@@ -112,7 +114,7 @@ export function createTavernPluginApi(deps) {
   const settingHandlers = new Set()
   const speechProviders = new Map()
   const mvuSettlementProviders = new Map()
-  const capabilities = Object.freeze({ mvuSettlementProvider: 1 })
+  const capabilities = Object.freeze({ mvuSettlementProvider: 1, worldbookStrategy: 1 })
   const sections = new Map()
   const turnSections = new Map()
   const settlementSections = new Map()
@@ -875,6 +877,45 @@ export function createTavernPluginApi(deps) {
       if (typeof name !== 'string' || !HANDLER_NAME.test(name)) throw new Error('handle 的 name 只能用小写字母、数字和 . _ : / -，最多 96 个字符')
       if (typeof handler !== 'function') throw new TypeError('handle 需要一个函数')
       return register.call(this, handlers, name, { owner, handler }, 'tavern.handle()', '处理函数 ' + name + ' 已被注册，请在名字前加上插件名')
+    },
+
+    // Select references only; Tavern retains source ownership, rendering and mandatory entries.
+    worldbookStrategy({ name, label, description = '', select } = {}) {
+      const owner = ownerOf(this)
+      sectionName(name)
+      if (typeof select !== 'function') throw new TypeError('select 必须是函数')
+      if (!deps.worldbookStrategies || !deps.worldbookStrategyEntries || !deps.projectWorldbookSelection) throw new Error('世界书策略服务不可用')
+      const id = 'plugin-' + createHash('sha256').update(owner).digest('hex').slice(0, 16) + '-' + name
+      return owned(this, () => {
+        let active = true
+        const dispose = deps.worldbookStrategies.register({ id, label, description, project: async input => {
+          const gameId = input.chat?.sessionId
+          const fallback = () => deps.projectWorldbookSelection(input, null)
+          try {
+            input.signal?.throwIfAborted()
+            if (!active || !gameId || (await choicesFor(gameId)).disabled.has(owner)) return fallback()
+            await guardScope(owner, { gameId })
+            const worldBook = await deps.worldbookStrategyEntries(input)
+            const entries = (worldBook?.view?.entries || []).filter(entry => entry.enabled !== false && !isMvuUpdateEntry(entry))
+              .map(({ ref, sourceUid, sourcePath, title, content, constant, primaryKeys, secondaryKeys, order, position, depth, role }) =>
+                ({ ref, sourceUid, sourcePath, title, content, constant, primaryKeys, secondaryKeys, order, position, depth, role }))
+            const request = select(structuredClone({ gameId, userText: input.userText || '', purpose: input.purpose || 'generation', entries }))
+            const result = await bounded(input.signal ? untilAborted(request, input.signal) : request, '世界书策略 ' + name, POOL_TIMEOUT_MS)
+            input.signal?.throwIfAborted()
+            if (!active || (await choicesFor(gameId)).disabled.has(owner)) return fallback()
+            await guardScope(owner, { gameId })
+            if (!Array.isArray(result) || result.some(ref => typeof ref !== 'string')) throw new Error('select 必须返回条目 ref 数组')
+            const allowed = new Set(entries.map(entry => entry.ref))
+            if (result.some(ref => !allowed.has(ref))) throw new Error('select 返回了不可用的条目 ref')
+            return deps.projectWorldbookSelection({ ...input, worldBook }, [...new Set(result)])
+          } catch (error) {
+            input.signal?.throwIfAborted()
+            recordError(gameId, owner, '世界书策略 ' + name, error)
+            return fallback()
+          }
+        } })
+        return () => { active = false; dispose() }
+      }, 'tavern.worldbookStrategy()')
     },
 
     worldbookSource({ name, entries } = {}) {

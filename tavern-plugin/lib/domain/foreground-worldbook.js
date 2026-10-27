@@ -18,7 +18,7 @@ function unreadCharacterDesigns(worldBook, chat) {
 
 /** One request uses one bound-book snapshot for both selection and rendering. */
 export function createForegroundWorldbook({ bound, runtime, globalVariables, scanText = () => '', filterCandidates }) {
-  return async function project({ chat, card, userText, userTextInHistory = false, worldBook: snapshot, purpose = 'generation', signal }) {
+  return async function project({ chat, card, userText, userTextInHistory = false, worldBook: snapshot, purpose = 'generation', signal, strategy = chat.worldbookStrategy || 'legacy', selectedRefs = [] }) {
     try {
       let worldBook = snapshot || await bound(chat.cardPath, card, chat, {purpose,userText})
       const turn = Number([...(chat.messages || [])].reverse().find(message => message?.role === 'assistant')?.turn) || 0
@@ -33,11 +33,14 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
       }
       // Model screening is a per-game switch (off by default): while off, the model is never
       // asked and its earlier exclusions stop cooling entries down.
-      const screeningOn = Boolean(filterCandidates) && chat.backgroundTasks?.worldbookScreening === true
+      const screeningOn = strategy === 'legacy' && Boolean(filterCandidates) && chat.backgroundTasks?.worldbookScreening === true
       if (!screeningOn) for (const ref of Object.keys(reads)) if (reads[ref]?.kind === 'screened') delete reads[ref]
       const templateRuntime = await runtime(chat.sessionId), globals = await globalVariables()
       worldBook = await prepareTemplateWorldbook(worldBook, templateRuntime, chat, globals)
       const preparedActivations = [...(worldBook?.templateActivationRequests || []), ...unreadCharacterDesigns(worldBook, chat), ...(worldBook?.pluginActivationRequests || [])]
+      if (strategy === 'native-skills') return await projectMandatoryWorldbook({
+        worldBook, chat, card, templateRuntime, globals, preparedActivations: [...preparedActivations, ...selectedRefs.map(ref => ({ ref, force: false, sourceRef: '[STRATEGY]' }))], randomState, turn
+      })
       let activationRequests = preparedActivations, recalled, projected
       const tokenCosts = {}
       // Only the post-reply prefilter may ask a model; sending and history import stay local.
@@ -107,4 +110,32 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
       return { log: { error: String(error?.message || error), entries: [], outputs: [], counts: {} }, context: '', refs: [], diagnostics: [], activation: { schemaVersion: 2, refs: [], mode: 'error' }, error: String(error?.message || error) }
     }
   }
+}
+
+/** Native skill discovery replaces keyword selection, not mandatory controllers.
+ * No skill-strategy projection consumes legacy cooldowns or screening verdicts.
+ */
+async function projectMandatoryWorldbook({ worldBook, chat, card, templateRuntime, globals, preparedActivations, randomState, turn }) {
+  let activationRequests = preparedActivations, projected
+  const key = requests => JSON.stringify(requests.map(({ sourceRef, ref, force }) => [sourceRef, ref, force]).sort())
+  for (let pass = 0; pass < 16; pass++) {
+    const requested = new Set(activationRequests.map(request => request.ref))
+    const forced = new Set(activationRequests.filter(request => request.force).map(request => request.ref))
+    const selectedEntries = (worldBook?.view?.entries || []).filter(entry =>
+      (entry.enabled !== false || forced.has(entry.ref)) && (entry.constant || requested.has(entry.ref)) && !isMvuUpdateEntry(entry))
+    projected = await projectWorldBookTemplates({ worldBook, selectedEntries, includeConstants: true,
+      runtime: templateRuntime, globalVariables: globals, chat, card, activationRequests, randomSeed: randomState.seed })
+    const next = [...preparedActivations, ...(projected.activationRequests || [])]
+    if (key(next) === key(activationRequests)) {
+      const refs = projected.refs.filter(ref => selectedEntries.some(entry => entry.ref === ref && !entry.constant))
+      return { ...projected, context: projected.foregroundContext, refs, reads: { ...chat.worldBookReads },
+        randomState: { ...randomState, outputs: { ...randomState.outputs, ...Object.fromEntries(projected.renderedEntries
+          .filter(output => hasWorldbookRandom(selectedEntries.find(entry => entry.ref === output.ref)?.content)).map(output => [output.ref, output.text])) } },
+        activation: { schemaVersion: 2, turn, refs, diagnostics: [], mode: 'native-skills' },
+        log: { strategy: 'native-skills', entries: selectedEntries.map(entry => ({ ref: entry.ref, title: entry.title, reason: 'mandatory' })),
+          outputs: projected.renderedEntries, counts: { mandatory: selectedEntries.length }, activationRequests, templateDiagnostics: projected.diagnostics }, error: null }
+    }
+    activationRequests = next
+  }
+  throw new Error('世界书脚本激活未在 16 次投影内收敛')
 }

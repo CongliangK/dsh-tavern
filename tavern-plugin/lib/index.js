@@ -259,6 +259,8 @@ import { createWorldbookRecallLog, compactRecallDiagnostics } from './domain/wor
 import { foregroundWorldbookReads } from './domain/worldbook-read-handoff.js'
 import { createWorldbookSearch, sharedWorldbookSearch } from './domain/worldbook-search.js'
 import { createForegroundWorldbook } from './domain/foreground-worldbook.js'
+import { createWorldbookStrategies } from './domain/worldbook-strategies.js'
+import { createWorldbookSkillProvider } from './domain/worldbook-skill-provider.js'
 import { prepareTemplateWorldbook, prepareWorldBookRecall, projectWorldBookTemplates } from './domain/worldbook-recall.js'
 import {
   createBackgroundTaskCoordinator,
@@ -1880,13 +1882,58 @@ export async function apply(ctx) {
       return result
     }
   })
-  const projectForegroundWorldbook = createForegroundWorldbook({
+  const projectBuiltinWorldbook = createForegroundWorldbook({
     bound: (cardPath, card, chat) => playWorldBook(chat, card),
     runtime: promptTemplateRuntime,
     globalVariables: readPromptTemplateGlobalVariables,
     scanText: scriptPromptScanText,
     filterCandidates: input => worldbookFilter(input)
   })
+  const worldbookStrategies = createWorldbookStrategies({
+    legacy: input => projectBuiltinWorldbook({ ...input, strategy: 'legacy' }),
+    nativeSkills: input => projectBuiltinWorldbook({ ...input, strategy: 'native-skills' })
+  })
+  const projectForegroundWorldbook = input => worldbookStrategies.project(input)
+  let invalidateWorldbookSkills = () => {}
+  let worldbookSkillProvider
+  skillRegistry.registerProvider(control => {
+    invalidateWorldbookSkills = () => control.invalidate()
+    worldbookSkillProvider = createWorldbookSkillProvider({
+      async load(agent) {
+        const sessionId = agent?.session?.id
+        if (!sessionId || backgroundAgentRunner.owns(sessionId)) return null
+        const chat = await chatForSession(sessionId)
+        if (!chat || !['story', 'script'].includes(chat.mode || 'story') || chat.worldbookStrategy !== 'native-skills') return null
+        try {
+          const card = await readChatCard(chat)
+          return { chat, card, worldBook: await playWorldBook(chat, card) }
+        } catch (error) {
+          // A removed/unreadable source revokes the virtual library, never keeps
+          // a cached body and never prevents unrelated core skills from loading.
+          console.warn('dsh-tavern: 本局世界书 Skill 库不可用:', str(error?.message || error))
+          return null
+        }
+      },
+      async render({ chat, card, worldBook }, entry) {
+        const runtime = await promptTemplateRuntime(chat.sessionId), globalVariables = await readPromptTemplateGlobalVariables()
+        worldBook = await prepareTemplateWorldbook(worldBook, runtime, chat, globalVariables)
+        const current = worldBook.view.entries.find(item => item.ref === entry.ref)
+        if (!current || current.enabled === false) return ''
+        const projected = await projectWorldBookTemplates({ worldBook, runtime, globalVariables, chat, card,
+          includeConstants: true, selectedEntries: worldBook.view.entries.filter(item => item.constant || item.ref === entry.ref),
+          randomSeed: chat.worldBookRandomState?.seed, randomOutputs: chat.worldBookRandomState?.outputs })
+        return projected.renderedEntries.find(item => item.ref === entry.ref)?.text || ''
+      }
+    })
+    return worldbookSkillProvider
+  })
+  // The native registry caches by agent scope. Refresh before its catalog hook on
+  // EVERY step: this includes cold loads, plugin entries, external edits and switches.
+  // Provider.get still revalidates, so an old catalog never authorizes a stale read.
+  ctx.on('agent/pre-step', async (payload, next) => {
+    if (await worldbookSkillProvider.refresh(payload.agent)) invalidateWorldbookSkills()
+    return next()
+  }, { prepend: true })
   const searchWorldbook = createWorldbookSearch({
     load: async sessionId => {
       const chat = await chatForSession(sessionId)
@@ -2627,6 +2674,10 @@ export async function apply(ctx) {
     isControlledTool: name => controlledToolNames.has(name),
     skills: tavernSkills,
     addSkillRoot: addPluginSkillRoot,
+    worldbookStrategies,
+    worldbookStrategyEntries: input => input.worldBook || playWorldBook(input.chat, input.card),
+    projectWorldbookSelection: (input, refs) => projectBuiltinWorldbook({ ...input,
+      strategy: refs === null ? 'legacy' : 'native-skills', selectedRefs: refs || [] }),
     readCardImage: async sessionId => {
       const header = await chatHeaderForSession(sessionId, ['cardPath'])
       const cardPath = str(header?.cardPath)
@@ -3435,6 +3486,7 @@ export async function apply(ctx) {
   ctx.effect(() => () => saveUpgrade.dispose())
 
   const conversationBackgroundSettings = createConversationBackgroundSettings({
+    worldbookStrategies,
     readConfig: backgroundConfigForSession, readChat: chatForSession, updateChat,
     modelCatalog: tavernModelCatalog, modelReasoning: selection => readBackgroundModelReasoning(llm, selection),
     isPlayMode: mode => groupOfMode(mode) === 'play',

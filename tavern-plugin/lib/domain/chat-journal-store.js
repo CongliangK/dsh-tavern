@@ -344,7 +344,7 @@ export function createChatJournalStore(options = {}) {
     const cached=readCache.get(chatId)
     if(!cached||cached.stamp!==await version(chatId)){
       const selected=await native.readSlice(chatId,[],['id','sessionId','mode','backgroundConfigVersion','conversationFeaturesVersion',
-       'backgroundModelSelection','backgroundModelRevision','backgroundTasks','webSearchEnabled','disabledForegroundTools','cardContextRevision','timeline.participants.background.status','mvu.enabled','mvu.owner'])
+       'backgroundModelSelection','backgroundModelRevision','backgroundTasks','worldbookStrategy','webSearchEnabled','disabledForegroundTools','cardContextRevision','timeline.participants.background.status','mvu.enabled','mvu.owner'])
       if(selected!==null)return selected?projectChatBackgroundConfig(selected.chat):undefined
     }
     const state = await cachedState(chatId)

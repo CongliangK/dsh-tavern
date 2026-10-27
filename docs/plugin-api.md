@@ -141,13 +141,33 @@ export function apply(ctx) {
 
 Tavern 只给顶层会话（玩家的游戏会话）加回合上下文和「【酒馆状态】」这类提示；带 `parentSession` 的子 Agent 会话一律不加，插件 Agent 收到的只有插件自己给的内容。
 
+## 注册世界书召回策略
+
+`ctx.tavern.worldbookStrategy({ name, label, description, select })` 注册一种可在本局设置中选择的策略。`name` 是插件内唯一的名称（规则同 `worldbookSource`）；宿主自动添加插件命名空间，插件卸载时自动移除。调用返回移除注册的函数。注册本身不切换任何游戏；默认仍为现有关键词注入策略。
+
+```js
+ctx.tavern.worldbookStrategy({
+  name: 'first-match',
+  label: '首个匹配条目',
+  description: '用于与现有召回策略进行对比',
+  select({ gameId, userText, purpose, entries }) {
+    const entry = entries.find(entry => entry.primaryKeys?.some(key => userText.includes(key)))
+    return entry ? [entry.ref] : []
+  }
+})
+```
+
+`select` 可以异步执行，最多 5 秒。输入是独立副本，不包含 Chat 内部状态；`entries` 只含本局启用且非 MVU 更新规则的条目，字段为 `ref`、`sourceUid`、`sourcePath`、`title`、`content`、`constant`、`primaryKeys`、`secondaryKeys`、`order`、`position`、`depth`、`role`。返回该数组内的 `ref` 字符串数组，不能返回任意正文。Tavern 负责模板渲染以及常驻、强制激活条目的保留；策略不能通过省略它们取消强制规则。此模式不消耗现有关键词召回的冷却记录，也不调用“世界书模型筛选”。
+
+卡内插件只能参与所属人物卡的游戏；异步回调结束时再次核对作用域和卸载状态。异常、超时、非法引用、插件不可用时退回现有召回，不覆盖玩家保存的策略选择。插件代码不得在选择回调中产生游戏外副作用。可以用 `tavern.capabilities.worldbookStrategy === 1` 检查支持情况。
+
 ## 暂时没有的
 
 下面这些目前还没有接口，不代表不能开放。有实际需要时请提[插件接口需求](https://github.com/flizzywine/dsh-tavern/issues/new?template=plugin-api.yml)，写清要做的插件和卡在哪一步，能开放的会按需补上。
 
 - 修改更早的轮次（`setVariables`、`editTurn` 目前只改最新一轮）。
 - 直接使用 Tavern 自己的常驻后台会话：它带着整局的结算历史，插件任务混进去会影响之后的结算。需要游戏背景的后台工作请用 `runTask`。
-- 替换 Tavern 的其他流程（提示词组装、世界书召回、候选、压缩）。替换类接口会约定插件要交回的结果，插件失败时退回 Tavern 自己的做法。
+- 替换 Tavern 的其他流程（提示词组装、候选、压缩）。替换类接口会约定插件要交回的结果，插件失败时退回 Tavern 自己的做法。
 
 直接读写 Tavern 的数据目录和人物卡文件不属于接口：这些文件的格式会随版本变化，插件这样做，Tavern 一更新就可能失效。需要里面的数据，请按上面的方式提需求，由 Tavern 提供读取接口。
 
