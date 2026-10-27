@@ -216,7 +216,9 @@ function createGlobalSettingsModule({ React, rpc, notifySettingsChanged, TavernD
         const h = React.createElement;
         return h("div", { className: "dsh-tavern-settings-section dsh-tavern-global-settings" },
             h("section", { className: "dsh-tavern-gs-group", "aria-label": "酒馆插件" },
-                h("header", { className: "dsh-tavern-gs-head" }, h("h2", null, "酒馆插件"), h("p", null, "给酒馆加功能：粘贴插件作者的 GitHub 地址即可安装。")),
+                h("header", { className: "dsh-tavern-gs-head" }, h("h2", null, "酒馆插件"),
+                    h("p", null, "给酒馆加功能：粘贴插件作者的 GitHub 地址即可安装。"),
+                    h("p", null, "不支持 SillyTavern 插件，仅支持 DSH 插件和 DSH Tavern 插件。")),
                 h(TavernUserPluginsSettings)));
     }
 
