@@ -999,20 +999,6 @@
                 frame = null;
             } };
         }
-		// 宿主那边的整档目录（轮次导航的原始数据）：客户端直读投影存储，
-		// 目录里写得出输入的/正文的轮次才算有内容可落。
-		function useTurnOutline(sessions, sessionId) {
-			const face = React.useMemo(function () {
-				try {
-					const session = sessions && typeof sessions.binding === "function" ? sessions.binding(sessionId)?.session : undefined;
-					const store = session && session.projections;
-					return store && typeof store.faceOf === "function" ? store.faceOf("turnOutline") : null;
-				} catch (error) { return null; }
-			}, [sessions, sessionId]);
-			const subscribe = React.useCallback(function (notify) { return face && typeof face.subscribe === "function" ? face.subscribe(notify) : function () { }; }, [face]);
-			const snapshot = React.useCallback(function () { return face && typeof face.getSnapshot === "function" ? face.getSnapshot() : undefined; }, [face]);
-			return React.useSyncExternalStore(subscribe, snapshot, snapshot);
-		}
 		function SupersededTurnErrors(props) {
 			const marker = React.useRef(null);
 			const running = props.useSession(function (snapshot) { return snapshot.running; });
@@ -1023,34 +1009,16 @@
 			const replayTurn = state.view && state.view.canReplayFailedTurn ? Number(state.view.replayFailedTurn) || null : null;
 			const staleTurns = state.view && state.view.staleDshErrorTurns || [];
 			const filteredStreak = Number(state.view && state.view.filteredFailureStreak) || 0;
-			// 右侧「轮次导航」只留点了能落到正文上的轮次：目录里写得出内容的轮次 + 画得出来的行，
-			// 判定在 modules/turn-rail.js 里；重试留下的空轮、只剩进程记录的轮次都不再占刻度。
-			const outline = useTurnOutline(props.sessions, props.sessionId);
-			const outlineKey = React.useMemo(function () {
-				if (!Array.isArray(outline)) return "";
-				return outline.map(entry => entry && entry.turn).join(",");
-			}, [outline]);
-			const textTurns = React.useMemo(function () {
-				if (!Array.isArray(outline)) return null;
-				const turns = new Set();
-				for (const entry of outline) {
-					if (!entry) continue;
-					if (String(entry.prompt || "") === "" && String(entry.response || "") === "") continue;
-					const turn = Number(entry.turn);
-					if (Number.isSafeInteger(turn) && turn > 0) turns.add(turn);
-				}
-				return turns;
-			}, [outline]);
-			// 正文行计划：每个存档轮次由哪个原生轮次画正文。重试、撤回的尝试轮不在其中。
+			// 右侧「轮次导航」只列正文行计划里真的画了正文的轮次；点击时自己滚、缺行时自己往前翻。
 			const railPlan = React.useMemo(function () { return state.view ? tavernPlanOf(state.view) : null; }, [state.view && state.view.transcriptTurns, state.view && state.view.transcriptFrom]);
 			const railAccept = railPlan ? function (turn) { return tavernPlanShowsRow(railPlan, turn, "reply"); } : null;
-			const railPlanKey = railPlan ? JSON.stringify(railPlan) : "";
+			const railKey = railPlan ? JSON.stringify(railPlan) : "";
 			const canRewind = !!(state.view && state.view.canRegenerate === true);
 			const draft = props.useInput(snapshot => snapshot.draft);
 			const draftRef = React.useRef(draft);
 			draftRef.current = draft;
 			const revision = turns.join(",") + ":" + (Array.isArray(hiddenTurns) ? "saved:" + hiddenTurns.join(",") : "local") + ":" + String(replayTurn || "")
-				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind + ":outline:" + outlineKey + ":plan:" + railPlanKey;
+				+ ":" + staleTurns.join(",") + ":" + filteredStreak + ":" + canRewind + ":rail:" + railKey;
 			// Clearing a failed tail is the first half of both recovery actions.
 			async function clearFailedTail() {
 				const result = await rpc("rollbackTurn", { expectedTurn: null }, props.sessionId);
@@ -1103,7 +1071,7 @@
                     },
                     onError: function (error) { tavernErrorHub.report("保存错误提示状态失败", error); }
                 });
-				const apply = function () { projection.apply(turns); controls.apply(); rail.apply({ accept: railAccept, text: textTurns }); };
+				const apply = function () { projection.apply(turns); controls.apply(); rail.apply({ accept: railAccept }); };
 				apply();
 				const observer = observeTurnErrorProjection(root, apply);
 				return function () { observer.disconnect(); controls.dispose(); projection.dispose(); rail.dispose(); };
@@ -1262,7 +1230,7 @@
 			ctx.effect(() => slots.inject("conversation.input.dock", () => slots.register(
 				{ name: "conversation.input.dock", id: "dsh-tavern-question", order: -120, label: "下一步行动" },
 				function (props) { return React.createElement(React.Fragment, null,
-					React.createElement(SupersededTurnErrors, Object.assign({}, props, { key: props.sessionId, sessions: ctx.sessions })),
+					React.createElement(SupersededTurnErrors, Object.assign({}, props, { key: props.sessionId })),
 					React.createElement(TurnHistoryProjection, Object.assign({}, props, { key: "history:" + props.sessionId })),
 					React.createElement(CandidateQuestion, Object.assign({}, props, { sessions: ctx.sessions }))
 				); }
