@@ -74,6 +74,7 @@ export const TAVERN_SIDEBAR_DEFAULTS = {
 export const REQUIRED_SOURCE_FILES = [
   'package.json',
   'bin/desktop-profile-installation.mjs',
+  'bin/original-bridge-update.mjs',
   'tavern-plugin/packages/dsh-profile-bridge/lib/helper.mjs',
   'cordis.patch.yml',
   path.join('config', 'legacy-profile-patch-v0.6.yml'),

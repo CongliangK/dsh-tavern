@@ -8,6 +8,7 @@ import { validateInstallationRequest, inspectInstallation, performInstallation }
 import { registeredTavernTarget, switchProfile, scheduleSwitch } from '../tavern-plugin/packages/dsh-profile-bridge/lib/helper.mjs'
 import { beginDesktopProfileInstallation } from '../bin/desktop-profile-installation.mjs'
 import location from '../bin/installation-location.cjs'
+import { copyTreeSync } from '../bin/portable-fs.mjs'
 const repo = fileURLToPath(new URL('../', import.meta.url))
 const put = (p, value) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, JSON.stringify(value)) }
 function fixture(t) {
@@ -29,12 +30,17 @@ function fixture(t) {
 const plan = f => validateInstallationRequest(f.paths, 'relocate', { confirmed: true, destination: f.destination })
 test('relocation → managed switch → reinstall target → second relocation keeps stable desktop alias', async t => {
   const f = fixture(t)
+  const bridgeSource = path.join(repo, 'tavern-plugin/packages/dsh-profile-bridge')
+  copyTreeSync(bridgeSource, path.join(f.app, 'tavern-plugin/packages/dsh-profile-bridge'))
+  for (const target of ['vendor', 'node_modules']) copyTreeSync(bridgeSource, path.join(f.paths.activeDir, target, 'dsh-profile-bridge'))
   await performInstallation(plan(f))
   assert.equal(location.resolveInstallationApp({ dshHome: f.home }), path.join(f.destination, 'app'))
   assert.equal(registeredTavernTarget(f.profilesRoot, path.join(f.profilesRoot, 'tavern')), path.join(f.destination, 'profile'))
   await switchProfile({ mode: 'link', profilesRoot: f.profilesRoot, liveDir: f.paths.activeDir, targetDir: path.join(f.profilesRoot, 'tavern'), stamp: 'managed' })
   assert.equal(fs.readlinkSync(f.paths.activeDir), path.join(f.profilesRoot, 'tavern'))
-  assert.equal(beginDesktopProfileInstallation({ home: f.home, sourceRoot: path.join(f.destination, 'app'), checkStopped() {} }), null)
+  const update = beginDesktopProfileInstallation({ home: f.home, sourceRoot: path.join(f.destination, 'app'), checkStopped() {} })
+  assert.equal(update.refreshOnly, true)
+  update.finish(); update.commit()
   f.destination = path.join(f.root, 'second location')
   await performInstallation(plan(f))
   assert.equal(fs.realpathSync(f.paths.activeDir), path.join(f.destination, 'profile'))

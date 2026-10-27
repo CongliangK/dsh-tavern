@@ -244,6 +244,7 @@ function busyError(lock, detail = '') {
  * @returns {{ lock: string, reclaimed: boolean }} claimed lock and whether an old one was archived.
  */
 export function acquirePendingLock(stateDir, { alive = processAlive, now = Date.now, keep = STALE_LIMIT } = {}) {
+  assertBridgeUpdateComplete(stateDir)
   mkdirSync(stateDir, { recursive: true })
   const lock = join(stateDir, 'pending')
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -265,6 +266,17 @@ export function acquirePendingLock(stateDir, { alive = processAlive, now = Date.
     }
   }
   throw busyError(lock)
+}
+
+function assertBridgeUpdateComplete(stateDir) {
+  const file = join(stateDir, 'bridge-update.json')
+  if (!present(file)) return
+  try {
+    if (lstatSync(file).isSymbolicLink() || !samePath(realpathSync(dirname(file)), dirname(file))) throw new Error('unsafe journal')
+    const record = JSON.parse(readFileSync(file, 'utf8'))
+    if (record.schemaVersion === 1 && ['completed', 'rolled-back'].includes(record.phase)) return
+  } catch {}
+  throw Object.assign(new Error(`原版切换组件更新尚未安全结束；请先检查备份与 ${file}，未安排切换。`), { code: 'recovery-required', recoveryRequired: true })
 }
 
 function assertManagementJournalComplete(stateDir) {

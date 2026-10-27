@@ -297,7 +297,7 @@ async function installProfileOwned(host, { attemptId, runInstall, runDsh }) {
     }
     if (host === 'desktop') {
       bridge = beginDesktopProfileInstallation({ home: DSH_ROOT, sourceRoot: SOURCE_ROOT })
-      if (bridge) console.log(`Profile 完整备份：${bridge.backup}`)
+      if (bridge) console.log(`${bridge.refreshOnly ? '原版切换组件备份' : 'Profile 完整备份'}：${bridge.backup}`)
     }
     mkdirSync(PROFILE_DIR, { recursive: true })
     mkdirSync(LOG_DIR, { recursive: true })
@@ -344,7 +344,7 @@ async function installProfileOwned(host, { attemptId, runInstall, runDsh }) {
       syncProfileDependencyPatches({ sourceRoot: SOURCE_ROOT, profileDir: PROFILE_DIR, workspaceText })
       // pnpm keeps an existing link whose target text matches, so untraversable Windows links
       // (they stop the desktop host at startup) must be replaced before it runs.
-      for (const directory of [PROFILE_DIR, bridge?.desktopStage].filter(Boolean)) {
+      for (const directory of [PROFILE_DIR, bridge?.refreshOnly ? null : bridge?.desktopStage].filter(Boolean)) {
         for (const link of repairDirectoryLinksSync(path.join(directory, 'node_modules'))) console.log(`已修复无法访问的依赖链接：${link}`)
       }
       // This generated profile changes dependencies and patch settings on upgrade.
@@ -378,8 +378,11 @@ async function installProfileOwned(host, { attemptId, runInstall, runDsh }) {
         else if (patched) console.log('已修正 DSH 对话界面：整理过正文的回合不再被当作过程收起。')
       }
       if (bridge) {
+        // Refresh publication is reversible until the installation receipt exists.
+        // Validate the newly published independent bridge, not its stale predecessor.
+        if (bridge.refreshOnly) bridge.finish()
         await runInstall('node', [path.join(SOURCE_ROOT, 'bin', 'validate-desktop-profile.mjs'), bridge.desktopStage], { label: '验证原版 Desktop 切换入口', timeoutMs: 60_000 })
-        bridge.finish()
+        if (!bridge.refreshOnly) bridge.finish()
       }
       transaction.commit()
     } catch (error) {
@@ -395,7 +398,7 @@ async function installProfileOwned(host, { attemptId, runInstall, runDsh }) {
 
     writeFileSync(path.join(SOURCE_ROOT, '.dsh-tavern-local.json'), JSON.stringify({ host, dshHome: DSH_ROOT }) + '\n')
     runtime?.commit()
-    const receipt = await recordInstallationReceipt({ sourceRoot: SOURCE_ROOT, dshHome: DSH_ROOT, host, attemptId })
+    const receipt = await recordInstallationReceipt({ sourceRoot: SOURCE_ROOT, dshHome: DSH_ROOT, host, attemptId, bridgeUpdateId: bridge?.bridgeUpdateId })
     bridge?.commit()
     if (host === 'desktop') {
       try {
