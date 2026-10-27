@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "fb8da42886581fe9b580de880bd59ab05e6a3387",
-  "releaseSequence": 944,
+  "revision": "d07f31261be265e727bd95bd075796eb9e0950d0",
+  "releaseSequence": 945,
   "version": "3.1.0",
   "files": [
     {
@@ -151,8 +151,8 @@
     },
     {
       "path": "bin/desktop-profile-installation.mjs",
-      "sha256": "bcd2b068b4982a3a39686fe34db8d58ebe6325f005994a6a2603f2cd673697ef",
-      "size": 8024
+      "sha256": "e6c8a3eec06939473f7e77102c77fd8a5e33bb1083dc497240677eabaefb20e5",
+      "size": 8318
     },
     {
       "path": "bin/dev-sync-cli.sh",
@@ -206,8 +206,8 @@
     },
     {
       "path": "bin/installation-receipt.mjs",
-      "sha256": "997956a599791052cd6294942fde9d1ce56f9045905868801557a5d4e855d472",
-      "size": 2337
+      "sha256": "35f5e9eb0af4e492c3f027ead2c0280ad0dede79e52bbd0d7d0f65730ba1ca6f",
+      "size": 3625
     },
     {
       "path": "bin/installation-state.cjs",
@@ -216,8 +216,8 @@
     },
     {
       "path": "bin/launcher-environment.mjs",
-      "sha256": "9e38a6f6362bec0ced90b58c46200f30d6d037aed53e9a727f742f79804068a5",
-      "size": 11775
+      "sha256": "64159fb05a1e497d11bf1650b70d510428893bd308a402277ca15919364aacec",
+      "size": 11811
     },
     {
       "path": "bin/launcher-settings.mjs",
@@ -243,6 +243,11 @@
       "path": "bin/official-desktop-runtime.cjs",
       "sha256": "744bcf8b312624ed5a513221566c5d898a1366faccdf257f6d2ca6284ecc69a9",
       "size": 7041
+    },
+    {
+      "path": "bin/original-bridge-update.mjs",
+      "sha256": "c5b796daf6a9e0d7d7fd9583e41003b9429e8b47dcc7f6617aa8f7084e0793c6",
+      "size": 9560
     },
     {
       "path": "bin/plugin-dependencies.mjs",
@@ -276,8 +281,8 @@
     },
     {
       "path": "bin/profile-installation.mjs",
-      "sha256": "26bb875434a18417c826103fc9838b33110b86bf66935acfe86535a10dcc8444",
-      "size": 23964
+      "sha256": "921c742e1f08367f506442a3ebb55d2d04589b04e3f3f727c016b6d5226dafea",
+      "size": 24332
     },
     {
       "path": "bin/prune-installed-files.mjs",
@@ -4356,8 +4361,8 @@
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/helper.mjs",
-      "sha256": "0e8b286d3837b370e3f9de05ec7106a0914a233e67b04eeff36c71ee0c347f2b",
-      "size": 17210
+      "sha256": "a7a68d019c977db4da38df94c60a8a108e046a738f23ae94ca98fd9e9f4a0bac",
+      "size": 17878
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/installation-processes.mjs",
@@ -5061,9 +5066,9 @@
     }
   ],
   "archive": {
-    "commit": "b121b174d3ccc91c1f8b07c9c62499cb62a49d6a",
+    "commit": "aa6c8ead8c022f90212b738943b5c767c452982e",
     "path": "runtime.zip",
-    "sha256": "ba9ce0192b2b599871b5af9d0f1b956ac3f1e04b99dcdfe3f5d23b74c1c6b9ec",
-    "size": 10495962
+    "sha256": "0d9c7aef89dca72dc09e1fc65d7b8cd403cc92ca14203a5672d383222eb5f95b",
+    "size": 10500094
   }
 }
