@@ -136,11 +136,10 @@ Android 仅提供 **独立 APK**（Android 11+ / ARM64）：[下载 DSH Tavern A
 不想装 APK、或想自己掌控运行环境（Node 版本、数据目录、与电脑上的命令行版共用一套玩法），也可以在 **Termux** 里跑命令行版：
 
 ```sh
-curl -fsSL https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@main/scripts/termux/termux-tavern.sh -o ~/termux-tavern.sh
-bash ~/termux-tavern.sh
+curl -fsSL https://raw.githubusercontent.com/flizzywine/dsh-tavern/main/scripts/termux/termux-tavern.sh -o ~/termux-tavern.sh && bash ~/termux-tavern.sh
 ```
 
-脚本负责装 Ubuntu 容器、Node、酒馆与移动版布局，启动后打开浏览器。两种方式在手机上的差异、以及 Termux 版的注意事项见 [Termux 一节](docs/android-install.md#termux在手机里跑命令行版)。
+一条命令跑完，始终取 `main` 的最新版；这条命令会完成安装并进入酒馆：脚本会装 Ubuntu 容器、Node、酒馆与移动版布局，启动后打开浏览器。两种方式在手机上的差异、以及 Termux 版的注意事项见 [Termux 一节](docs/android-install.md#termux在手机里跑命令行版)。
 
 ### macOS
 

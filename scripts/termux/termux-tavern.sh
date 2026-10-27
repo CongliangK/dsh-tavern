@@ -5,7 +5,7 @@
 # rootfs）；容器脚本走 --shared-tmp 传入、不支持时退回 stdin；探活只认端口和日志 token。
 set -euo pipefail
 
-VERSION=2026-10-27.2
+VERSION=2026-10-27.3
 DISTRO=ubuntu
 NODE_VERSION=24.20.0
 PORT=3081
@@ -21,7 +21,8 @@ die() { printf '错误：%s\n' "$*" >&2; exit 1; }
 
 # 自更新：仓库里的 scripts/termux/termux-tavern.sh 是唯一源，脚本比对版本号后自替换，
 # 之后手机上不必再手工传文件（CDN 未同步或离线时静默跳过）。
-SELF_URL=${TERMUX_TAVERN_URL:-https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@main/scripts/termux/termux-tavern.sh}
+# 自更新源：raw.githubusercontent 实时反映 main；被墙时退回 jsDelivr。
+SELF_URLS=${TERMUX_TAVERN_URL:-https://raw.githubusercontent.com/flizzywine/dsh-tavern/main/scripts/termux/termux-tavern.sh https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@main/scripts/termux/termux-tavern.sh}
 self_update() {
   [ -n "${TERMUX_TAVERN_NO_SELF_UPDATE:-}" ] && return 0
   command -v curl >/dev/null 2>&1 || return 0
@@ -29,7 +30,11 @@ self_update() {
   self=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
   [ -w "$self" ] || return 0
   tmp=$PREFIX/tmp/termux-tavern.new
-  curl -fsSL --connect-timeout 8 --max-time 25 "$SELF_URL" -o "$tmp" 2>/dev/null || return 0
+  local got='' u
+  for u in $SELF_URLS; do
+    if curl -fsSL --connect-timeout 8 --max-time 25 "$u" -o "$tmp" 2>/dev/null; then got=1; break; fi
+  done
+  [ -n "$got" ] || return 0
   bash -n "$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
   new=$(sed -n 's/^VERSION=//p' "$tmp" | head -n 1)
   [ -n "$new" ] && [ "$new" != "$VERSION" ] || { rm -f "$tmp"; return 0; }

@@ -32,9 +32,12 @@ Android 上除了独立 APK，也可以在 **Termux** 里跑命令行版（见�
 前置：从 [F-Droid](https://f-droid.org/packages/com.termux/) 或 [Termux GitHub Releases](https://github.com/termux/termux-app/releases) 安装 Termux（Android 11+ / ARM64），预留约 1.5 GB 空间。
 
 ```sh
-curl -fsSL https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@main/scripts/termux/termux-tavern.sh -o ~/termux-tavern.sh
-bash ~/termux-tavern.sh
+curl -fsSL https://raw.githubusercontent.com/flizzywine/dsh-tavern/main/scripts/termux/termux-tavern.sh -o ~/termux-tavern.sh && bash ~/termux-tavern.sh
 ```
+
+一条命令跑完，始终取 `main` 上的最新版；重复执行同一条命令即为更新（脚本自己会替换到新版）。
+
+> GitHub 访问不稳时，把地址里的 `https://raw.githubusercontent.com/flizzywine/dsh-tavern/main` 换成 `https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@main`，路径不变。
 
 脚本一次做完：装 `proot-distro` → 建 Ubuntu 容器 → 装官方 Node 24 → 以 `DSH_TAVERN_HOST=cli` 安装酒馆 → 启用移动版布局（`dsh-web-mobile`，与 APK 同款）→ 启动服务并打开浏览器。首装 10–40 分钟（取决于网络与手机），之后启动约 1 分钟。
 
