@@ -141,7 +141,7 @@ export function createTransferImport(deps) {
     let backupPath = ''
 
     for (const part of manifest.parts) {
-      const result = { kind: part.kind, label: part.label, added: 0, skipped: 0, overwritten: 0, failed: [] }
+      const result = { kind: part.kind, label: part.label, added: 0, skipped: 0, overwritten: 0, failed: [], created: [] }
       results.push(result)
       if (!IMPORTABLE.includes(part.kind)) { result.skipped = part.items.length; result.note = '下一版支持'; continue }
       const policy = policies[part.kind] === 'skip' ? 'skip' : 'apply'
@@ -157,25 +157,28 @@ export function createTransferImport(deps) {
             try { document = JSON.parse(text) } catch { throw new Error('人物卡不是有效的 JSON') }
             const base = stemOf(item.entry)
             const target = uniqueName(used.cardStems, base)
-            await importCard({ name: target + '.json', text })
+            const imported = await importCard({ name: target + '.json', text })
             used.cardStems.add(target.toLowerCase())
             result.added += 1
+            if (imported && imported.path) result.created.push({ kind: 'cards', title: item.title, path: imported.path })
             continue
           }
           if (part.kind === 'worldbooks') {
             const base = stemOf(item.entry)
             const target = uniqueName(used.worldStems, base)
-            await worldBooks.import({ name: target + '.json', text })
+            const importedBook = await worldBooks.import({ name: target + '.json', text })
             used.worldStems.add(target.toLowerCase())
             result.added += 1
+            if (importedBook && importedBook.path) result.created.push({ kind: 'worldbooks', title: item.title, path: importedBook.path })
             continue
           }
           if (part.kind === 'presets') {
             const base = stemOf(item.entry)
             const target = uniqueName(used.presetStems, base)
-            await importPreset({ name: target + '.json', text })
+            const importedPreset = await importPreset({ name: target + '.json', text })
             used.presetStems.add(target.toLowerCase())
             result.added += 1
+            if (importedPreset && importedPreset.path) result.created.push({ kind: 'presets', title: item.title, path: importedPreset.path })
             continue
           }
           if (part.kind === 'prompts') {
@@ -235,8 +238,9 @@ export function createTransferImport(deps) {
           }
           if (part.kind === 'scripts') {
             if (!materials) throw new Error('剧本与素材导入不可用')
-            await materials.importOne({ title: item.title, content })
+            const imported = await materials.importOne({ title: item.title, content })
             result.added += 1
+            if (imported && imported.path) result.created.push({ kind: 'scripts', title: item.title, path: imported.path })
             continue
           }
           if (part.kind === 'chats') {

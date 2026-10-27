@@ -205,3 +205,15 @@ test('策略 skip 不写入该板块；导入包里的损坏条目单独记失�
   assert.deepEqual(rows.presets.failed.map(item => item.error), ['包内缺少该文件'])
   assert.equal(to.state.imported.presets.length, 0)
 })
+
+test('导入结果记录新建文件的路径，供撤销使用', async () => {
+  const from = environment()
+  const bundle = await bundleFrom(from, { cards: ['cards/作家.json'], presets: ['presets/默认.json'] })
+  const to = environment({ cards: [], presets: [] })
+  const result = await to.importer.apply({ manifest: bundle.manifest, files: bundle.files, policies: {} })
+  const cards = result.results.find(row => row.kind === 'cards')
+  const presets = result.results.find(row => row.kind === 'presets')
+  assert.deepEqual(cards.created, [{ kind: 'cards', title: '作家', path: 'cards/作家.json' }])
+  assert.deepEqual(presets.created, [{ kind: 'presets', title: '默认', path: 'presets/默认.json' }])
+  assert.deepEqual(result.results.find(row => row.kind === 'chats'), undefined)
+})

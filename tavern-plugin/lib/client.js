@@ -28114,6 +28114,17 @@ function createTransferFeatureModule() {
 			)
 		}
 
+		function undoImport() {
+			if (!importing || !importing.undoToken) return
+			setBusy(true)
+			setError("")
+			rpc("undoTransferImport", { token: importing.undoToken }, sessionId).then(function (result) {
+				setImporting(function (current) { return Object.assign({}, current, { undo: result }) })
+				notifyTavernDataChanged(["cards", "worldbooks", "presets", "sessions"], "transfer")
+				void refresh()
+			}, function (err) { setError(String(err && err.message || err)) }).finally(function () { setBusy(false) })
+		}
+
 		function renderImport() {
 			const state = importing
 			if (!state) {
@@ -28196,6 +28207,9 @@ function createTransferFeatureModule() {
 					state.result.backupPath ? h("p", { className: "dsh-tavern-transfer-hint" }, "覆盖前的设置备份在 " + state.result.backupPath) : null,
 					(state.result.results || []).some(function (row) { return (row.failed || []).length }) ? h("p", { className: "dsh-tavern-transfer-warn" },
 						(state.result.results.find(function (row) { return (row.failed || []).length }).failed || []).map(function (item) { return item.title + "：" + item.error }).join("；")) : null,
+					state.undoToken && !state.undo ? h("button", { type: "button", className: "dsh-tavern-btn danger", disabled: busy, onClick: undoImport }, "撤销本次导入") : null,
+					state.undo ? h("p", { className: "dsh-tavern-transfer-hint" }, "已撤销 " + (state.undo.removed || []).length + " 项" +
+						((state.undo.skipped || []).length ? "；跳过 " + state.undo.skipped.length + " 项（" + state.undo.skipped.map(function (row) { return (row.path || row.title) + "：" + row.reason }).slice(0, 3).join("；") + "）" : "")) : null,
 					h("button", { type: "button", className: "dsh-tavern-btn", onClick: function () { setImporting(null) } }, "再导入一个包")
 				) : null,
 				state.stage !== "done" ? h("div", { className: "dsh-tavern-transfer-bar is-inline" },

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { buildTransferManifest, packTransferBundle, readTransferBundle, safeTransferFileName, TRANSFER_EXTENSION } from '../domain/transfer-bundle.js'
@@ -10,6 +10,7 @@ import { createTransferLogs } from '../domain/transfer-logs.js'
 import { createTransferMaterials } from '../domain/transfer-materials.js'
 import { createTransferPluginData } from '../domain/transfer-plugin-data.js'
 import { createTransferSkills } from '../domain/transfer-skills.js'
+import { createTransferUndo } from '../domain/transfer-undo.js'
 import { createTransferPlugins } from '../domain/transfer-plugins.js'
 
 function str(value) {
@@ -35,7 +36,8 @@ export function createTransferHandlers(deps) {
   const { dataRoot, uploads, fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile,
     regexManager, readTavernSettings, updateTavernSettings, importCard, importPreset, readCardWorkspace,
     cardPreparation, TAVERN_PACKAGE_VERSION, listTavernSessions, readChat, exportGameSave, importGameSave,
-    userPluginInstaller, pluginDataStore, tavernSkills, transferExports, exportTavernLogs } = deps
+    userPluginInstaller, pluginDataStore, tavernSkills, transferExports, exportTavernLogs,
+    deleteCard, deletePreset, deleteResource } = deps
 
   async function writeBackup(name, text) {
     const directory = path.join(dataRoot, '..', 'backups', 'transfer', stamp())
@@ -89,9 +91,28 @@ export function createTransferHandlers(deps) {
   })
 
   const tokens = new Map()
+  const undoTokens = new Map()
   function sweepTokens(now = Date.now()) {
     for (const [token, entry] of tokens) if (now - entry.at > TOKEN_TTL_MS) tokens.delete(token)
+    for (const [token, entry] of undoTokens) if (now - entry.at > TOKEN_TTL_MS) undoTokens.delete(token)
   }
+
+  const fileHash = async relative => {
+    const absolute = fileResources.absolute(relative)
+    try { return createHash('sha256').update(await readFile(absolute)).digest('hex') }
+    catch (error) { if (error && error.code === 'ENOENT') return null; throw error }
+  }
+
+  const undo = createTransferUndo({
+    hashOf: (kind, path) => fileHash(path),
+    remove: async (kind, path) => {
+      if (kind === 'cards') return await deleteCard(path)
+      if (kind === 'worldbooks') return await worldBooks.remove({ kind: 'standalone', path })
+      if (kind === 'presets') return await deletePreset(path)
+      if (kind === 'scripts') return await deleteResource(path)
+      throw new Error('这类导入不支持撤销：' + kind)
+    }
+  })
 
   return {
     async getTransferCatalog() {
@@ -165,6 +186,29 @@ export function createTransferHandlers(deps) {
       const policies = args && args.policies && typeof args.policies === 'object' && !Array.isArray(args.policies) ? args.policies : {}
       const result = await importer.apply({ manifest: entry.manifest, files: entry.files, policies })
       tokens.delete(token)
+      // Record what was created and its hash now, so undo can refuse files edited since.
+      const records = []
+      for (const row of result.results || []) {
+        for (const created of row.created || []) {
+          const sha256 = await fileHash(created.path).catch(() => null)
+          if (sha256) records.push({ kind: created.kind, title: created.title, path: created.path, sha256 })
+        }
+      }
+      let undoTx = ''
+      if (records.length) {
+        undoTx = randomUUID()
+        undoTokens.set(undoTx, { at: Date.now(), records })
+      }
+      return Object.assign({}, result, undoTx ? { undoToken: undoTx } : {})
+    },
+
+    async undoTransferImport(args) {
+      sweepTokens()
+      const token = str(args && args.token)
+      const entry = undoTokens.get(token)
+      if (!entry) throw new Error('这次导入已不能撤销，或已经撤销过')
+      const result = await undo.undo(entry.records)
+      undoTokens.delete(token)
       return result
     }
   }
