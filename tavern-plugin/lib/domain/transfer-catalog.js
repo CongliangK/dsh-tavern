@@ -257,7 +257,10 @@ export function createTransferCatalog(deps) {
     }
 
     if (chats && selected(selection, 'chats').length) {
-      const exports = await chats.collect(selected(selection, 'chats'), { images: options.images !== false })
+      // 同一个包里已经带上世界书时，局里的开局世界书副本就是重复：每局各存一份整本 JSON，
+      // 11 局能占掉几十兆。导入后这局跟随刚装回来的那本书（卡绑定的世界书）。
+      const embedWorldbook = selected(selection, 'worldbooks').length === 0
+      const exports = await chats.collect(selected(selection, 'chats'), { images: options.images !== false, embedWorldbook })
       for (const item of exports) add('chats', '对话与存档', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'game.dshsave'), item.content)
     }
 

@@ -5,10 +5,12 @@ import { createGameSaveSnapshot } from '../tavern-plugin/lib/domain/game-save-sn
 import { readGameSave } from '../tavern-plugin/lib/domain/game-save.js'
 import { computeSceneTarget } from '../tavern-plugin/lib/domain/scene-illustration.js'
 
-function fixture({ images = true, missing = false, pluginFailure = false, mutate = false } = {}) {
+function fixture({ images = true, missing = false, pluginFailure = false, mutate = false, worldbook = false, boundWorldbook = worldbook } = {}) {
   const chat = { id: 'chat-a', sessionId: 'session-a', cardPath: 'cards/a.json', cardName: '卡', mode: 'script',
     _storageRevision: 2, messages: [{ role: 'assistant', turn: 1, text: '正文' }],
-    cardDefinitionSnapshot: { raw: { name: '卡' } }, timeline: { checkpoints: [{ turn: 2, beforeRevision: 1 }] } }
+    cardDefinitionSnapshot: { raw: { name: '卡' } }, timeline: { checkpoints: [{ turn: 2, beforeRevision: 1 }] },
+    ...(worldbook ? { openingWorldbookSnapshot: { version: 1, libraryDigest: 'wb-digest', source: { kind: 'standalone', path: 'worldbooks/w.json' },
+      document: { name: '书', entries: { '0': { uid: 0, key: ['a'], content: '很长的一本世界书'.repeat(50) } }, extensions: {} } } } : {}) }
   const old = { ...chat, _storageRevision: 1, timeline: { checkpoints: [] } }
   const image = id => ({ attachmentId: id, mediaType: 'image/gif' })
   const session = { header: { id: 'session-a' }, inheritedEventCount: 0,
@@ -36,7 +38,7 @@ function fixture({ images = true, missing = false, pluginFailure = false, mutate
         { id: 'duplicate', turn: 1, key, attachment: { attachmentId: 'audio', name: 'voice.mp3' } },
         { id: 'stale', turn: 1, key: 'other-branch', attachment: image('stale') }
       ] } }
-    }, tavernVersion: '3.0.1', warn: (...args) => warnings.push(args)
+    }, tavernVersion: '3.0.1', hasBoundWorldbook: async () => boundWorldbook, warn: (...args) => warnings.push(args)
   })
   return { exporter, reads, warnings, session }
 }
@@ -76,4 +78,24 @@ test('导出期间发生存档更新时拒绝返回混合版本；未绑定会�
   const { exporter } = fixture({ mutate: true })
   await assert.rejects(exporter('session-a'), /发生变化/)
   await assert.rejects(exporter('missing'), /没有绑定/)
+})
+
+test('同包带走世界书时不重复内嵌开局世界书；单独导出仍自带一份', async () => {
+  const { exporter } = fixture({ worldbook: true })
+  const selfContained = readGameSave(Buffer.from((await exporter('session-a')).base64, 'base64'))
+  assert.ok(selfContained.chat.openingWorldbookSnapshot?.document, '单独导出的存档自带整本世界书')
+  assert.ok(selfContained.revisions[0].state.openingWorldbookSnapshot?.document, '回退历史同样自带')
+
+  const slim = readGameSave(Buffer.from((await exporter('session-a', { embedWorldbook: false })).base64, 'base64'))
+  assert.equal(slim.chat.openingWorldbookSnapshot, undefined, '同包已带世界书时，局里不再存一份')
+  assert.equal(slim.revisions[0].state.openingWorldbookSnapshot, undefined, '回退历史也不存')
+  assert.ok(slim.chat.messages[0].text, '正文照旧')
+  assert.ok(slim.chat.cardDefinitionSnapshot?.raw, '卡片快照照旧')
+})
+
+test('卡没有绑定世界书时，即使包里带了别的书也保留这局的快照：它是这局唯一的世界', async () => {
+  const { exporter } = fixture({ worldbook: true, boundWorldbook: false })
+  const save = readGameSave(Buffer.from((await exporter('session-a', { embedWorldbook: false })).base64, 'base64'))
+  assert.ok(save.chat.openingWorldbookSnapshot?.document)
+  assert.ok(save.revisions[0].state.openingWorldbookSnapshot?.document)
 })

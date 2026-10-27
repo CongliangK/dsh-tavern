@@ -86,7 +86,13 @@ test('collect 用 base64 还原出与导出一致的 Buffer，并保留文件名
   assert.deepEqual(items[0].content, saveBytes('session-story'))
   assert.equal(Buffer.isBuffer(items[0].content), true)
   // 带图片导出，并且走的是这一局的 sessionId。
-  assert.deepEqual(exports, [{ sessionId: 'session-story', options: { images: true } }])
+  assert.deepEqual(exports, [{ sessionId: 'session-story', options: { images: true, embedWorldbook: true } }])
+})
+
+test('collect 把「包里已带世界书」的取舍交给存档导出：不内嵌开局世界书', async () => {
+  const { deps, exports } = environment()
+  await createTransferChats(deps).collect(['chat-story'], { embedWorldbook: false })
+  assert.deepEqual(exports, [{ sessionId: 'session-story', options: { images: true, embedWorldbook: false } }])
 })
 
 test('collect 补上缺少的 .dshsave 后缀并按 key 顺序去重', async () => {

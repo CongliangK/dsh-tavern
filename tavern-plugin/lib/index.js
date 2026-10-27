@@ -1384,6 +1384,11 @@ export async function apply(ctx) {
     chatForSession, gameSaveSnapshot, readChatRevision, fileResources, gameFootprint, sceneWorldbookArchive,
     getAttachments: () => ctx.get('attachments'),
     exportPluginData: chatId => pluginApi.exportGame(chatId),
+    // 没有绑定世界书的局只能靠自己那份快照，所以只有卡确实绑着世界书时才允许省略。
+    hasBoundWorldbook: async cardPath => {
+      if (str(cardPath) === '') return false
+      try { return (await worldBooks.bound(cardPath)) !== null } catch { return false }
+    },
     tavernVersion: TAVERN_PACKAGE_VERSION
   })
   const importGameSave = createGameSaveImporter({
