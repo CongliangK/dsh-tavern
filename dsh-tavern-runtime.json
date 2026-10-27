@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "e2df835b908ae870acaa554c57c5c791e5f90cb6",
-  "releaseSequence": 942,
+  "revision": "f84277c06557ab3198e694e5ed56bb75ee2c107f",
+  "releaseSequence": 943,
   "version": "3.1.0",
   "files": [
     {
@@ -255,6 +255,16 @@
       "size": 4520
     },
     {
+      "path": "bin/prefetch-fonts.mjs",
+      "sha256": "f3127b9010f5aad41361f4f9721c2bea64ab4cd50f16c3f10d22e345206863b9",
+      "size": 676
+    },
+    {
+      "path": "bin/preserve-font-assets.mjs",
+      "sha256": "c61ba0ea592daf5ff8b03124b5a7ca3125429b52f225e74256cde3f926b000a7",
+      "size": 1585
+    },
+    {
       "path": "bin/profile-bundle-check.mjs",
       "sha256": "c12c6df3ca2eb9cca5976f05c9f5e58c2c8501cf2eebc49ca57bc5b8326f40ec",
       "size": 1843
@@ -266,13 +276,13 @@
     },
     {
       "path": "bin/profile-installation.mjs",
-      "sha256": "3836658c7436be661c06eac2a6933cda54a6de6e6eff604c68ea05cae15c5e74",
-      "size": 23794
+      "sha256": "26bb875434a18417c826103fc9838b33110b86bf66935acfe86535a10dcc8444",
+      "size": 23964
     },
     {
       "path": "bin/prune-installed-files.mjs",
-      "sha256": "d5c7cb32ddbb7938a60f209149e4b033da258144a432e171f02f6316ae354abf",
-      "size": 3461
+      "sha256": "a4ca20f2dcad6f89b0c1f6667432212b9aed3d0515fa2bfee6d9e18abe4a18bb",
+      "size": 3747
     },
     {
       "path": "bin/redact-session-log.mjs",
@@ -311,8 +321,8 @@
     },
     {
       "path": "bin/staged-app-install.mjs",
-      "sha256": "274c991082e3ad9ae3a5ff1015b4604cc2d9ebe25f98459b5aff4d1248498f3f",
-      "size": 8772
+      "sha256": "0b88c99d3de3d01b4917390d04a8ec12f161911ba15cf2e81f6f78c5e6175506",
+      "size": 9018
     },
     {
       "path": "bin/system-proxy.mjs",
@@ -580,11 +590,6 @@
       "size": 20446
     },
     {
-      "path": "tavern-plugin/fonts/neo-xihei-screen/LXGWNeoXiHeiScreen.ttf",
-      "sha256": "6f69412d8307c055b7f247e67669b0e4ab4b79bf199fe58ee93545429b586092",
-      "size": 7666968
-    },
-    {
       "path": "tavern-plugin/fonts/neo-zhisong-screen/index.json",
       "sha256": "2d590c1bb951753548a582528a588cececfd27845b164dd7cdc41d2d2ebebc16",
       "size": 666
@@ -595,26 +600,6 @@
       "size": 20446
     },
     {
-      "path": "tavern-plugin/fonts/neo-zhisong-screen/LXGWNeoZhiSongScreen.ttf",
-      "sha256": "4e071b63ee221e72309ec720259f264024336991d1ee0bce42e80d1fb3855a1c",
-      "size": 11922650
-    },
-    {
-      "path": "tavern-plugin/fonts/noto-sans-sc/400-758dff09a5625dd6.woff2",
-      "sha256": "758dff09a5625dd659ea4c529ffdb7741bdbc182b54957a7007f1cfcfd450820",
-      "size": 4192712
-    },
-    {
-      "path": "tavern-plugin/fonts/noto-sans-sc/500-3f6c9c85cf17979b.woff2",
-      "sha256": "3f6c9c85cf17979b18df8001903613792d272a094c1a79846fa8591e9ed0d64c",
-      "size": 4268684
-    },
-    {
-      "path": "tavern-plugin/fonts/noto-sans-sc/700-f022a5c5aa906dd1.woff2",
-      "sha256": "f022a5c5aa906dd18ebd5da3e3a282603537f17ce9208b5cfca6dc20692e3cc0",
-      "size": 4314792
-    },
-    {
       "path": "tavern-plugin/fonts/noto-sans-sc/index.json",
       "sha256": "b2c9172ca93dac8b15ce7519a0f8b36a8427fcdfc8bfd9a5087d8ec5d7888813",
       "size": 1392
@@ -623,21 +608,6 @@
       "path": "tavern-plugin/fonts/noto-sans-sc/LICENSE.txt",
       "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
       "size": 4388
-    },
-    {
-      "path": "tavern-plugin/fonts/noto-serif-sc/400-a15f54b1f3e51cb8.woff2",
-      "sha256": "a15f54b1f3e51cb863943599c3d784cbb9399d5d877caf8d9eac523fda1f8283",
-      "size": 5732364
-    },
-    {
-      "path": "tavern-plugin/fonts/noto-serif-sc/500-7437aa3d18b9f273.woff2",
-      "sha256": "7437aa3d18b9f273328c6fb52195e0f27d69e241e50af8b232326371065bba5f",
-      "size": 5809688
-    },
-    {
-      "path": "tavern-plugin/fonts/noto-serif-sc/700-5f9ea1f47fcc4654.woff2",
-      "sha256": "5f9ea1f47fcc46540e199586cc7c0a5799a9fa8473ca82d950ea6b779ed405cc",
-      "size": 5925560
     },
     {
       "path": "tavern-plugin/fonts/noto-serif-sc/index.json",
@@ -653,21 +623,6 @@
       "path": "tavern-plugin/fonts/README.md",
       "sha256": "f4e002ff99eca755de209e439c386730892b507b7677aa6fdc7ff4c57b4a6ad9",
       "size": 2679
-    },
-    {
-      "path": "tavern-plugin/fonts/resource-han-rounded/400-bd8eb891801bbcf9.woff2",
-      "sha256": "bd8eb891801bbcf9c8d73f8023e63c30e423e2a87b948a5be491ad187b668d56",
-      "size": 4936772
-    },
-    {
-      "path": "tavern-plugin/fonts/resource-han-rounded/500-42d73bc48bf5d5d6.woff2",
-      "sha256": "42d73bc48bf5d5d62a6e2cb5d6f5aeb2d875236be43a9d54c7800504aa06c479",
-      "size": 4974796
-    },
-    {
-      "path": "tavern-plugin/fonts/resource-han-rounded/700-4e42ee4c402cce9d.woff2",
-      "sha256": "4e42ee4c402cce9dd2eaa687be8a9b8585f335ef1a916d9632a85c6234b4dbea",
-      "size": 5040192
     },
     {
       "path": "tavern-plugin/fonts/resource-han-rounded/index.json",
@@ -2900,9 +2855,19 @@
       "size": 12323
     },
     {
+      "path": "tavern-plugin/lib/font-assets.js",
+      "sha256": "30bcefa37680c65ab6fe614d978c9e40a871d36fa51f0194867501c54a3fd349",
+      "size": 7805
+    },
+    {
+      "path": "tavern-plugin/lib/font-catalog.json",
+      "sha256": "476af9a797e5ea98b1cd95b0c0d69946c1e1e2872e7552784eabf7a093da9fdc",
+      "size": 6445
+    },
+    {
       "path": "tavern-plugin/lib/font-library.js",
-      "sha256": "e9d14a0688ef6063eb2f3a658a0dce521cdcb422629f2094be5ea9bc0cc1963a",
-      "size": 4530
+      "sha256": "1ba807e71e6f7cedd02d3b8161d9a3c4add396670bba5a736a51cad42a7ba302",
+      "size": 5477
     },
     {
       "path": "tavern-plugin/lib/gameplay-api.js",
@@ -5086,9 +5051,9 @@
     }
   ],
   "archive": {
-    "commit": "e4685de0399536c269c63e3e376b5b6e65109a9d",
+    "commit": "07731e081ca072ad5373598ba45089655149a1f6",
     "path": "runtime.zip",
-    "sha256": "3d4e7e664ee7ca63abd0f84e5e318b92f231407adbf8303f24c15d0cc6de8e40",
-    "size": 68309298
+    "sha256": "523944f7e14eff630b3db5584e9e6474928da2a4073d6fe09d8cf3b95bf801b6",
+    "size": 10490189
   }
 }
