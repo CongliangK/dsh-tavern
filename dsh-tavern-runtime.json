@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "0316482cbda4ef382e480349207c848141cf2369",
-  "releaseSequence": 937,
+  "revision": "bef9d12d324723c3d3c1a63f6c364bd61137f43f",
+  "releaseSequence": 938,
   "version": "3.1.0",
   "files": [
     {
@@ -966,8 +966,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/card-archive.js",
-      "sha256": "da512097d29af87ea0b752d1a7de6ee27476da4df6156670feb57f3719e24175",
-      "size": 8872
+      "sha256": "af895a3b16ee529e744d00438665010fe22beb8723ae992a6c295b5031837665",
+      "size": 9709
     },
     {
       "path": "tavern-plugin/lib/domain/card-assets.js",
@@ -1041,8 +1041,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/card-plugins.js",
-      "sha256": "dd8512be261d193b10008a2f42f8147594b05fa41d7a3d064771053a40ad612a",
-      "size": 8657
+      "sha256": "2006ce6f1bc72629256d2b3e81aff0b83541c80eeb3d5cce784ca0a6a72a3d79",
+      "size": 9468
     },
     {
       "path": "tavern-plugin/lib/domain/card-preparation.js",
@@ -1853,6 +1853,11 @@
       "path": "tavern-plugin/lib/domain/plugin-game-settings.js",
       "sha256": "27927b75775fcd0005579a68fca38e3c4a2ce1ae8fae840399ef0c127a9bf7a3",
       "size": 4980
+    },
+    {
+      "path": "tavern-plugin/lib/domain/plugin-manifest.js",
+      "sha256": "3012405332a72aabf14255844516cf1e7cff1d340dce500a739886afce3acc77",
+      "size": 582
     },
     {
       "path": "tavern-plugin/lib/domain/plugin-media-views.js",
@@ -2671,13 +2676,13 @@
     },
     {
       "path": "tavern-plugin/lib/domain/user-plugin-install.js",
-      "sha256": "b93f48cc5277b693cbe93a3fe14bb2852fdabe67088896c6fce8d7aef7118715",
-      "size": 19706
+      "sha256": "c61046504587ce72525d5e0f9258f3287162ec8c86026f83ea58ddf2fe24056f",
+      "size": 20034
     },
     {
       "path": "tavern-plugin/lib/domain/user-plugins.js",
-      "sha256": "4e3201563078d9c064bcfce79dcbd99279fa631aa73db8248f3957ca3ac0e22c",
-      "size": 13674
+      "sha256": "17fd72b33a651ce637eeab8be968ac40e0a7401c8efeebece1cbd003de941036",
+      "size": 13918
     },
     {
       "path": "tavern-plugin/lib/domain/user-preference-profile.js",
@@ -4996,9 +5001,9 @@
     }
   ],
   "archive": {
-    "commit": "c53e68ea253210f207ffcfc49626c1ad2dfca3c9",
+    "commit": "0d0fc025aec099ec7082fd8e1f129328b5f6e7f2",
     "path": "runtime.zip",
-    "sha256": "b269723177b209f23ac913bca637b94e201af69badec04b76431f79f87a4ce3e",
-    "size": 68230573
+    "sha256": "13e18d53dcebb1f047d23d3de4d5ee9736aa8142024d0bea57d72bb4879d4329",
+    "size": 68231842
   }
 }
