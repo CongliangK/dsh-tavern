@@ -153,3 +153,82 @@ test('重试请求被拒绝时不抹去原切换失败证据', async () => {
   assert.equal(page.button().disabled, false)
   page.dispose()
 })
+
+const managedStatus = {
+  platform: 'win32', appKind: 'desktop', desktopApp: true, profiles: [tavernProfile],
+  installation: { available: true, appDir: 'C:\\DSH\\apps\\dsh-tavern', profileDir: 'C:\\DSH\\profiles\\tavern', dataDir: 'C:\\DSH\\profile-data\\tavern', sharedHome: 'C:\\DSH' },
+}
+const namedButton = (page, text) => [...page.dom.window.document.querySelectorAll('button')].find(button => button.textContent === text)
+async function enterDestination(page, value) {
+  const input = page.dom.window.document.querySelector('#pb-destination')
+  await page.act(async () => {
+    Object.getOwnPropertyDescriptor(page.dom.window.HTMLInputElement.prototype, 'value').set.call(input, value)
+    input.dispatchEvent(new page.dom.window.Event('input', { bubbles: true }))
+  })
+}
+
+test('安装管理显示程序、配置、完整酒馆数据和不迁移的共享路径；打开和取消不修改安装', async () => {
+  const page = await mount(managedStatus)
+  for (const value of Object.values(managedStatus.installation).filter(value => typeof value === 'string')) assert.ok(page.text().includes(value))
+  assert.match(page.text(), /包括会话和存储/)
+  assert.match(page.text(), /不保证立即释放旧磁盘空间/)
+  await page.act(async () => namedButton(page, '切换安装目录').click())
+  assert.ok(page.dom.window.document.querySelector('#pb-destination'))
+  assert.equal(namedButton(page, '确认迁移并重启').disabled, true)
+  await page.act(async () => namedButton(page, '取消').click())
+  assert.equal(page.dom.window.document.querySelector('#pb-destination'), null)
+  assert.deepEqual(page.calls.map(([endpoint]) => endpoint), ['status'])
+  page.dispose()
+})
+
+test('卸载需要独立确认，保留数据和原版 DSH；重复点击只提交一次', async () => {
+  let finish
+  const calls = []
+  const page = await mount(managedStatus, calls, { rpc: async endpoint => endpoint === 'status'
+    ? { ok: true, value: managedStatus } : new Promise(resolve => { finish = resolve }) })
+  await page.act(async () => namedButton(page, '删除 DSH 酒馆').click())
+  assert.match(page.text(), /保留全部用户数据和备份，不卸载原版 DSH/)
+  assert.deepEqual(calls.map(([endpoint]) => endpoint), ['status'])
+  await page.act(async () => {
+    namedButton(page, '确认删除并重启').click()
+    namedButton(page, '确认删除并重启').click()
+  })
+  assert.deepEqual(calls.at(-1), ['uninstall', { confirmed: true }])
+  assert.equal(calls.filter(([endpoint]) => endpoint === 'uninstall').length, 1)
+  assert.equal(namedButton(page, '取消').disabled, true)
+  await page.act(async () => finish({ ok: true, value: { closesApp: true } }))
+  assert.match(page.text(), /操作已排队/)
+  assert.equal(namedButton(page, '删除 DSH 酒馆').disabled, true)
+  page.dispose()
+})
+
+test('不可管理、独立窗口、待处理及需要人工恢复的状态均禁止安装管理', async () => {
+  for (const patch of [
+    { installation: { ...managedStatus.installation, available: false, reason: 'unverified installation' } },
+    { desktopApp: false },
+    { lastResult: { status: 'pending' } },
+    { lastResult: { status: 'failed', recoveryRequired: true, message: 'restore backup' } },
+  ]) {
+    const page = await mount({ ...managedStatus, ...patch })
+    assert.equal(namedButton(page, '切换安装目录').disabled, true)
+    assert.equal(namedButton(page, '删除 DSH 酒馆').disabled, true)
+    page.dispose()
+  }
+})
+
+test('迁移只接受绝对路径，显示失败后保留输入允许取消或重试', async () => {
+  const page = await mount(managedStatus, [], { rpc: async endpoint => endpoint === 'status'
+    ? { ok: true, value: managedStatus } : { ok: false, error: { message: '目标目录非空' } } })
+  await page.act(async () => namedButton(page, '切换安装目录').click())
+  await enterDestination(page, 'relative/path')
+  assert.equal(namedButton(page, '确认迁移并重启').disabled, true)
+  await enterDestination(page, 'D:\\DSH-Tavern')
+  assert.equal(namedButton(page, '确认迁移并重启').disabled, false)
+  await page.act(async () => namedButton(page, '确认迁移并重启').click())
+  assert.deepEqual(page.calls.at(-1), ['relocate', { confirmed: true, destination: 'D:\\DSH-Tavern' }])
+  assert.match(page.text(), /目标目录非空/)
+  assert.equal(page.dom.window.document.querySelector('#pb-destination').value, 'D:\\DSH-Tavern')
+  await page.act(async () => namedButton(page, '取消').click())
+  assert.equal(page.dom.window.document.querySelector('#pb-destination'), null)
+  page.dispose()
+})

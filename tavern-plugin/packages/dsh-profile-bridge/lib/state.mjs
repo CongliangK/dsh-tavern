@@ -13,6 +13,7 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
+import { inspectInstallation } from './installation.mjs'
 import { readLastResult } from './helper.mjs'
 export { readLastResult } from './helper.mjs'
 
@@ -193,6 +194,7 @@ export function statusPayload(paths) {
   const profiles = listProfiles(paths)
   const appExe = detectAppExe()
   return {
+    installation: inspectInstallation(paths),
     platform: process.platform,
     dshHome: paths.home,
     profilesDir: paths.profilesDir,

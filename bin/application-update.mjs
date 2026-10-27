@@ -4,6 +4,7 @@ import { recordUpdateDiagnostic, redactUpdateDiagnostic } from './update-diagnos
 import { randomUUID } from 'node:crypto'
 import { runInstallationProcess } from './installation-process.mjs'
 import installationState from './installation-state.cjs'
+import installationLocation from './installation-location.cjs'
 import { applySystemProxy } from './system-proxy.mjs'
 import { createUpdateState } from './update-state.mjs'
 import { readInstallationReceipt } from './installation-receipt.mjs'
@@ -158,6 +159,11 @@ export async function updateApplication(options = { host: RUNTIME_HOST, statusFi
   // when the update was started from a terminal opened there.
   if (process.platform === 'win32' && !options.keepCwd) try { process.chdir(os.tmpdir()) } catch {}
   const lease = installationState.acquireInstallation({ dshHome, sourceRoot, statusFile: options.statusFile, attemptId, adopt: !!options.attemptId, supervised: true })
+  let installedAppRoot
+  try {
+    installedAppRoot = options.host === 'android' ? (options.installedSourceRoot || sourceRoot)
+      : installationLocation.resolveInstallationApp({ dshHome, appDir: options.installedSourceRoot || process.env.DSH_TAVERN_APP_DIR })
+  } catch (error) { lease.release(); throw error }
   lease.update({ supervised: true, state: 'running' })
   const state = createUpdateState(options.statusFile, dshHome)
   const writeUpdateStatus = value => state.write(value, { attemptId })
@@ -215,6 +221,7 @@ export async function updateApplication(options = { host: RUNTIME_HOST, statusFi
           ...(options.host === 'cli' ? { DSH_TAVERN_DEFER_SERVICE_START: '1' } : {}),
           DSH_TAVERN_UPDATE_ATTEMPT: attemptId,
           DSH_TAVERN_SOURCE_ROOT: sourceRoot,
+          DSH_TAVERN_APP_DIR: installedAppRoot,
           DSH_HOME: dshHome,
           ...(options.host === 'cli' ? { DSH_TAVERN_CLI_HOME: dshHome } : {}),
           DSH_TAVERN_INSTALL_ATTEMPT: attemptId,
@@ -251,7 +258,7 @@ export async function updateApplication(options = { host: RUNTIME_HOST, statusFi
     temporary = ''
     if (outputFile !== '' && existsSync(outputFile)) unlinkSync(outputFile)
     outputFile = ''
-    const installedSourceRoot = options.installedSourceRoot || (options.host === 'android' ? sourceRoot : process.env.DSH_TAVERN_APP_DIR || path.join(dshHome, 'apps/dsh-tavern'))
+    const installedSourceRoot = installedAppRoot
     const receipt = await readInstallationReceipt({ sourceRoot: installedSourceRoot, dshHome, host: options.host, attemptId, after: startedAt - 1 })
     if (!receipt) throw new Error('安装程序已退出，但未确认配置验证和安装完成；请修复安装。')
     if (controller.signal.aborted) throw Object.assign(new Error('更新已取消'), { code: 'INSTALLATION_ABORTED' })
@@ -284,7 +291,7 @@ export async function updateApplication(options = { host: RUNTIME_HOST, statusFi
     // job has ended, so the service may be started outside it, as on success.
     let restored = false
     if (options.host === 'cli' && safeToRelease) {
-      const appRoot = options.installedSourceRoot || process.env.DSH_TAVERN_APP_DIR || path.join(dshHome, 'apps/dsh-tavern')
+      const appRoot = installedAppRoot
       // Cancellation ends the whole installer tree, so its own cleanup may not run.
       // With the tree verified stopped, finish it here: undo an unfinished switch
       // (no-op when the installer already did) and drop a leftover staging copy.

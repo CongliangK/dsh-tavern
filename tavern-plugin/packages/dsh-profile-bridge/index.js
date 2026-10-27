@@ -2,6 +2,7 @@
 // Queue a directory switch for when Desktop exits, then ask it to quit and reopen it.
 import { basename } from 'node:path'
 import { appendFileSync } from 'node:fs'
+import { validateInstallationRequest } from './lib/installation.mjs'
 import { captureOwnedProcesses } from './lib/processes.mjs'
 import { requestDesktopQuit } from './lib/quit.mjs'
 import { relaunchApp, scheduleSwitch } from './lib/helper.mjs'
@@ -33,6 +34,9 @@ async function runSwitch(mode, paths, payload) {
       + 'The profile link exists only for the Desktop app, which hardcodes profiles/desktop; start the app, or run `dsh --profile <name>` instead.',
     )
   }
+  const management = ['relocate', 'uninstall'].includes(mode)
+    ? validateInstallationRequest(paths, mode, request) : undefined
+  if (management && basename(paths.activeDir) !== 'desktop') fail('not-desktop', '请在官方桌面中管理安装。')
   const target = mode === 'link' ? validateTarget(paths, request.target) : undefined
   const relaunch = detectAppExe()
   if (!process.versions.electron || !process.send || process.ppid <= 1) {
@@ -40,7 +44,7 @@ async function runSwitch(mode, paths, payload) {
   }
   // Snapshot before quitting: detached children lose a trustworthy parent once it exits.
   const ownership = await captureOwnedProcesses([process.pid, process.ppid])
-  const result = scheduleSwitch({ mode, profilesRoot: paths.profilesDir, liveDir: paths.activeDir,
+  const result = scheduleSwitch({ ...management, mode, profilesRoot: paths.profilesDir, liveDir: paths.activeDir,
     activeName: paths.activeName, targetDir: target?.dir, stateDir: paths.stateDir,
     stamp: new Date().toISOString().replace(/[:.]/g, '-') + '-' + process.pid,
     pids: [process.pid, process.ppid], ownership, relaunch })
@@ -71,6 +75,7 @@ async function handleCall(endpoint, payload) {
     if (endpoint === 'status') return { ok: true, value: statusPayload(resolvePaths()) }
     if (endpoint === 'link') return { ok: true, value: await runSwitch('link', resolvePaths(), payload) }
     if (endpoint === 'unlink') return { ok: true, value: await runSwitch('unlink', resolvePaths(), payload) }
+    if (endpoint === 'relocate' || endpoint === 'uninstall') return { ok: true, value: await runSwitch(endpoint, resolvePaths(), payload) }
     if (endpoint === 'shortcut') return { ok: true, value: createTavernShortcut({ paths: resolvePaths() }) }
     if (endpoint === 'openOriginal') return { ok: true, value: openOriginal() }
     fail('not-found', `Unknown endpoint ${JSON.stringify(endpoint)}.`)
