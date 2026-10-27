@@ -16,7 +16,8 @@ function manifest(dir) {
 const present = path => { try { lstatSync(path); return true } catch (e) { if (e.code === 'ENOENT') return false; throw e } }
 
 // The caller must own the operation lock and have waited for Desktop and its Host to exit.
-export function switchProfile({ mode, profilesRoot, liveDir, targetDir, stamp }, { rename = renameSync, link = symlinkSync } = {}) {
+export async function switchProfile({ mode, profilesRoot, liveDir, targetDir, stamp }, { rename = renameSync, link = symlinkSync, removeLink = unlinkSync, retry = {} } = {}) {
+  const move = (from, to) => renameWithRetry(from, to, { rename, ...retry })
   const root = realpathSync(profilesRoot)
   if (resolve(liveDir) !== join(resolve(profilesRoot), 'desktop')) throw new Error('只允许切换 desktop 入口')
   const linked = present(liveDir) && lstatSync(liveDir).isSymbolicLink()
@@ -38,20 +39,55 @@ export function switchProfile({ mode, profilesRoot, liveDir, targetDir, stamp },
   if (present(previous) || present(staged)) throw new Error('备份路径已存在')
   if (mode === 'link') link(destination, staged, process.platform === 'win32' ? 'junction' : 'dir')
   let moved = false
+  let failure
   try {
-    rename(liveDir, previous)
+    await move(liveDir, previous)
     moved = true
-    rename(mode === 'link' ? staged : destination, liveDir)
+    await move(mode === 'link' ? staged : destination, liveDir)
   } catch (error) {
+    failure = error
     if (moved) {
-      try { rename(previous, liveDir) } catch (rollback) { throw new Error(`切换失败且自动恢复失败；原入口保存在 ${previous}：${rollback.message}`, { cause: error }) }
+      try { await move(previous, liveDir) } catch (rollback) {
+        failure = Object.assign(new Error(`切换失败且自动恢复失败；请勿启动桌面或重新切换。原入口保存在 ${previous}，目标为 ${destination}：${rollback.message}`, { cause: error }), { code: 'recovery-required', recoveryRequired: true, previous, destination })
+        throw failure
+      }
     }
     throw error
   } finally {
-    if (present(staged) && lstatSync(staged).isSymbolicLink()) unlinkSync(staged)
+    try {
+      if (present(staged) && lstatSync(staged).isSymbolicLink()) removeLink(staged)
+    } catch (cleanupError) {
+      // Never mask recoveryRequired: restarting with a missing desktop can create
+      // a new profile over the transaction we need to recover.
+      if (failure) failure.message += `；临时链接未能清理 ${staged}：${cleanupError.message}`
+      else throw cleanupError
+    }
   }
   if (linked) unlinkSync(previous) // remove only the saved link, never its target
   return { changed: true, target: realpathSync(liveDir), backup: linked ? undefined : previous }
+}
+
+/** Retry only Windows sharing/access errors, for a bounded period per move.
+ * Rollback gets its own budget: a busy publish must not consume recovery time.
+ */
+export async function renameWithRetry(from, to, {
+  rename = renameSync, platform = process.platform, timeout = 10000,
+  interval = 250, now = Date.now, delay = ms => new Promise(r => setTimeout(r, ms)),
+  onRetry = () => {},
+} = {}) {
+  const deadline = now() + timeout
+  let attempt = 0
+  for (;;) {
+    try { return await rename(from, to) } catch (error) {
+      if (platform !== 'win32' || !['EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error
+      if (now() >= deadline) {
+        error.message = `目录仍被占用，未能移动 ${from} → ${to}（${error.code}）；请关闭使用该目录的终端/程序后重试。${error.message}`
+        throw error
+      }
+      await onRetry({ from, to, code: error.code, attempt: ++attempt })
+      await delay(Math.min(interval, Math.max(0, deadline - now())))
+    }
+  }
 }
 
 export function processAlive(pid) {
@@ -92,6 +128,41 @@ export function relaunchApp(exe) {
 
 function readJson(file) {
   try { return JSON.parse(readFileSync(file, 'utf8')) } catch { return undefined }
+}
+
+/** Read the durable outcome, not log text (which may contain earlier failures). */
+export function readLastResult(stateDir, { alive = processAlive, now = Date.now } = {}) {
+  try {
+    const result = JSON.parse(readFileSync(join(stateDir, 'last-result.json'), 'utf8'))
+    if (!result || !['pending', 'succeeded', 'failed'].includes(result.status)) return undefined
+    if (result.status === 'pending') {
+      let worker
+      try { worker = JSON.parse(readFileSync(join(stateDir, 'pending', 'worker.json'), 'utf8')) } catch {}
+      const hasWorker = Number.isInteger(worker?.pid) && worker.pid > 1
+      const abandoned = hasWorker ? !alive(worker.pid)
+        : now() - statSync(join(stateDir, 'last-result.json')).mtimeMs > 3 * 60 * 1000
+      if (abandoned) {
+        // A helper may have died between moves: never claim the old entry is
+        // intact or silently offer another transaction before manual inspection.
+        result.status = 'failed'
+        result.code = 'helper-exited'
+        result.message = '切换助手已退出或未能启动，结果不确定；请检查日志、当前入口和备份目录。'
+        result.recoveryRequired = true
+      }
+    }
+    return {
+      status: result.status,
+      mode: result.mode,
+      stamp: result.stamp,
+      finishedAt: result.finishedAt,
+      message: typeof result.message === 'string' ? result.message : '',
+      code: typeof result.code === 'string' ? result.code : undefined,
+      recoveryRequired: result.recoveryRequired === true,
+      logPath: join(stateDir, 'last-run.log'),
+    }
+  } catch {
+    return undefined
+  }
 }
 
 function pendingIsStale(lock, alive, now) {
@@ -170,18 +241,23 @@ export function acquirePendingLock(stateDir, { alive = processAlive, now = Date.
 
 // Lock is acquired before responding, so repeated clicks cannot schedule competing switches.
 export function scheduleSwitch(request, options = {}) {
+  const last = readLastResult(request.stateDir, options)
+  if (last?.recoveryRequired) {
+    throw Object.assign(new Error(`上次切换需要检查入口与备份，未安排新切换：${last.message} 日志：${last.logPath}`), { code: 'recovery-required' })
+  }
   const { lock, reclaimed } = acquirePendingLock(request.stateDir, options)
   const job = join(lock, 'request.json')
   const worker = fileURLToPath(new URL('./worker.mjs', import.meta.url))
   try {
     writeFileSync(job, JSON.stringify(request), { flag: 'wx', mode: 0o600 })
+    writeFileSync(join(request.stateDir, 'last-result.json'), JSON.stringify({ status: 'pending', mode: request.mode, stamp: request.stamp }), { mode: 0o600 })
     const child = spawn(process.execPath, [worker, job], { detached: true, stdio: 'ignore', cwd: request.stateDir, env: { ...process.env, ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}) } })
     if (Number.isInteger(child.pid) && child.pid > 1) {
       try { writeFileSync(join(lock, 'worker.json'), JSON.stringify({ pid: child.pid, startedAt: Date.now() }), { flag: 'wx', mode: 0o600 }) } catch {}
     }
     child.on('error', () => { /* request stays on disk for diagnosis; no profile was changed */ })
     child.unref()
-    return { pid: child.pid, logPath: join(request.stateDir, 'last-run.log'), reclaimed }
+    return { pid: child.pid, logPath: join(request.stateDir, 'last-run.log'), reclaimed, stamp: request.stamp }
   } catch (error) {
     throw new Error(`无法启动切换助手，待处理记录位于 ${lock}：${error.message}`)
   }

@@ -2,6 +2,7 @@
 // Queue a directory switch for when Desktop exits, then ask it to quit and reopen it.
 import { basename } from 'node:path'
 import { appendFileSync } from 'node:fs'
+import { captureOwnedProcesses } from './lib/processes.mjs'
 import { requestDesktopQuit } from './lib/quit.mjs'
 import { relaunchApp, scheduleSwitch } from './lib/helper.mjs'
 import { createTavernShortcut } from './lib/shortcut.mjs'
@@ -37,10 +38,12 @@ async function runSwitch(mode, paths, payload) {
   if (!process.versions.electron || !process.send || process.ppid <= 1) {
     fail('not-desktop', '请在官方桌面中执行切换')
   }
+  // Snapshot before quitting: detached children lose a trustworthy parent once it exits.
+  const ownership = await captureOwnedProcesses([process.pid, process.ppid])
   const result = scheduleSwitch({ mode, profilesRoot: paths.profilesDir, liveDir: paths.activeDir,
     activeName: paths.activeName, targetDir: target?.dir, stateDir: paths.stateDir,
     stamp: new Date().toISOString().replace(/[:.]/g, '-') + '-' + process.pid,
-    pids: [process.pid, process.ppid], relaunch })
+    pids: [process.pid, process.ppid], ownership, relaunch })
   const closesApp = await requestDesktopQuit({ pid: process.ppid, executable: relaunch }, {
     onError: error => {
       try { appendFileSync(result.logPath, new Date().toISOString() + ' 自动退出失败，可从托盘退出：' + error.message + '\n') } catch {}

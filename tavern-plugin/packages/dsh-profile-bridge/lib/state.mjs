@@ -10,10 +10,11 @@
  *
  * @module dsh-profile-bridge/state
  */
-import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
-import { processAlive } from './helper.mjs'
+import { readLastResult } from './helper.mjs'
+export { readLastResult } from './helper.mjs'
 
 /** Throw a coded bridge error the RPC layer turns into a structured failure. */
 export function fail(code, message) {
@@ -179,41 +180,6 @@ export function readLogTail(logPath, maxChars = 4000) {
     return text.length > maxChars ? text.slice(text.length - maxChars) : text
   } catch {
     return ''
-  }
-}
-
-/** Read the durable outcome, not log text (which may contain earlier failures). */
-export function readLastResult(stateDir, { alive = processAlive, now = Date.now } = {}) {
-  try {
-    const result = JSON.parse(readFileSync(join(stateDir, 'last-result.json'), 'utf8'))
-    if (!result || !['pending', 'succeeded', 'failed'].includes(result.status)) return undefined
-    if (result.status === 'pending') {
-      let worker
-      try { worker = JSON.parse(readFileSync(join(stateDir, 'pending', 'worker.json'), 'utf8')) } catch {}
-      const hasWorker = Number.isInteger(worker?.pid) && worker.pid > 1
-      const abandoned = hasWorker ? !alive(worker.pid)
-        : now() - statSync(join(stateDir, 'last-result.json')).mtimeMs > 3 * 60 * 1000
-      if (abandoned) {
-        // A helper may have died between moves: never claim the old entry is
-        // intact or silently offer another transaction before manual inspection.
-        result.status = 'failed'
-        result.code = 'helper-exited'
-        result.message = '切换助手已退出或未能启动，结果不确定；请检查日志、当前入口和备份目录。'
-        result.recoveryRequired = true
-      }
-    }
-    return {
-      status: result.status,
-      mode: result.mode,
-      stamp: result.stamp,
-      finishedAt: result.finishedAt,
-      message: typeof result.message === 'string' ? result.message : '',
-      code: typeof result.code === 'string' ? result.code : undefined,
-      recoveryRequired: result.recoveryRequired === true,
-      logPath: join(stateDir, 'last-run.log'),
-    }
-  } catch {
-    return undefined
   }
 }
 
