@@ -16,6 +16,7 @@ function fixture(t) {
   put(path.join(paths.activeDir, 'package.json'), { name: 'dsh-profile-desktop' })
   put(path.join(home, 'logs/tavern-installation.json'), { host: 'desktop', dshHome: home, sourceRoot: app })
   put(path.join(home, 'profile-data/tavern/data/cards/card.json'), 'card')
+  put(path.join(home, 'profile-data/tavern/data/cache/fonts/verified-face'), 'cached-font')
   put(path.join(home, 'profile-data/tavern/sessions/session.json'), 'session')
   put(path.join(home, 'credentials.json'), 'secret')
   return { root, home, app, paths, destination: path.join(root, 'new location 酒馆') }
@@ -28,6 +29,7 @@ test('relocates whole Tavern footprint, retains backups and leaves shared home u
   for (const kind of ['app', 'profile', 'data']) assert.ok(fs.statSync(path.join(f.destination, kind)).isDirectory())
   assert.equal(fs.readFileSync(path.join(f.home, 'profile-data/tavern/sessions/session.json'), 'utf8'), 'session')
   assert.equal(fs.readFileSync(path.join(f.home, 'credentials.json'), 'utf8'), 'secret')
+  assert.equal(fs.readFileSync(path.join(f.home, 'profile-data/tavern/data/cache/fonts/verified-face'), 'utf8'), 'cached-font')
   assert.ok(result.retained.every(p => fs.existsSync(p)))
   assert.equal(inspectInstallation(f.paths).available, true)
   assert.equal(inspectInstallation(f.paths).relocated, true)
@@ -79,6 +81,7 @@ test('uninstall quarantines app/profile but preserves original DSH and all Taver
   assert.ok(result.retained.every(p => fs.existsSync(p)))
   assert.equal(fs.readFileSync(path.join(f.home, 'profile-data/tavern/data/cards/card.json'), 'utf8'), 'card')
   assert.equal(fs.readFileSync(path.join(f.home, 'credentials.json'), 'utf8'), 'secret')
+  assert.equal(fs.readFileSync(path.join(f.home, 'profile-data/tavern/data/cache/fonts/verified-face'), 'utf8'), 'cached-font')
   assert.ok(fs.existsSync(path.join(f.paths.activeDir, 'package.json')))
 })
 test('second relocation and relocated uninstall preserve data without alias chains', async t => {
@@ -90,6 +93,7 @@ test('second relocation and relocated uninstall preserve data without alias chai
   await performInstallation(validateInstallationRequest(f.paths, 'uninstall', { confirmed: true }))
   assert.equal(fs.readFileSync(path.join(f.home, 'profile-data/tavern/sessions/session.json'), 'utf8'), 'session')
   assert.equal(fs.existsSync(f.app), false)
+  assert.equal(fs.readFileSync(path.join(f.home, 'profile-data/tavern/data/cache/fonts/verified-face'), 'utf8'), 'cached-font')
 })
 test('source changes during copy abort before activating any aliases', async t => {
   const f = fixture(t)

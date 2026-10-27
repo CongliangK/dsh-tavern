@@ -1,3 +1,4 @@
+import { preserveInstallationFonts } from './preserve-font-assets.mjs'
 import officialDesktopRuntime from './official-desktop-runtime.cjs'
 import { beginDesktopProfileInstallation } from './desktop-profile-installation.mjs'
 import { ensureInitialTavernShortcut } from '../tavern-plugin/packages/dsh-profile-bridge/lib/shortcut.mjs'
@@ -309,6 +310,7 @@ async function installProfileOwned(host, { attemptId, runInstall, runDsh }) {
     for (const directory of ['cards', 'chats', 'scripts', 'sources', 'skills', 'diffs']) {
       mkdirSync(path.join(dataRoot, directory), { recursive: true })
     }
+    await preserveInstallationFonts(SOURCE_ROOT, { dataRoot, androidBackups: host === 'android' })
     await ensureUserExtensions(dataRoot)
     if (migration.migratedSources > 0) console.log(`已迁移 ${migration.migratedSources} 处旧数据；冲突保留 ${migration.conflicts} 个。`)
 
