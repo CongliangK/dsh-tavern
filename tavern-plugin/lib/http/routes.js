@@ -14,6 +14,21 @@ import { STAGE_LEASE_ORIGIN } from '../domain/stage-material.js'
 const LEASE_STATUS = Object.freeze({ FORBIDDEN: 403, INVALID_INPUT: 400, LIMIT_EXCEEDED: 413, REVISION_CONFLICT: 409, ASSET_UNAVAILABLE: 503, RECOVERY_REQUIRED: 503, NOT_FOUND: 404 })
 const LEASE_HEADERS = ['range', 'if-range', 'if-none-match']
 
+// A response that fills its socket wakes us on 'drain', a client that left wakes us on 'close'.
+// Whichever fires has to drop both listeners: a stream does this once per backpressure wait, so
+// leftovers pile up on the same ServerResponse until Node warns about a listener leak.
+function waitForWritable(res) {
+  return new Promise(resolve => {
+    const settle = () => {
+      res.off('drain', settle)
+      res.off('close', settle)
+      resolve()
+    }
+    res.once('drain', settle)
+    res.once('close', settle)
+  })
+}
+
 // Asset library media by lease (docs/design/asset-library.md). The page's origin passes Tavern's
 // own check here; the service then checks resource, expiry and authorization on every request
 // and yields the body in bounded chunks.
@@ -43,7 +58,7 @@ export async function respondAssetLease(assetLibrary, req, res) {
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
-      if (!res.write(value)) await new Promise(resolve => { res.once('drain', resolve); res.once('close', resolve) })
+      if (!res.write(value)) await waitForWritable(res)
       if (res.destroyed) return
     }
     res.end()
@@ -378,7 +393,7 @@ export function registerTavernHttpRoutes({
             res.writeHead(range ? 206 : 200, { ...headers, 'Accept-Ranges': 'bytes', 'Content-Length': Math.max(0, end - start + 1), ...(range ? { 'Content-Range': 'bytes ' + start + '-' + end + '/' + file.length } : {}) })
             try {
               for await (const chunk of slicePluginMediaStream(file.stream(aborter.signal), start, end)) {
-                if (!res.write(chunk)) await new Promise(resolve => { res.once('drain', resolve); res.once('close', resolve) })
+                if (!res.write(chunk)) await waitForWritable(res)
                 if (aborter.signal.aborted) return
               }
               res.end()
