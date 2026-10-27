@@ -289,6 +289,7 @@ import { stageSkinChoice, stageSkinPackIds } from './domain/stage-skin-choice.js
 import { createConversationHandlers } from './rpc/conversations.js'
 import { createPlayHandlers } from './rpc/play.js'
 import { createTransferHandlers } from './rpc/transfer.js'
+import { createTransferExportStore } from './domain/transfer-store.js'
 // dsh-tavern 宿主插件（profile 组合行）
 // RPC：同源 HTTP 路由 /api/dsh-tavern/<method>（客户端 fetch 调用）
 // DSH 生命周期负责回合状态；模型工具只处理按需读取和明确修改。
@@ -403,6 +404,7 @@ export async function apply(ctx) {
   const cardMemory = createCardMemory({ dataRoot })
   const stablePrefixStorage = createSessionStablePrefixStorage(dataRoot + '/session-prefixes')
   const profileData = createProfileDataStore({ dataRoot })
+  const transferExports = createTransferExportStore({ root: dataRoot + '/tmp-exports' })
   const displayRuntimeStore = createDisplayRuntimeStore({ store: profileData })
   const gameFootprint = createGameFootprint({ dataRoot })
   const deletedSessionIds = new Set()
@@ -3440,7 +3442,7 @@ export async function apply(ctx) {
     listTavernSessions, liveCardUpdate, llm, manualCharacterDesign, manualLedger, mobileCardImport,
     modelRequestLog, mvuDiagnostics, notifyPluginTimeline, openingPreparation, pagesInFront, phoneChat,
     playCardSnapshots, pluginApi, pluginDataStore, pluginGalleryItems, pluginMediaForTurn, pluginMediaTurns,
-    pluginSettlementProgress, prepareConversationFork, preparedSaveSessions, presentSystemPrompts, promptDocuments,
+    pluginSettlementProgress, prepareConversationFork, preparedSaveSessions, presentSystemPrompts, promptDocuments, transferExports,
     presentUserPreferenceProfile, presetLibrary, previewPreset, projectOpeningWindow,
     readBackgroundSuppression, readCard, readCardExtensions, readCardExtensionSources, readCardWorkspace, readChat, readChatCard,
     readOpeningWindow, readScript, readSessionMap, readTavernSettings, reconcileStory, reconcileWhenIdle,
@@ -3528,6 +3530,7 @@ export async function apply(ctx) {
     exportCardFile,
     assetPacks,
     uploads,
+    transferExports,
     exposeHandler: handle => { tavernHttpHandle = handle },
     pluginAssets: createPluginAssets({ pluginsDir: userPluginPaths(dataRoot).plugins }),
     fontLibrary,

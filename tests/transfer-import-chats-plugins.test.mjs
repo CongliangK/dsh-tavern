@@ -99,3 +99,35 @@ test('导入字体走 importOne，并接受返回的新 id', async () => {
   assert.equal(result.results[0].added, 1);
   assert.deepEqual(calls, [{ key: 'noto-sans', size: 4 }]);
 });
+
+test('插件数据走 importOne 并计入覆盖', async () => {
+  const calls = [];
+  const importer = baseImport({
+    pluginData: {
+      async list() { return [{ key: 'dsh-runninghub', title: 'RunningHub', meta: '插件数据', bytes: 8 }] },
+      async importOne({ key, content }) { calls.push({ key, size: content.length }); return { plugin: key, redacted: true } }
+    }
+  });
+  const manifest = manifestWith([{ kind: 'plugin-data', label: '插件数据', items: [{ key: 'dsh-runninghub', title: 'RunningHub', entry: 'parts/plugin-data/dsh-runninghub.json', bytes: 5, sha256: '' }] }]);
+  const preview = await importer.preview(manifest);
+  assert.equal(preview.parts[0].overwriteAllowed, true);
+  const result = await importer.apply({ manifest, files: new Map([['parts/plugin-data/dsh-runninghub.json', Buffer.from('{}')]]) });
+  assert.equal(result.results[0].overwritten, 1);
+  assert.deepEqual(calls, [{ key: 'dsh-runninghub', size: 2 }]);
+});
+
+test('写作 Skill 走 importOne，重名在预览里提示', async () => {
+  const calls = [];
+  const importer = baseImport({
+    skills: {
+      async list() { return [{ key: 'noir', title: 'noir', meta: '写作 Skill', bytes: 4 }] },
+      async importOne({ key, content }) { calls.push({ key, size: content.length }); return { name: 'noir-2' } }
+    }
+  });
+  const manifest = manifestWith([{ kind: 'skills', label: '写作 Skill', items: [{ key: 'noir', title: 'noir', entry: 'parts/skills/noir.zip', bytes: 4, sha256: '' }] }]);
+  const preview = await importer.preview(manifest);
+  assert.equal(preview.parts[0].conflicts, 1);
+  const result = await importer.apply({ manifest, files: new Map([['parts/skills/noir.zip', Buffer.from('zip!')]]) });
+  assert.equal(result.results[0].added, 1);
+  assert.deepEqual(calls, [{ key: 'noir', size: 4 }]);
+});

@@ -88,6 +88,7 @@ export function registerTavernHttpRoutes({
   exportCardFile,
   assetPacks,
   uploads,
+  transferExports,
   exposeHandler,
 }) {
   const webServer = ctx.get('webServer')
@@ -312,6 +313,27 @@ export function registerTavernHttpRoutes({
             } else res.writeHead(200, { ...headers, 'Content-Length': found.size })
             if (req.method === 'HEAD' || found.size === 0) { res.end(); return }
             createReadStream(found.path, { start, end }).on('error', () => res.destroy()).pipe(res)
+            return
+          }
+          if (req.method === 'GET' && pathname === '/api/dsh-tavern/transfer-export') {
+            const token = new URL(req.url, 'http://x').searchParams.get('token') || ''
+            const found = transferExports ? transferExports.take(token) : null
+            if (!found) {
+              res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+              res.end('export expired')
+              return
+            }
+            const name = String(found.filename || 'DSH酒馆备份.dshtransfer').replace(/[\/:*?"<>|\r\n]/g, '_')
+            res.writeHead(200, {
+              'Content-Type': 'application/zip',
+              'Content-Length': found.bytes,
+              'Cache-Control': 'no-store',
+              'X-Content-Type-Options': 'nosniff',
+              'Content-Disposition': 'attachment; filename="backup.dshtransfer"; filename*=UTF-8\'\'' + encodeURIComponent(name)
+            })
+            const stream = found.stream()
+            res.on('close', () => { void transferExports.remove(token); stream.destroy() })
+            stream.on('error', () => res.destroy()).pipe(res)
             return
           }
           if (req.method === 'GET' && pathname === '/api/dsh-tavern/card-export') {

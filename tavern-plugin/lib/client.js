@@ -27968,8 +27968,17 @@ function createTransferFeatureModule() {
 			setError("")
 			setBusy(true)
 			rpc("createTransferExport", { selection, includeImages }, sessionId).then(function (result) {
-				const bytes = Uint8Array.from(atob(result.base64), function (value) { return value.charCodeAt(0) })
-				downloadTavernBlob(new Blob([bytes], { type: "application/zip" }), result.filename)
+				if (result.downloadUrl) {
+					const link = document.createElement("a")
+					link.href = result.downloadUrl
+					link.download = result.filename || "DSH酒馆备份.dshtransfer"
+					document.body.appendChild(link)
+					link.click()
+					link.remove()
+				} else {
+					const bytes = Uint8Array.from(atob(result.base64), function (value) { return value.charCodeAt(0) })
+					downloadTavernBlob(new Blob([bytes], { type: "application/zip" }), result.filename)
+				}
 				setExported({ name: result.filename, bytes: result.bytes, totals: result.totals, parts: result.parts })
 				window.setTimeout(function () { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight }, 30)
 			}, function (err) { setError(String(err && err.message || err)) }).finally(function () { setBusy(false) })
@@ -28162,7 +28171,7 @@ function createTransferFeatureModule() {
 									onChange: function (event) { setPolicy(part.kind, event.target.value) },
 									"aria-label": part.label + " 的导入方式"
 								},
-									h("option", { value: "new" }, overwrite ? "合并设置" : "新建副本"),
+									h("option", { value: "new" }, part.kind === "settings" ? "合并设置" : part.kind === "plugin-data" ? "覆盖数据" : "新建副本"),
 									h("option", { value: "skip" }, "跳过")
 								)
 							)
@@ -28177,7 +28186,7 @@ function createTransferFeatureModule() {
 							h("span", { className: "dsh-tavern-transfer-result-name" }, row.label),
 							h("span", { className: "dsh-tavern-transfer-result-detail" },
 								(row.added ? "新增 " + row.added + " 项" : "") +
-								(row.overwritten ? (row.added ? " · " : "") + "合并 " + row.overwritten + " 项" : "") +
+								(row.overwritten ? (row.added ? " · " : "") + (row.kind === "plugin-data" ? "覆盖 " : "合并 ") + row.overwritten + " 项" : "") +
 								(row.skipped ? (row.added || row.overwritten ? " · " : "") + "跳过 " + row.skipped + " 项" : "") +
 								(failed ? (row.added || row.overwritten || row.skipped ? " · " : "") + failed + " 项失败" : "") +
 								(!row.added && !row.overwritten && !row.skipped && !failed ? "未处理" : "")

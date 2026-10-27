@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { buildTransferManifest, packTransferBundle, readTransferBundle, safeTransferFileName, TRANSFER_EXTENSION } from '../domain/transfer-bundle.js'
 import { createTransferCatalog } from '../domain/transfer-catalog.js'
@@ -7,6 +7,8 @@ import { createTransferChats } from '../domain/transfer-chats.js'
 import { createTransferFonts } from '../domain/transfer-fonts.js'
 import { createTransferImport } from '../domain/transfer-import.js'
 import { createTransferMaterials } from '../domain/transfer-materials.js'
+import { createTransferPluginData } from '../domain/transfer-plugin-data.js'
+import { createTransferSkills } from '../domain/transfer-skills.js'
 import { createTransferPlugins } from '../domain/transfer-plugins.js'
 
 function str(value) {
@@ -17,6 +19,8 @@ function str(value) {
 const TOKEN_TTL_MS = 15 * 60 * 1000
 // P0 bundles carry text only; anything far larger is probably not one of ours.
 const MAX_IMPORT_BYTES = 128 * 1024 * 1024
+// A 16 MB ZIP is already awkward as base64 inside one JSON reply.
+const STREAM_THRESHOLD_BYTES = 16 * 1024 * 1024
 
 function stamp() {
   const now = new Date()
@@ -30,7 +34,7 @@ export function createTransferHandlers(deps) {
   const { dataRoot, uploads, fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile,
     regexManager, readTavernSettings, updateTavernSettings, importCard, importPreset, readCardWorkspace,
     cardPreparation, TAVERN_PACKAGE_VERSION, listTavernSessions, readChat, exportGameSave, importGameSave,
-    userPluginInstaller } = deps
+    userPluginInstaller, pluginDataStore, tavernSkills, transferExports } = deps
 
   async function writeBackup(name, text) {
     const directory = path.join(dataRoot, '..', 'backups', 'transfer', stamp())
@@ -44,6 +48,17 @@ export function createTransferHandlers(deps) {
   const plugins = createTransferPlugins({ pluginsDir: userPluginInstaller.pluginsDir, listPlugins: () => userPluginInstaller.list() })
   const materials = createTransferMaterials({ fileResources })
   const fonts = createTransferFonts({ fontsDir: path.join(dataRoot, 'fonts') })
+  // Plugin data files are keyed by whatever id the plugin chose (often a hash), so the directory
+  // itself is the list — not the installed plugin folders.
+  async function pluginDataEntries() {
+    const names = await readdir(path.join(dataRoot, 'plugin-data')).catch(() => [])
+    return names.filter(name => name.endsWith('.json')).map(name => {
+      const key = name.slice(0, -5)
+      return { folder: key, name: key }
+    })
+  }
+  const pluginData = createTransferPluginData({ pluginDataStore, listPlugins: pluginDataEntries })
+  const skills = createTransferSkills({ skillsDir: path.join(dataRoot, 'skills'), listSkills: () => tavernSkills.list() })
 
   const catalog = createTransferCatalog({
     fileResources,
@@ -60,12 +75,14 @@ export function createTransferHandlers(deps) {
     chats,
     plugins,
     materials,
-    fonts
+    fonts,
+    pluginData,
+    skills
   })
 
   const importer = createTransferImport({
     fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins, materials, fonts
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills
   })
 
   const tokens = new Map()
@@ -89,15 +106,23 @@ export function createTransferHandlers(deps) {
         parts: collected.parts
       })
       const buffer = packTransferBundle({ manifest, files: collected.files })
+      const filename = manifest.name + TRANSFER_EXTENSION
+      const parts = manifest.parts.map(function (part) {
+        return { kind: part.kind, label: part.label, items: part.items.length, bytes: part.bytes }
+      })
+      // Past this size the page downloads by URL instead of carrying base64 through JSON.
+      if (transferExports && buffer.length > STREAM_THRESHOLD_BYTES) {
+        const stored = await transferExports.put(buffer, filename)
+        return { filename, name: manifest.name, downloadUrl: '/api/dsh-tavern/transfer-export?token=' + stored.token,
+          bytes: buffer.length, totals: manifest.totals, parts }
+      }
       return {
-        filename: manifest.name + TRANSFER_EXTENSION,
+        filename,
         name: manifest.name,
         base64: buffer.toString('base64'),
         bytes: buffer.length,
         totals: manifest.totals,
-        parts: manifest.parts.map(function (part) {
-          return { kind: part.kind, label: part.label, items: part.items.length, bytes: part.bytes }
-        })
+        parts
       }
     },
 

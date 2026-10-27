@@ -8,7 +8,7 @@ function stemOf(value) {
   return path.posix.basename(str(value), path.posix.extname(str(value))) || '未命名'
 }
 
-const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins', 'scripts', 'fonts'])
+const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins', 'scripts', 'fonts', 'plugin-data', 'skills'])
 const SETTINGS_PART = 'settings'
 
 /** A name that does not collide: 名字, 名字 (2), 名字 (3), … */
@@ -33,7 +33,7 @@ function errorText(error) {
  */
 export function createTransferImport(deps) {
   const { fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
-    readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts } = deps
+    readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts, pluginData, skills } = deps
 
   async function cardIndex() {
     const names = new Set(), stems = new Set()
@@ -63,6 +63,10 @@ export function createTransferImport(deps) {
     if (materials) for (const row of await materials.list().catch(() => [])) materialNames.add(str(row.title).toLowerCase())
     const fontIds = new Set()
     if (fonts) for (const row of await fonts.list().catch(() => [])) fontIds.add(str(row.key).toLowerCase())
+    const pluginDataNames = new Set()
+    if (pluginData) for (const row of await pluginData.list().catch(() => [])) pluginDataNames.add(str(row.key).toLowerCase())
+    const skillNames = new Set()
+    if (skills) for (const row of await skills.list().catch(() => [])) skillNames.add(str(row.key).toLowerCase())
     return {
       cardNames: new Set([...cards.names].map(value => value.toLowerCase())),
       cardStems: new Set([...cards.stems].map(value => value.toLowerCase())),
@@ -75,7 +79,9 @@ export function createTransferImport(deps) {
       regexIds: new Set((regex.global || []).map(row => str(row.id))),
       pluginFolders,
       materialNames,
-      fontIds
+      fontIds,
+      pluginDataNames,
+      skillNames
     }
   }
 
@@ -92,6 +98,8 @@ export function createTransferImport(deps) {
     if (kind === 'plugins') return index.pluginFolders.has(stemOf(item.entry).toLowerCase()) ? '同文件夹的插件已存在，会加序号' : ''
     if (kind === 'scripts') return index.materialNames.has(title) ? '同名素材已存在，会加序号' : ''
     if (kind === 'fonts') return index.fontIds.has(str(item.key).toLowerCase()) ? '同 id 的字体已存在，会加序号' : ''
+    if (kind === 'plugin-data') return index.pluginDataNames.has(str(item.key).toLowerCase()) ? '同名插件数据会被覆盖（凭据字段已移除）' : ''
+    if (kind === 'skills') return index.skillNames.has(title) ? '同名 Skill 已存在，会加序号' : ''
     if (kind === 'settings') return '按白名单字段合并；写入前备份当前设置'
     return ''
   }
@@ -111,7 +119,7 @@ export function createTransferImport(deps) {
       })
       return { kind: part.kind, label: part.label, importable: true,
         conflicts: items.filter(function (item) { return item.conflict }).length,
-        overwriteAllowed: part.kind === SETTINGS_PART, items }
+        overwriteAllowed: part.kind === SETTINGS_PART || part.kind === 'plugin-data', items }
     })
     return {
       parts,
@@ -126,7 +134,8 @@ export function createTransferImport(deps) {
     const used = {
       cardStems: new Set(index.cardStems), worldStems: new Set(index.worldStems), presetStems: new Set(index.presetStems),
       promptNames: new Set(index.promptNames), profileNames: new Set(index.profileNames),
-      pluginFolders: new Set(index.pluginFolders), materialNames: new Set(index.materialNames), fontIds: new Set(index.fontIds)
+      pluginFolders: new Set(index.pluginFolders), materialNames: new Set(index.materialNames), fontIds: new Set(index.fontIds),
+      pluginDataNames: new Set(index.pluginDataNames), skillNames: new Set(index.skillNames)
     }
     const results = []
     let backupPath = ''
@@ -201,6 +210,20 @@ export function createTransferImport(deps) {
             if (!Array.isArray(scripts) || !scripts.length) throw new Error('包里没有正则')
             const imported = await regexManager.importGlobal({ text: JSON.stringify(scripts), fileName: item.title })
             result.added += Number(imported.imported) || 0
+            continue
+          }
+          if (part.kind === 'plugin-data') {
+            if (!pluginData) throw new Error('插件数据导入不可用')
+            const imported = await pluginData.importOne({ key: item.key, title: item.title, content })
+            used.pluginDataNames.add(str(imported.plugin).toLowerCase())
+            result.overwritten += 1
+            continue
+          }
+          if (part.kind === 'skills') {
+            if (!skills) throw new Error('Skill 导入不可用')
+            const imported = await skills.importOne({ key: item.key, content })
+            used.skillNames.add(str(imported.name).toLowerCase())
+            result.added += 1
             continue
           }
           if (part.kind === 'fonts') {

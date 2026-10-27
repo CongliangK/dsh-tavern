@@ -49,11 +49,12 @@ const PART_DEFS = [
   { kind: 'memory', group: 'story', label: '游玩记忆', unit: '局', supported: false, note: '下一版支持' },
   { kind: 'plugins', group: 'ext', label: '插件', unit: '个', supported: true, privacy: '可执行代码',
     note: '插件文件夹原样打包；导入只复制，不启用、不执行' },
-  { kind: 'plugin-data', group: 'ext', label: '插件数据', unit: '个', supported: false, note: '下一版支持' },
+  { kind: 'plugin-data', group: 'ext', label: '插件数据', unit: '个', supported: true, privacy: '可能含 token',
+    note: '导出时剥离疑似凭据；导入会覆盖对应插件的数据' },
   { kind: 'assets', group: 'ext', label: '素材包与皮肤', unit: '包', supported: false, note: '下一版支持' },
   { kind: 'fonts', group: 'ext', label: '字体', unit: '族', supported: true, note: '只带走自装字体；插件内置字体不重复打包' },
   { kind: 'scripts', group: 'ext', label: '剧本与素材', unit: '个', supported: true, note: '导入的参考资料原样带走；同名导入会加序号' },
-  { kind: 'skills', group: 'ext', label: '写作 Skill', unit: '个', supported: false, note: '下一版支持' },
+  { kind: 'skills', group: 'ext', label: '写作 Skill', unit: '个', supported: true, note: '整目录打包；同名导入会加序号' },
   { kind: 'logs', group: 'ext', label: '诊断日志', unit: '局', supported: false, privacy: '含私人剧情', note: '下一版支持' }
 ]
 
@@ -70,7 +71,7 @@ export const TRANSFER_GROUPS = Object.freeze([
  */
 export function createTransferCatalog(deps) {
   const { fileResources, cardPreparation, readCardWorkspace, worldBooks, presetLibrary, promptDocuments,
-    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins, materials, fonts } = deps
+    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins, materials, fonts, pluginData, skills } = deps
 
   async function sizeOf(relative) {
     try { return await fileSize(relative) } catch { return 0 }
@@ -153,6 +154,8 @@ export function createTransferCatalog(deps) {
   if (plugins) LISTS.plugins = () => plugins.list()
   if (materials) LISTS.scripts = () => materials.list()
   if (fonts) LISTS.fonts = () => fonts.list()
+  if (pluginData) LISTS['plugin-data'] = () => pluginData.list()
+  if (skills) LISTS.skills = () => skills.list()
 
   async function listParts() {
     const parts = []
@@ -259,6 +262,16 @@ export function createTransferCatalog(deps) {
     if (fonts && selected(selection, 'fonts').length) {
       const exports = await fonts.collect(selected(selection, 'fonts'))
       for (const item of exports) add('fonts', '字体', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'font.zip'), item.content)
+    }
+
+    if (pluginData && selected(selection, 'plugin-data').length) {
+      const exports = await pluginData.collect(selected(selection, 'plugin-data'))
+      for (const item of exports) add('plugin-data', '插件数据', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'plugin-data.json'), item.content)
+    }
+
+    if (skills && selected(selection, 'skills').length) {
+      const exports = await skills.collect(selected(selection, 'skills'))
+      for (const item of exports) add('skills', '写作 Skill', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'skill.zip'), item.content)
     }
 
     if (materials && selected(selection, 'scripts').length) {
