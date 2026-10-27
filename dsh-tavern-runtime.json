@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "8cb299944e4982990be68f274138829e90cf4d33",
-  "releaseSequence": 946,
+  "revision": "9f679cf9e0b9e92bed9e8022097bba049352c3f0",
+  "releaseSequence": 947,
   "version": "3.1.0",
   "files": [
     {
@@ -196,8 +196,8 @@
     },
     {
       "path": "bin/installation-location.cjs",
-      "sha256": "ed373a79555631be187e1afbe1133b20bcdc1ce4a9e8a769bb6dff2c38c17bca",
-      "size": 5356
+      "sha256": "80ee1e670c765fc5d0e31de0cb195916c673d411435f9a8b78299a51036b45d3",
+      "size": 7290
     },
     {
       "path": "bin/installation-process.mjs",
@@ -216,8 +216,8 @@
     },
     {
       "path": "bin/launcher-environment.mjs",
-      "sha256": "64159fb05a1e497d11bf1650b70d510428893bd308a402277ca15919364aacec",
-      "size": 11811
+      "sha256": "9e2718707a6f12ce2ae655e8d12376c374ad34d0a0c079854c6949c204c0b270",
+      "size": 11879
     },
     {
       "path": "bin/launcher-settings.mjs",
@@ -246,8 +246,8 @@
     },
     {
       "path": "bin/original-bridge-update.mjs",
-      "sha256": "c5b796daf6a9e0d7d7fd9583e41003b9429e8b47dcc7f6617aa8f7084e0793c6",
-      "size": 9560
+      "sha256": "387bc84396b3ca57804a3e17d9dc51d457a030e4b444105c1dec717782a04f93",
+      "size": 9837
     },
     {
       "path": "bin/plugin-dependencies.mjs",
@@ -411,13 +411,13 @@
     },
     {
       "path": "install.ps1",
-      "sha256": "bc38033f318197093fb9e38bf8d06b6b8f338a5e6c44af3c19aa33c4c12e6e6b",
-      "size": 104386
+      "sha256": "77793b616d003f520b2f30f930bcdf5165b835c3e8757c2581c9cdc8483bf7a9",
+      "size": 107045
     },
     {
       "path": "install.sh",
-      "sha256": "f8eebe94e21bd3e827dca862203c4e2e54002a03652f9e6c76c5834e52b067bc",
-      "size": 78209
+      "sha256": "5e144cb6496e877f9fb5464199fa3d77c78e9c8e117f52ed75e6da49e02378f1",
+      "size": 80143
     },
     {
       "path": "package.json",
@@ -4361,8 +4361,8 @@
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/helper.mjs",
-      "sha256": "a7a68d019c977db4da38df94c60a8a108e046a738f23ae94ca98fd9e9f4a0bac",
-      "size": 17878
+      "sha256": "892c8a4aff884301b50592c05878693dee0e328ef8e978291d56e5d8f83bef76",
+      "size": 18344
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/installation-processes.mjs",
@@ -4371,8 +4371,8 @@
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/installation.mjs",
-      "sha256": "5ef91fb5aa9af3413e5f79858c3d4efe14308a466408606426a3a9a231f8c6bc",
-      "size": 18182
+      "sha256": "c5fc571b48e5f7d87f3e717a872b3ccdf9a115f5ba398e9375f0873af40ff35c",
+      "size": 18883
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/processes.mjs",
@@ -4393,6 +4393,11 @@
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/state.mjs",
       "sha256": "589c4467656e41439e54194e5f344e4a1c5b6a9f51de119c54e2a2b69271296a",
       "size": 10881
+    },
+    {
+      "path": "tavern-plugin/packages/dsh-profile-bridge/lib/trusted-home.mjs",
+      "sha256": "3eb25172d570aa8dcc1d95601f2d9f322d402d308bde2ee4d3cfde3ed3aa0c7a",
+      "size": 2442
     },
     {
       "path": "tavern-plugin/packages/dsh-profile-bridge/lib/windows-quit.ps1",
@@ -5066,9 +5071,9 @@
     }
   ],
   "archive": {
-    "commit": "44605855dcb324f850c7299c459572a3d2edc943",
+    "commit": "c45ce34b1009e72f9944be3f36d04dae9f67fe6a",
     "path": "runtime.zip",
-    "sha256": "11d1f2210097e5c9710eab21be5ace61d73494be1686dfae08e253d3d78289d9",
-    "size": 10500129
+    "sha256": "27b6d491d006e0c42850f8ce075fa73832b59abd58ed30003bf629322bbdeef8",
+    "size": 10503414
   }
 }
