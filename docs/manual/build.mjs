@@ -1,3 +1,4 @@
+import { readMarkdownPages } from './markdown-pages.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { sections, help, overview, gettingStarted, extraPages } from './navigation.mjs'
@@ -52,7 +53,7 @@ export function readTopics(inventory) {
 
 const link = (id, label, cls = '') => `<a class="${cls}" href="#${id}">${escapeHTML(label)}</a>`
 
-export function renderSite(inventory) {
+export function renderSite(inventory, pagesRoot = fileURLToPath(new URL('../pages/', import.meta.url))) {
   const topics = readTopics(inventory), byId = new Map(topics.map(t => [t.key, t]))
   const groups = [gettingStarted, ...sections, help]
   const groupRoute = group => group === gettingStarted ? 'a01' : group.id
@@ -73,9 +74,10 @@ export function renderSite(inventory) {
     if (page.id === 'a01') page.content = introduction
     if (page.id === 'a02') page.content = installation.replaceAll('{{dshVersion}}', adaptedDshVersion)
   }
-  allPages.push(...extraPages)
+  const additionalPages = [...extraPages, ...readMarkdownPages(pagesRoot, groups.map(g => g.id).filter(id => id !== 'getting-started'), [...allPages.map(p => p.id), ...extraPages.map(p => p.id), 'index', 'not-found'])]
+  allPages.push(...additionalPages)
   allPages.sort((a, b) => Number(b.group === gettingStarted.id) - Number(a.group === gettingStarted.id))
-  const navGroup = (group, index) => `<section class="nav-group" data-group="${group.id}"><div class="nav-group-heading">${link(group.id, `${index + 1}. ${group.title}`)}<button class="group-toggle" aria-expanded="true" aria-controls="nav-${group.id}" aria-label="折叠${group.title}">⌄</button></div><div id="nav-${group.id}" class="nav-children">${link(group.id, '概览', 'overview-link')}${extraPages.filter(p => p.group === group.id).map(p => link(p.id, p.title, 'overview-link')).join('')}${group.chapters.map(([name, keys]) => `<details class="chapter"><summary>${escapeHTML(name)}</summary><div>${keys.split(' ').map(key => link(byId.get(key).id, byId.get(key).title)).join('')}</div></details>`).join('')}</div></section>`
+  const navGroup = (group, index) => `<section class="nav-group" data-group="${group.id}"><div class="nav-group-heading">${link(group.id, `${index + 1}. ${group.title}`)}<button class="group-toggle" aria-expanded="true" aria-controls="nav-${group.id}" aria-label="折叠${group.title}">⌄</button></div><div id="nav-${group.id}" class="nav-children">${link(group.id, '概览', 'overview-link')}${additionalPages.filter(p => p.group === group.id).map(p => link(p.id, p.title, 'overview-link')).join('')}${group.chapters.map(([name, keys]) => `<details class="chapter"><summary>${escapeHTML(name)}</summary><div>${keys.split(' ').map(key => link(byId.get(key).id, byId.get(key).title)).join('')}</div></details>`).join('')}</div></section>`
   const article = page => {
     const group = groups.find(g => g.id === page.group)
     const figureList = (pageScreenshots[page.id] || []).map(key => {
@@ -115,7 +117,7 @@ export function renderSite(inventory) {
 <a class="skip-link" href="#main">跳到正文</a>
 <header class="site-header"><a class="brand" href="#a01"><span class="brand-mark" aria-hidden="true"></span><span>DSH Tavern <b>Docs</b></span></a><button class="search-trigger" type="button" hidden>搜索文档 <kbd>⌘ K</kbd></button><nav aria-label="顶部导航">${link('a02', '安装与启动')}${link('index', '功能索引')}${link('help', '帮助')}<a href="https://github.com/flizzywine/dsh-tavern" target="_blank" rel="noopener noreferrer">GitHub ↗</a><button id="theme-toggle" type="button" aria-label="切换深色主题" hidden>◐</button></nav></header>
 <div class="mobile-bar"><button id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">☰ 功能目录</button><span>使用文档</span></div>
-<aside class="sidebar" id="sidebar" aria-label="功能目录"><div class="sidebar-label">使用文档 <span>功能指南</span></div><nav class="getting-started" aria-label="入门指南"><p>从这里开始</p>${link('a01', '产品概览')}${link('a02', '安装与启动')}</nav><nav aria-label="文档目录">${sections.map(navGroup).join('')}</nav><div class="sidebar-bottom">${link('index', '全部功能索引')}${link('help', '帮助与维护')}${link('contributing', '贡献指南')}<p>先开始使用，再按需了解。</p></div></aside>
+<aside class="sidebar" id="sidebar" aria-label="功能目录"><div class="sidebar-label">使用文档 <span>功能指南</span></div><nav class="getting-started" aria-label="入门指南"><p>从这里开始</p>${link('a01', '产品概览')}${link('a02', '安装与启动')}</nav><nav aria-label="文档目录">${sections.map(navGroup).join('')}</nav><div class="sidebar-bottom">${link('index', '全部功能索引')}${link('help', '帮助与维护')}${additionalPages.filter(p => p.group === 'help').map(p => link(p.id, p.title)).join('')}<p>先开始使用，再按需了解。</p></div></aside>
 <div class="page-layout"><main id="main">${allPages.map(article).join('')}<article class="doc-page" id="index" data-title="全部功能索引" data-group="index"><div class="breadcrumb">使用文档 / 索引</div><h1 tabindex="-1">全部功能索引</h1><p class="lead">${topics.length} 个功能与指南主题，按部分逐项查阅。帮助与维护单列。</p>${groups.map(g => `<h2 id="index--${g.id}">${link(groupRoute(g), g.title)}</h2><ul class="topic-list">${orderedTopics.filter(t => owner.get(t.key) === g).map(t => `<li>${link(t.id, t.title)}</li>`).join('')}</ul>`).join('')}</article><article class="doc-page" id="not-found" data-title="没有找到这篇文档" data-group="help"><h1 tabindex="-1">没有找到这篇文档</h1><p>这个链接可能已经变更。请打开${link('index', '全部功能索引')}，或搜索功能名称。</p></article></main><aside class="page-toc" aria-label="本页导航"><p>本页导航</p><nav id="toc-links"></nav><div class="toc-note">按需查阅<br>界面截图均使用公开样例。</div></aside></div>
 <dialog id="search-dialog" aria-labelledby="search-title"><div class="search-header"><label id="search-title" for="doc-search">搜索文档</label><button type="button" id="search-close" aria-label="关闭搜索">Esc</button></div><input id="doc-search" type="search" placeholder="输入功能或操作，例如：重写、世界书…" autocomplete="off"><p id="search-status" role="status"></p><ul id="search-results"></ul></dialog>
 <noscript><div class="noscript-note">未启用 JavaScript：下方按顺序展示全部文字，可通过目录跳转。</div></noscript>
