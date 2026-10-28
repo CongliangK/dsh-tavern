@@ -12,7 +12,13 @@ const digest = skillDigest
 const text = value => String(value ?? '').replace(/\s+/g, ' ').trim()
 const eligible = entry => entry.enabled !== false && !isMvuUpdateEntry(entry) && text(entry.content) && classifyWorldbookEntry(entry).kind === 'static-skill'
 export const WORLDBOOK_SKILL_RESOURCE_ROOT = '/__tavern_worldbook__/'
-const scopeKey = state => digest(JSON.stringify([state.chat.sessionId, state.chat.id, state.chat.cardPath]))
+const legacyScopeKey = state => digest(JSON.stringify([state.chat.sessionId, state.chat.id, state.chat.cardPath]))
+// Shared by source and effective content, never by chat/session identity.
+const sourceKeys = new WeakMap()
+const scopeKey = state => {
+  if (!sourceKeys.has(state)) sourceKeys.set(state, digest(JSON.stringify([state.chat.cardPath || null, [...new Set((state.worldBook?.view?.entries || []).map(e => e.sourcePath).filter(Boolean))].sort(), entriesOf(state)])))
+  return sourceKeys.get(state)
+}
 const members = (state, cluster) => entriesOf(state).filter(entry => cluster.refs.includes(entry.ref))
 const clusterDirectory = cluster => cluster.directoryName
 export function nameWorldbookSkillDirectories(clusters) {
@@ -46,13 +52,12 @@ function abortable(promise, signal) {
   })
 }
 
-/** Per-game discovery with real, derived Skill bundles. JSON is authoritative;
+/** Per-game discovery of source-owned, shared Skill bundles. JSON is authoritative;
  * the host's native read tool reads the synchronized files. */
 export function createWorldbookSkillProvider({ load, directory, catalog = createWorldbookSkillCatalog(), resourcesAvailable = () => true, inlineTokenBudget = 2000 }) {
   if (!Number.isSafeInteger(inlineTokenBudget) || inlineTokenBudget < 0) throw new Error('Invalid inline Skill token budget')
   if (!directory) throw new Error('Worldbook Skill output directory is required')
   const files = createWorldbookSkillFiles(directory)
-  const sessionKeys = new Map()
   const provider = 'tavern-worldbook'
   const scopes = new WeakMap()
   const owners = new Map()
@@ -74,7 +79,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     lookup?.signal?.throwIfAborted()
     if (!lookup?.scope?.session?.id) return null
     const state = await load(lookup.scope)
-    if (state) sourceEntries.delete(state)
+    if (state) { sourceEntries.delete(state); sourceKeys.delete(state) }
     const allowed = state?.chat?.sessionId === lookup.scope.session.id && state.chat.worldbookStrategy === 'native-skills' && resourcesAvailable(lookup.scope)
     track(lookup.scope, allowed ? scopeKey(state) : null)
     return allowed ? state : null
@@ -104,8 +109,6 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     for (;;) {
       const state = await stateFor(lookup)
       if (!state) {
-        const previous = sessionKeys.get(lookup?.scope?.session?.id)
-        if (previous) { sessionKeys.delete(lookup.scope.session.id); await files.remove(previous) }
         return null
       }
       const version = versionOf(state), key = scopeKey(state)
@@ -116,18 +119,14 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       if (scopeKey(latest) !== key || versionOf(latest) !== version) continue
       compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters.map(cluster => ({ ...cluster, previousTitle: cluster.title, ...describeWorldbookCluster(members(latest, cluster)), ...layout(members(latest, cluster)) }))) }
       const cardName = latest.chat.cardPath ? path.parse(latest.chat.cardPath).name : latest.worldBook.view.displayName
-      await files.assign(key, cardName || '世界书')
+      await files.assign(key, cardName || '世界书', { legacyKey: legacyScopeKey(latest), versioned: true })
       const prepared = documents(latest, compiled)
       await files.sync(key, prepared)
       const verified = await stateFor(lookup)
       if (!verified || scopeKey(verified) !== key || versionOf(verified) !== version) {
-        await files.remove(key)
         if (!verified) return null
         continue
       }
-      const previousKey = sessionKeys.get(verified.chat.sessionId)
-      sessionKeys.set(verified.chat.sessionId, key)
-      if (previousKey && previousKey !== key) await files.remove(previousKey)
       return { state: verified, compiled, documents: prepared }
     }
   }
@@ -171,11 +170,9 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))
     },
     async authorizeRead(resourcePath, lookup) { return Boolean(await resource(resourcePath, lookup)) },
-    async removeChat(chat) {
-      if (!chat) return
-      const key = sessionKeys.get(chat.sessionId) || scopeKey({ chat })
-      sessionKeys.delete(chat.sessionId)
-      await files.remove(key)
+    async removeChat() {
+      // These are source-owned bundles. Deleting a chat must not remove files
+      // still used by another chat or its saved source snapshot.
     },
     async refresh(scope, { signal } = {}) {
       if (!scope || typeof scope !== 'object') return false
@@ -192,16 +189,16 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       return { directory: files.directory(scopeKey(result.state)), book: result.state.worldBook.view.displayName, metrics: result.compiled.metrics, inlineTokenBudget,
         clusters: result.compiled.clusters.map(cluster => {
           const item = candidate(result.state, cluster)
-          return { name: item.name, legacyName: `wb-${scopeKey(result.state)}-${cluster.id}`, title: cluster.title, inline: cluster.inline, estimatedTokens: cluster.estimatedTokens, keywords: cluster.keywords, guide: guide(result.state, cluster), directory: item.resourceBase.path,
+          return { name: item.name, legacyName: `wb-${legacyScopeKey(result.state)}-${cluster.id}`, title: cluster.title, inline: cluster.inline, estimatedTokens: cluster.estimatedTokens, keywords: cluster.keywords, guide: guide(result.state, cluster), directory: item.resourceBase.path,
             entries: entries.filter(entry => cluster.refs.includes(entry.ref)).map(entry => ({
               ref: entry.ref, inline: cluster.inline, inlineText: cluster.inline ? `## ${worldbookEntryTitle(entry)}\n\n${String(entry.content ?? '')}\n` : undefined, title: worldbookEntryTitle(entry),
               source: entry.sourcePath, uid: entry.sourceUid,
               path: path.join(item.resourceBase.path, cluster.inline ? 'SKILL.md' : referenceFile(entry, members(result.state, cluster))),
               referencePath: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),
-              previousRootPath: path.join(files.root, scopeKey(result.state), clusterDirectory(cluster), referenceFile(entry, members(result.state, cluster))),
-              previousPath: path.join(files.root, scopeKey(result.state), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
-              previousShortPath: path.join(files.root, scopeKey(result.state), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), referenceFile(entry, members(result.state, cluster))),
-              legacyPath: `${WORLDBOOK_SKILL_RESOURCE_ROOT}${scopeKey(result.state)}/${cluster.id}/entries/${digest(entry.ref)}.md`
+              previousRootPath: path.join(files.root, legacyScopeKey(result.state), clusterDirectory(cluster), referenceFile(entry, members(result.state, cluster))),
+              previousPath: path.join(files.root, legacyScopeKey(result.state), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
+              previousShortPath: path.join(files.root, legacyScopeKey(result.state), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), referenceFile(entry, members(result.state, cluster))),
+              legacyPath: `${WORLDBOOK_SKILL_RESOURCE_ROOT}${legacyScopeKey(result.state)}/${cluster.id}/entries/${digest(entry.ref)}.md`
             })) }
         }) }
     },

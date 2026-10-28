@@ -35,7 +35,7 @@ export function createWorldbookSkillFiles(root) {
   }
   return {
     root, directory,
-    assign(key, label) {
+    assign(key, label, { legacyKey, versioned = false } = {}) {
       return serial(key, async () => {
         if (names.has(key)) return
         directory(key) // Validate the internal identity before any filesystem work.
@@ -43,14 +43,16 @@ export function createWorldbookSkillFiles(root) {
         for (const entry of await fs.readdir(root, { withFileTypes: true })) {
           if (!entry.isDirectory() || entry.name.startsWith('.')) continue
           try {
-            if ((await fs.readFile(path.join(root, entry.name, '.scope-id'), 'utf8')) === key) {
+            const owner = await fs.readFile(path.join(root, entry.name, '.scope-id'), 'utf8')
+            if (owner === key || owner === legacyKey) {
+              if (owner !== key) await fs.writeFile(path.join(root, entry.name, '.scope-id'), key)
               names.set(key, entry.name); return
             }
           } catch (e) { if (e.code !== 'ENOENT') throw e }
         }
         const base = skillFileLabel(label)
         for (let number = 1; ; number++) {
-          const name = number === 1 ? base : `${base}--${number}`
+          const name = number === 1 ? base : versioned ? `${base}（资料版本${number}）` : `${base}--${number}`
           try { await fs.mkdir(path.join(root, name)) }
           catch (e) { if (e.code === 'EEXIST') continue; throw e }
           await fs.writeFile(path.join(root, name, '.scope-id'), key, { flag: 'wx' })

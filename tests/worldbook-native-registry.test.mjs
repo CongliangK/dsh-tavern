@@ -152,7 +152,7 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   assert.equal((await discover(cold)).name, ra.name)
   success(await read(cold, ra.entry))
   states.get(a).chat.id = 'different-chat'
-  failure(await read(a, ra.entry))
+  success(await read(a, ra.entry)) // Chat identity no longer owns the source bundle.
   states.get(a).chat.id = 'game-a-chat'
   states.get(a).worldBook.view.entries = []
   failure(await read(cold, ra.entry))

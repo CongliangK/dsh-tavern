@@ -28,7 +28,7 @@ test('cluster catalog and SKILL contain metadata only; entry resources preserve 
   const a = await f.paths('one'), b = await f.paths('two')
   assert.equal(a.skill.name, 'cheng-men-shou-wei')
   assert.equal(a.skill.name, b.skill.name)
-  assert.notEqual(a.base, b.base)
+  assert.equal(a.base, b.base)
   const guide = await f.provider.get(a.skill, f.lookup('one'))
   assert.doesNotMatch(JSON.stringify(await f.provider.list(f.lookup('one'))), /PRIVATE FULL BODY/)
   assert.doesNotMatch(guide.content, /PRIVATE FULL BODY/)
@@ -43,7 +43,7 @@ test('cluster catalog and SKILL contain metadata only; entry resources preserve 
 test('all reads revalidate current game, source edits, disabled entries, strategy and card switches', async t => {
   const f = fixture(t), a = await f.paths('one'), state = f.states.get('one'), entry = state.worldBook.view.entries[0]
   assert.equal(await f.provider.get(a.skill, f.lookup('two')), undefined)
-  assert.equal(await f.provider.readResource(a.entry, f.lookup('two')), undefined)
+  assert.equal(await f.provider.readResource(a.entry, f.lookup('two')), entry.content)
   assert.equal(await f.provider.readResource(a.entry, { scope: { session: { id: 'one' }, background: true } }), undefined)
   assert.deepEqual((await f.provider.list({})).candidates, [])
   entry.content = 'EDITED EXACT\n'; const edited = await f.paths('one'); assert.equal(await f.provider.readResource(edited.entry, f.lookup('one')), entry.content)
@@ -90,6 +90,7 @@ test('read guard delegates real files to native IO and denies cross-game and leg
   const run = (file, agent = f.scopes.get('one')) => handler({ name: 'read', arguments: { file_path: file }, agent }, async () => { nativeReads++; return fs.readFile(file, 'utf8') })
   assert.equal(await run(a.entry), f.states.get('one').worldBook.view.entries[0].content)
   assert.equal(nativeReads, 1)
+  f.states.get('two').chat.cardPath = 'cards/different.json'
   await assert.rejects(run(a.entry, f.scopes.get('two')), /no longer available/)
   await assert.rejects(run(a.base + '/../SKILL.md'), /no longer available/)
   await assert.rejects(run(a.entry, null), /current game/)
@@ -97,22 +98,21 @@ test('read guard delegates real files to native IO and denies cross-game and leg
   assert.equal(nativeReads, 1)
 })
 
-test('source edits, disable, card changes and removal synchronize real files', async t => {
-  const f = fixture(t), a = await f.paths('one'), state = f.states.get('one')
+test('source snapshots share bundles across chats and survive chat deletion without overwriting', async t => {
+  const f = fixture(t), a = await f.paths('one'), b = await f.paths('two'), state = f.states.get('one')
+  assert.equal(a.entry, b.entry)
+  const original = state.worldBook.view.entries[0].content
   state.worldBook.view.entries[0].content = 'UPDATED\n'
-  await f.provider.refresh(f.scopes.get('one'))
-  assert.equal(await fs.readFile(a.entry, 'utf8'), 'UPDATED\n')
-  state.worldBook.view.entries[0].enabled = false
-  await f.provider.refresh(f.scopes.get('one'))
-  await assert.rejects(fs.access(a.entry))
-  state.worldBook.view.entries[0].enabled = true
-  const b = await f.paths('one')
-  state.chat.cardPath = 'cards/other.json'
-  const c = await f.paths('one')
-  assert.notEqual(c.entry, b.entry)
-  await assert.rejects(fs.access(b.entry))
+  const edited = await f.paths('one')
+  assert.notEqual(edited.entry, a.entry)
+  assert.equal(await fs.readFile(edited.entry, 'utf8'), 'UPDATED\n')
+  assert.equal(await f.provider.readResource(a.entry, f.lookup('two')), original)
+  assert.equal(await f.provider.readResource(edited.entry, f.lookup('two')), undefined)
   await f.provider.removeChat(state.chat)
-  await assert.rejects(fs.access(c.entry))
+  assert.equal(await f.provider.readResource(b.entry, f.lookup('two')), original)
+  await fs.access(edited.entry)
+  state.worldBook.view.entries[0].enabled = false
+  assert.equal(await f.provider.readResource(edited.entry, f.lookup('one')), undefined)
 })
 
 test('derived-file edits are restored; symlink escapes are denied', async t => {
@@ -173,7 +173,7 @@ test('inspector shares actual catalog, excludes bodies and revalidates entry pat
   assert.doesNotMatch(JSON.stringify(view), /PRIVATE FULL BODY/)
   const entry = view.clusters[0].entries[0]
   assert.equal(await f.provider.readResource(entry.path, f.lookup('one')), f.states.get('one').worldBook.view.entries[0].content)
-  assert.equal(await f.provider.readResource(entry.path, f.lookup('two')), undefined)
+  assert.equal(await f.provider.readResource(entry.path, f.lookup('two')), f.states.get('two').worldBook.view.entries[0].content)
   f.states.get('one').chat.worldbookStrategy = 'legacy'
   assert.equal(await f.provider.inspect(f.lookup('one')), null)
 })
@@ -239,7 +239,7 @@ test('short groups inline exact originals; crossing 2000 estimated tokens switch
   entry.content = '  短原文\n\n末尾空格  '
   view = (await f.provider.inspect(f.lookup('one'))).clusters[0]
   assert.equal(view.inline, true); assert.ok(view.guide.includes(entry.content))
-  await assert.rejects(fs.access(oldReference))
+  await fs.access(oldReference) // Another chat may still use this source snapshot.
   assert.equal(await f.provider.readResource(oldReference, f.lookup('one')), undefined)
 })
 
