@@ -21,7 +21,7 @@ export function createWorldbookSkillCatalog({ debounceMs = 750, workerFactory = 
     state.timer = null
     if (disposed || scopes.get(key) !== state || state.generation !== generation) return
     let worker
-    try { worker = workerFactory({ entries, options: { ...compileOptions, previousClusters: state.catalog?.clusters || [] } }) }
+    try { worker = workerFactory({ entries, options: { preserveMembership: true, ...compileOptions, previousClusters: state.catalog?.clusters || state.seedClusters || [] } }) }
     catch (error) { state.pendingHash = null; settle(state, error); return }
     state.worker = worker
     let completed = false
@@ -42,14 +42,14 @@ export function createWorldbookSkillCatalog({ debounceMs = 750, workerFactory = 
     worker.once('exit', code => { if (!completed) finish(new Error(`Worldbook clustering worker exited before a result (${code})`)) })
   }
   return {
-    update(key, input) {
+    update(key, input, { previousClusters = [] } = {}) {
       if (disposed) return Promise.reject(new Error('Worldbook skill catalog disposed'))
       if (typeof key !== 'string' || !key) return Promise.reject(new Error('Worldbook skill scope key is required'))
       let entries
       try { entries = structuredClone(input) } catch (error) { return Promise.reject(error) }
       const inputHash = worldbookClusterInputHash(entries)
       let state = scopes.get(key)
-      if (!state) { state = { generation: 0, catalog: null, pendingHash: null, worker: null, timer: null, waiters: [], started: false }; scopes.set(key, state) }
+      if (!state) { state = { generation: 0, catalog: null, pendingHash: null, worker: null, timer: null, waiters: [], started: previousClusters.length > 0, seedClusters: structuredClone(previousClusters) }; scopes.set(key, state) }
       if (!state.pendingHash && state.catalog?.inputHash === inputHash) return Promise.resolve(state.catalog)
       const result = new Promise((resolve, reject) => state.waiters.push({ resolve, reject }))
       if (state.pendingHash === inputHash) return result

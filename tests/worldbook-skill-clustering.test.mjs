@@ -165,3 +165,17 @@ test('bracketed author paths form readable broad categories instead of tiny city
   assert.equal(result.clusters.length, 2)
   assert.ok(result.clusters.some(c => c.refs.length === 3))
 })
+
+test('incremental membership keeps edited and unrelated groups stable while accepting additions/deletions', () => {
+  const initial = [entry('a','港口船厂',{title:'王国·港口'}),entry('b','农田',{title:'王国·农田'}),entry('c','医术药剂',{title:'医术·药剂'}),entry('d','止血',{title:'医术·止血'})]
+  const first = compileWorldbookSkillClusters(initial)
+  const modified = [{...initial[0],content:'彻底改写正文'},initial[2],initial[3],entry('e','新城镇',{title:'王国·新城'})]
+  const next = compileWorldbookSkillClusters(modified,{previousClusters:first.clusters,preserveMembership:true})
+  for(const old of first.clusters)assert.equal(next.clusters.find(c=>c.refs.includes(old.refs[0])).id,old.id)
+  assert.ok(next.clusters.some(c=>c.refs.includes('a')&&c.refs.includes('e')))
+  assert.deepEqual(next.clusters.flatMap(c=>c.refs).sort(),['a','c','d','e'])
+  assert.equal(next.metrics.incremental,true)
+  const bodyOnly=compileWorldbookSkillClusters(modified.map(e=>({...e,content:'changed'})),{previousClusters:next.clusters,preserveMembership:true})
+  assert.deepEqual(bodyOnly.clusters.map(c=>[c.id,c.refs]),next.clusters.map(c=>[c.id,c.refs]))
+  assert.equal(bodyOnly.metrics.addedEntries,0)
+})

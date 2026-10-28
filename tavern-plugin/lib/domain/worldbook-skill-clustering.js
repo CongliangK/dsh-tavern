@@ -204,12 +204,61 @@ function capCommunities(sets, vectors, limit) {
   return groups.map(group => group.indices)
 }
 
-export function compileWorldbookSkillClusters(input, { previousClusters = [], maxSkills = 29, maxEntries = Number.MAX_SAFE_INTEGER, maxCharacters = Number.MAX_SAFE_INTEGER, resolution = 0.02, respectSourceCategories = true, ...graphOptions } = {}) {
+function updateMembership(entries, previousClusters, maxSkills) {
+  const byRef = new Map(entries.map(entry => [entry.ref, entry]))
+  const assigned = new Set()
+  const clusters = previousClusters.map(cluster => ({ ...cluster, refs: cluster.refs.filter(ref => {
+    if (!byRef.has(ref) || assigned.has(ref)) return false
+    assigned.add(ref); return true
+  }) })).filter(cluster => cluster.refs.length)
+  if (clusters.length > maxSkills) return null
+  const additions = entries.filter(entry => !assigned.has(entry.ref))
+  const newClusters = additions.length ? compileWorldbookSkillClusters(additions, { maxSkills }).clusters : []
+  const parent = entry => { const parts = worldbookTitleParts(worldbookEntryTitle(entry)); return parts.length > 1 ? parts[0] : '' }
+  // Body-only edits and deletions never rebuild the similarity graph.
+  const vectors = additions.length ? buildWorldbookSimilarityGraph(entries).vectors : []
+  const indices = new Map(entries.map((entry, index) => [entry.ref, index]))
+  const sum = refs => {
+    const vector = new Map()
+    for (const ref of refs) for (const [term, weight] of vectors[indices.get(ref)]) vector.set(term, (vector.get(term) || 0) + weight)
+    const norm = Math.sqrt([...vector.values()].reduce((n, value) => n + value * value, 0)) || 1
+    return new Map([...vector].map(([term, weight]) => [term, weight / norm]))
+  }
+  for (const added of newClusters) {
+    const parents = new Set(added.refs.map(ref => parent(byRef.get(ref))).filter(Boolean))
+    let target = parents.size === 1 ? clusters.find(cluster => cluster.refs.some(ref => parents.has(parent(byRef.get(ref))))) : undefined
+    if (!target && clusters.length < maxSkills) {
+      const base = added.id
+      let suffix = 2
+      while (clusters.some(cluster => cluster.id === added.id)) added.id = `${base}-${suffix++}`
+      clusters.push(added); continue
+    }
+    if (!target) {
+      const vector = sum(added.refs)
+      let score = -1
+      for (const cluster of clusters) {
+        const other = sum(cluster.refs)
+        let similarity = 0
+        for (const [term, weight] of vector) similarity += weight * (other.get(term) || 0)
+        if (similarity > score + EPS) { score = similarity; target = cluster }
+      }
+    }
+    target.refs = [...target.refs, ...added.refs].sort(compare)
+  }
+  return { clusters, entryHashes: Object.fromEntries(entries.map(entry => [entry.ref, worldbookEntryHash(entry)])), inputHash: worldbookClusterInputHash(entries),
+    metrics: { entries: entries.length, clusters: clusters.length, maxSkills, incremental: true, addedEntries: additions.length } }
+}
+
+export function compileWorldbookSkillClusters(input, { previousClusters = [], preserveMembership = false, maxSkills = 29, maxEntries = Number.MAX_SAFE_INTEGER, maxCharacters = Number.MAX_SAFE_INTEGER, resolution = 0.02, respectSourceCategories = true, ...graphOptions } = {}) {
   if (!Number.isInteger(maxSkills) || maxSkills < 1 || maxSkills > 29) throw new Error('Skill count limit must be an integer between 1 and 29')
   const started = performance.now()
   const entries = [...input].sort((a, b) => compare(String(a.ref), String(b.ref)))
   if (new Set(entries.map(e => e.ref)).size !== entries.length) throw new Error('Worldbook entry refs must be unique')
   if (!Number.isInteger(maxEntries) || maxEntries < 1 || !Number.isInteger(maxCharacters) || maxCharacters < 1) throw new Error('Cluster size limits must be finite positive integers')
+  if (preserveMembership && previousClusters.length && maxEntries === Number.MAX_SAFE_INTEGER && maxCharacters === Number.MAX_SAFE_INTEGER) {
+    const updated = updateMembership(entries, previousClusters, maxSkills)
+    if (updated) return { ...updated, metrics: { ...updated.metrics, elapsedMs: performance.now() - started } }
+  }
   const { adjacency, vectors, vocabularySize } = buildWorldbookSimilarityGraph(entries, graphOptions)
   let refinements = 0; let refinedSplits = 0; let aggregations = 0
   // maxCharacters counts original-content UTF-16 code units, excluding metadata.

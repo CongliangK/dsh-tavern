@@ -1,3 +1,4 @@
+import { sessionEvents } from './session-events.js'
 import fs from 'node:fs/promises'
 import { estimateWorldBookTokens } from './worldbook-activation.js'
 import { describeWorldbookCluster, worldbookEntryTitle, worldbookSkillSlug } from './worldbook-skill-labels.js'
@@ -20,10 +21,18 @@ const scopeKey = state => {
 }
 const members = (state, cluster) => entriesOf(state).filter(entry => cluster.refs.includes(entry.ref))
 const clusterDirectory = cluster => cluster.directoryName
-export function nameWorldbookSkillDirectories(clusters) {
+export function nameWorldbookSkillDirectories(clusters, previousClusters = []) {
   const used = new Set(), names = new Map(), slugs = new Map(), usedSlugs = new Set()
+  const previous = new Map(previousClusters.map(cluster => [cluster.id, cluster]))
+  for (const cluster of clusters) {
+    const old = previous.get(cluster.id)
+    if (!old?.directoryName || !old?.skillName) continue
+    names.set(cluster.id, old.directoryName); used.add(old.directoryName.toLocaleLowerCase('en-US'))
+    slugs.set(cluster.id, old.skillName); usedSlugs.add(old.skillName)
+  }
   // Stable ordering makes collision suffixes independent of catalog display order.
   for (const cluster of [...clusters].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (names.has(cluster.id)) continue
     const base = skillFileLabel(cluster.title.replace(/[\s·]+/g, '、'))
     let name = base, suffix = 2
     while (used.has(name.toLocaleLowerCase('en-US'))) name = `${base}--${suffix++}`
@@ -100,6 +109,32 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     const chars = Array.from(description)
     return chars.length <= 100 ? description : chars.slice(0, 99).join('') + '…'
   }
+  const layouts = new WeakMap()
+  const publishedNames = new Map()
+  const sourceIdentity = source => source?.kind === 'merged'
+    ? ['merged', (source.sources || []).map(sourceIdentity)]
+    : [source?.kind || '', source?.cardPath || source?.path || '']
+  const familyKey = state => digest(JSON.stringify([state.chat.cardPath, state.worldBook?.mergedSources
+    ? state.worldBook.mergedSources.map(book => sourceIdentity(book.source)) : sourceIdentity(state.worldBook?.source)]))
+  function entryIdentity(state, entry) {
+    if (entry.plugin) return entry.ref
+    const origin = state.worldBook?.mergedSources?.find(book => book.entries.some(item => String(item.uid) === String(entry.sourceUid)))
+    const uid = origin?.entries.find(item => String(item.uid) === String(entry.sourceUid))?.originalUid ?? entry.sourceUid ?? entry.ref
+    return JSON.stringify([sourceIdentity(origin?.source || state.worldBook?.source), uid])
+  }
+  function identities(state) {
+    return entriesOf(state).map(entry => ({ ref: entry.ref, identity: entryIdentity(state, entry) }))
+  }
+  function previousLayout(scope, family, state) {
+    const cached = layouts.get(scope)
+    const saved = cached?.family === family ? cached : [...sessionEvents(scope?.session)].reverse()
+      .find(event => event.data?.source?.worldbookSkills?.family === family)?.data.source.worldbookSkills
+    if (!saved) return []
+    const old = new Map((saved.identities || []).map(entry => [entry.ref, entry.identity]))
+    const current = new Map(identities(state).map(entry => [entry.identity, entry.ref]))
+    return (saved.clusters || saved.layout || []).map(cluster => ({ ...cluster,
+      refs: cluster.refs.map(ref => current.get(old.get(ref))).filter(ref => ref !== undefined) }))
+  }
   const operations = new Map()
   async function current(lookup) {
     const id = lookup?.scope?.session?.id || ''
@@ -116,12 +151,14 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
         return null
       }
       const version = versionOf(state), key = scopeKey(state)
-      let compiled = await abortable(catalog.update(key, entriesOf(state)), lookup?.signal)
+      const family = familyKey(state), previous = previousLayout(lookup.scope, family, state)
+      let compiled = await abortable(catalog.update(key, entriesOf(state), { previousClusters: previous }), lookup?.signal)
       lookup?.signal?.throwIfAborted()
       const latest = await stateFor(lookup)
       if (!latest) return null
       if (scopeKey(latest) !== key || versionOf(latest) !== version) continue
-      compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters.map(cluster => ({ ...cluster, previousTitle: cluster.title, ...describeWorldbookCluster(members(latest, cluster)), ...layout(members(latest, cluster)) }))) }
+      compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters.map(cluster => ({ ...cluster, previousTitle: cluster.title, ...describeWorldbookCluster(members(latest, cluster)), ...layout(members(latest, cluster)) })), publishedNames.get(key) || previous) }
+      publishedNames.set(key, compiled.clusters.map(({ id, directoryName, skillName }) => ({ id, directoryName, skillName })))
       const cardName = latest.chat.cardPath ? path.parse(latest.chat.cardPath).name : latest.worldBook.view.displayName
       await files.assign(key, cardName || '世界书', { legacyKey: legacyScopeKey(latest), versioned: true })
       const prepared = documents(latest, compiled)
@@ -131,10 +168,12 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
         if (!verified) return null
         continue
       }
+      layouts.set(lookup.scope, { family, identities: identities(verified), clusters: compiled.clusters.map(({ id, refs, keywords, title, description, directoryName, skillName }) => ({ id, refs, keywords, title, description, directoryName, skillName })) })
       return { state: verified, compiled, documents: prepared }
     }
   }
   const versions = new WeakMap()
+  const snapshots = new WeakMap()
   function layout(entries) {
     const estimatedTokens = entries.reduce((n, entry) => n + estimateWorldBookTokens(entry.content), 0)
     return { estimatedTokens, inline: inlineTokenBudget > 0 && estimatedTokens <= inlineTokenBudget }
@@ -189,10 +228,15 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       if (!scope || typeof scope !== 'object') return false
       const result = await current({ scope, signal })
       const candidates = result ? result.compiled.clusters.map(cluster => candidate(result.state, cluster)) : []
+      const snapshot = result ? { directory: files.directory(scopeKey(result.state)), entries: entriesOf(result.state).map(entry => ({ ref: entryIdentity(result.state, entry), title: worldbookEntryTitle(entry), hash: digest(JSON.stringify([worldbookEntryTitle(entry), entry.content, entry.primaryKeys, entry.secondaryKeys])) })) } : { directory: '', entries: [] }
+      snapshot.version = digest(JSON.stringify(snapshot))
+      if (result) { snapshot.family = familyKey(result.state); snapshot.layout = layouts.get(scope)?.clusters || []; snapshot.identities = layouts.get(scope)?.identities || [] }
+      snapshots.set(scope, snapshot)
       const version = JSON.stringify(candidates), previous = versions.get(scope)
       versions.set(scope, version)
       return previous === undefined ? candidates.length > 0 : previous !== version
     },
+    changeSnapshot(scope) { return snapshots.get(scope) },
     async inspect(lookup) {
       const result = await current(lookup)
       if (!result) return null
@@ -239,8 +283,8 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       return file ? fs.readFile(file, 'utf8') : undefined
     },
     dispose(scope) {
-      if (scope) { track(scope, null); versions.delete(scope) }
-      else { catalog.dispose(); owners.clear() }
+      if (scope) { track(scope, null); versions.delete(scope); snapshots.delete(scope); layouts.delete(scope) }
+      else { catalog.dispose(); owners.clear(); publishedNames.clear() }
     }
   }
 }

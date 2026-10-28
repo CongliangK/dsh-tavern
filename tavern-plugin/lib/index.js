@@ -1,3 +1,4 @@
+import { appendWorldbookSkillChanges } from './domain/worldbook-skill-changes.js'
 // Must stay first: it has to run before anything loads jsdom.
 import { createSessionViewProjection } from './domain/session-view-projection.js'
 import { createNetworkToolPolicy, installNetworkToolPolicy } from './domain/network-tools.js'
@@ -1944,6 +1945,10 @@ export async function apply(ctx) {
   // Provider.get still revalidates, so an old catalog never authorizes a stale read.
   ctx.on('agent/pre-step', async (payload, next) => {
     if (await worldbookSkillProvider.refresh(payload.agent, { signal: payload.signal })) invalidateWorldbookSkills()
+    const snapshot = worldbookSkillProvider.changeSnapshot(payload.agent)
+    if (snapshot && (snapshot.entries.length || sessionEvents(payload.agent.session).some(event => event.data?.source?.worldbookSkills))) {
+      if (appendWorldbookSkillChanges(payload, snapshot)) await sessionStore.flush(payload.agent.session)
+    }
     return next()
   }, { prepend: true })
   const searchWorldbook = createWorldbookSearch({
