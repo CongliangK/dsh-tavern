@@ -23,3 +23,11 @@ test('RPC validates loaded game, scopes reads and paginates without losing aggre
   await assert.rejects(rpc.readWorldbookSkillSource({ sessionId: 'one', path: 'other-game' }), /不属于本局/)
   assert.equal((await rpc.readWorldbookSkillSource({ sessionId: 'one', path: 'allowed' })).content, ' exact\n')
 })
+
+
+test('physical references and historical virtual paths are both visible, ordinary filesystem reads excluded', () => {
+  const root = '/profile/worldbook-skills'
+  const events = [call('new', 'read', { file_path: root + '/game/武市/references/武市--51.md' }), result('new'), call('old', 'read', { file_path: '/__tavern_worldbook__/game/topic/entries/hash.md' }), result('old'), call('other', 'read', { file_path: '/other/references/file.md' })]
+  const records = worldbookReadHistory(events, root)
+  assert.deepEqual(records.map(r => [r.id, r.reference, r.status]), [['old', true, 'success'], ['new', true, 'success']])
+})

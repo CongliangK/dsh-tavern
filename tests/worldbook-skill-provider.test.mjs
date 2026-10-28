@@ -1,32 +1,39 @@
+import { mkdtempSync } from 'node:fs'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createWorldbookSkillProvider } from '../tavern-plugin/lib/domain/worldbook-skill-provider.js'
 import { compileWorldbookSkillClusters } from '../tavern-plugin/lib/domain/worldbook-skill-clustering.js'
 import { installWorldbookSkillRead, nativeWorldbookReadAvailable } from '../tavern-plugin/lib/domain/worldbook-skill-read.js'
 
+function outputDirectory(t) { const dir = mkdtempSync(path.join(os.tmpdir(), 'wb-skills-')); t.after(() => fs.rm(dir, {recursive:true,force:true})); return dir }
 function fixture(t, extra = {}) {
   const entry = { ref: 'merged:42', sourceUid: 7, sourcePath: 'worldbooks/source.json', title: '城门守卫', primaryKeys: ['城门'], secondaryKeys: ['通行'], content: '  PRIVATE FULL BODY\n\n原文末尾  ', enabled: true }
   const states = new Map(['one', 'two'].map(sessionId => [sessionId, { chat: { id: sessionId, sessionId, cardPath: 'cards/a.json', worldbookStrategy: 'native-skills' }, worldBook: { view: { displayName: 'Current book', entries: [structuredClone(entry)] } } }]))
   const scopes = new Map([...states.keys()].map(id => [id, { session: { id } }]))
   const results = new Map()
   const catalog = { async update(key, entries) { const next = compileWorldbookSkillClusters(entries, { previousClusters: results.get(key)?.clusters }); results.set(key, next); return next }, dispose(key) { if (key) results.delete(key); else results.clear() } }
-  const provider = createWorldbookSkillProvider({ load: async scope => scope.background ? null : states.get(scope.session.id), catalog, ...extra })
+  const provider = createWorldbookSkillProvider({ directory: outputDirectory(t), load: async scope => scope.background ? null : states.get(scope.session.id), catalog, ...extra })
   t.after(() => provider.dispose())
   const lookup = id => ({ scope: scopes.get(id) || { session: { id } } })
   const candidate = async id => (await provider.list(lookup(id))).candidates[0]
-  const paths = async id => { const skill = await candidate(id); const base = skill.resourceBase.path; const index = await provider.readResource(base + '/INDEX.md', lookup(id)); return { skill, base, entry: base + '/' + index.match(/entries\/[a-f0-9]+\.md/)[0] } }
+  const paths = async id => { const skill = await candidate(id); const base = skill.resourceBase.path; const entry = (await provider.inspect(lookup(id))).clusters.find(c => c.name === skill.name).entries[0].path; return { skill, base, entry } }
   return { states, scopes, provider, lookup, candidate, paths }
 }
 
-test('cluster catalog and SKILL/INDEX contain metadata only; entry resources preserve exact original bytes', async t => {
+test('cluster catalog and SKILL contain metadata only; entry resources preserve exact original bytes', async t => {
   const f = fixture(t), before = structuredClone([...f.states])
   const a = await f.paths('one'), b = await f.paths('two')
   assert.notEqual(a.skill.name, b.skill.name)
   const guide = await f.provider.get(a.skill, f.lookup('one'))
   assert.doesNotMatch(JSON.stringify(await f.provider.list(f.lookup('one'))), /PRIVATE FULL BODY/)
   assert.doesNotMatch(guide.content, /PRIVATE FULL BODY/)
-  assert.match(guide.content, /INDEX.md/)
-  assert.doesNotMatch(await f.provider.readResource(a.base + '/INDEX.md', f.lookup('one')), /PRIVATE FULL BODY/)
+  assert.match(guide.content, /references\/城门守卫--7.md/)
+  assert.doesNotMatch(guide.content, /INDEX.md|阅读顺序/)
+  await assert.rejects(fs.access(path.join(a.base, 'INDEX.md')))
+  assert.equal(await fs.readFile(a.entry, 'utf8'), f.states.get('one').worldBook.view.entries[0].content)
   assert.equal(await f.provider.readResource(a.entry, f.lookup('one')), f.states.get('one').worldBook.view.entries[0].content)
   assert.deepEqual([...f.states], before)
 })
@@ -37,7 +44,7 @@ test('all reads revalidate current game, source edits, disabled entries, strateg
   assert.equal(await f.provider.readResource(a.entry, f.lookup('two')), undefined)
   assert.equal(await f.provider.readResource(a.entry, { scope: { session: { id: 'one' }, background: true } }), undefined)
   assert.deepEqual((await f.provider.list({})).candidates, [])
-  entry.content = 'EDITED EXACT\n'; assert.equal(await f.provider.readResource(a.entry, f.lookup('one')), entry.content)
+  entry.content = 'EDITED EXACT\n'; const edited = await f.paths('one'); assert.equal(await f.provider.readResource(edited.entry, f.lookup('one')), entry.content)
   assert.equal((await f.candidate('one')).name, a.skill.name)
   entry.enabled = false; assert.equal(await f.provider.readResource(a.entry, f.lookup('one')), undefined)
   entry.enabled = true; state.chat.worldbookStrategy = 'legacy'; assert.equal(await f.provider.readResource(a.entry, f.lookup('one')), undefined)
@@ -59,7 +66,7 @@ test('edit during asynchronous compilation cannot publish stale content or stale
   const f = fixture(t)
   let first = true, started, resume
   const entered = new Promise(resolve => { started = resolve }), blocked = new Promise(resolve => { resume = resolve })
-  const provider = createWorldbookSkillProvider({ load: async () => f.states.get('one'), catalog: { async update(_key, entries) { const output = compileWorldbookSkillClusters(entries); if (first) { first = false; started(); await blocked } return output }, dispose() {} } })
+  const provider = createWorldbookSkillProvider({ directory: outputDirectory(t), load: async () => f.states.get('one'), catalog: { async update(_key, entries) { const output = compileWorldbookSkillClusters(entries); if (first) { first = false; started(); await blocked } return output }, dispose() {} } })
   t.after(() => provider.dispose())
   const pending = provider.list(f.lookup('one')); await entered
   f.states.get('one').worldBook.view.entries[0].constant = true; resume()
@@ -72,42 +79,59 @@ test('unavailable native resource reader means no unusable skills advertised', a
 })
 
 const readTool = { parameters: { type: 'object', properties: { file_path: {} } }, output: { schema: { properties: { path: {}, lines: {}, totalLines: {} } } } }
-test('native read adapter uses exact existing protocol, denies cross-game/traversal, and passes ordinary reads through', async t => {
+test('read guard delegates real files to native IO and denies cross-game and legacy paths', async t => {
   const f = fixture(t), a = await f.paths('one')
-  let handler, ordinary = 0
-  const ctx = { tools: { get: name => name === 'read' ? readTool : undefined }, on(name, fn) { assert.equal(name, 'tools/execute'); handler = fn; return () => {} } }
+  let handler, nativeReads = 0
+  const ctx = { tools: { get: () => readTool }, on(name, fn) { assert.equal(name, 'tools/execute'); handler = fn } }
   assert.equal(nativeWorldbookReadAvailable(ctx.tools, f.scopes.get('one')), true)
   installWorldbookSkillRead(ctx, f.provider)
-  const run = (path, agent = f.scopes.get('one'), args = {}) => handler({ name: 'read', arguments: { file_path: path, ...args }, agent, signal: new AbortController().signal }, () => { ordinary++; return 'ordinary' })
-  const result = await run(a.entry)
-  assert.equal(result.value.lines.map(line => line.text).join('\n'), f.states.get('one').worldBook.view.entries[0].content)
-  assert.deepEqual((await run(a.entry, undefined, { offset: 2, limit: 1 })).value.lines, [{ number: 2, text: '' }])
+  const run = (file, agent = f.scopes.get('one')) => handler({ name: 'read', arguments: { file_path: file }, agent }, async () => { nativeReads++; return fs.readFile(file, 'utf8') })
+  assert.equal(await run(a.entry), f.states.get('one').worldBook.view.entries[0].content)
+  assert.equal(nativeReads, 1)
   await assert.rejects(run(a.entry, f.scopes.get('two')), /no longer available/)
-  await assert.rejects(run(a.base + '/../INDEX.md'), /Invalid/)
+  await assert.rejects(run(a.base + '/../SKILL.md'), /no longer available/)
   await assert.rejects(run(a.entry, null), /current game/)
-  await assert.rejects(run(a.entry, undefined, { offset: 0 }), /positive/)
-  assert.equal(await run('/ordinary.txt'), 'ordinary'); assert.equal(ordinary, 1)
+  await assert.rejects(run('/__tavern_worldbook__/old/INDEX.md'), /real files/)
+  assert.equal(nativeReads, 1)
 })
 
-test('read view is bounded without modifying its original resource; ordinary marker filenames pass through', async t => {
-  const f = fixture(t)
-  f.states.get('one').worldBook.view.entries[0].content = 'x'.repeat(300000)
-  const a = await f.paths('one')
-  let handler
-  installWorldbookSkillRead({ tools: { get: () => readTool }, on(_name, fn) { handler = fn } }, f.provider)
-  const call = path => handler({ name: 'read', arguments: { file_path: path }, agent: f.scopes.get('one'), signal: new AbortController().signal }, () => 'ordinary')
-  assert.equal(await call('/notes/__tavern_worldbook__/notes.txt'), 'ordinary')
-  const result = await call(a.entry)
-  assert.ok(result.value.lines[0].text.length < 2100)
-  assert.match(result.value.lines[0].text, /line truncated/)
-  assert.equal((await f.provider.readResource(a.entry, f.lookup('one'))).length, 300000)
+test('source edits, disable, card changes and removal synchronize real files', async t => {
+  const f = fixture(t), a = await f.paths('one'), state = f.states.get('one')
+  state.worldBook.view.entries[0].content = 'UPDATED\n'
+  await f.provider.refresh(f.scopes.get('one'))
+  assert.equal(await fs.readFile(a.entry, 'utf8'), 'UPDATED\n')
+  state.worldBook.view.entries[0].enabled = false
+  await f.provider.refresh(f.scopes.get('one'))
+  await assert.rejects(fs.access(a.entry))
+  state.worldBook.view.entries[0].enabled = true
+  const b = await f.paths('one')
+  state.chat.cardPath = 'cards/other.json'
+  const c = await f.paths('one')
+  assert.notEqual(c.entry, b.entry)
+  await assert.rejects(fs.access(b.entry))
+  await f.provider.removeChat(state.chat)
+  await assert.rejects(fs.access(c.entry))
+})
+
+test('derived-file edits are restored; symlink escapes are denied', async t => {
+  const f = fixture(t), a = await f.paths('one')
+  const original = f.states.get('one').worldBook.view.entries[0].content
+  await fs.unlink(a.entry)
+  assert.equal(await f.provider.readResource(a.entry, f.lookup('one')), original)
+  await fs.writeFile(a.entry, 'NOT AUTHORITATIVE')
+  assert.equal(await f.provider.readResource(a.entry, f.lookup('one')), original)
+  const outside = path.join(outputDirectory(t), 'outside.md')
+  await fs.writeFile(outside, 'PRIVATE')
+  await fs.unlink(a.entry); await fs.symlink(outside, a.entry)
+  await assert.rejects(f.provider.authorizeRead(a.entry, f.lookup('one')), /symlink/)
+  assert.equal(await fs.readFile(outside, 'utf8'), 'PRIVATE')
 })
 
 test('pre-step refresh rejects promptly when its caller aborts pending compilation', async t => {
   const f = fixture(t)
   let complete
   const pending = new Promise(resolve => { complete = resolve })
-  const provider = createWorldbookSkillProvider({ load: async () => f.states.get('one'), catalog: { update: () => pending, dispose() {} } })
+  const provider = createWorldbookSkillProvider({ directory: outputDirectory(t), load: async () => f.states.get('one'), catalog: { update: () => pending, dispose() {} } })
   t.after(() => provider.dispose())
   const abort = new AbortController()
   const refreshing = provider.refresh(f.scopes.get('one'), { signal: abort.signal })
@@ -122,7 +146,7 @@ test('mounting read for native gameplay does not grant ordinary filesystem acces
   let handler
   installWorldbookSkillRead({ tools: { get: () => readTool }, on(_name, fn) { handler = fn } }, f.provider, { virtualOnly: async scope => scope === f.scopes.get('one') })
   const run = agent => handler({ name: 'read', arguments: { file_path: '/private.txt' }, agent }, () => 'ordinary')
-  await assert.rejects(run(f.scopes.get('one')), /limited to its virtual/)
+  await assert.rejects(run(f.scopes.get('one')), /limited to its generated/)
   assert.equal(await run(f.scopes.get('two')), 'ordinary')
 })
 
@@ -150,4 +174,31 @@ test('inspector shares actual catalog, excludes bodies and revalidates entry pat
   assert.equal(await f.provider.readResource(entry.path, f.lookup('two')), undefined)
   f.states.get('one').chat.worldbookStrategy = 'legacy'
   assert.equal(await f.provider.inspect(f.lookup('one')), null)
+})
+
+
+test('readable reference names avoid duplicate IDs, traversal and oversized filenames', async t => {
+  const f = fixture(t), state = f.states.get('one'), entry = state.worldBook.view.entries[0]
+  entry.title = '../相同/标题?'
+  state.worldBook.view.entries.push({ ...entry, ref: 'another-book:42' })
+  const catalog = await f.provider.inspect(f.lookup('one'))
+  const entries = catalog.clusters.flatMap(c => c.entries)
+  assert.equal(new Set(entries.map(e => e.path.toLowerCase())).size, 2)
+  for (const e of entries) {
+    assert.match(e.path, /references.*相同-标题/)
+    assert.equal(await fs.readFile(e.path, 'utf8'), entry.content)
+  }
+  entry.title = '标题'.repeat(200); entry.sourceUid = '标识'.repeat(200)
+  const long = (await f.provider.inspect(f.lookup('one'))).clusters.flatMap(c => c.entries).find(e => e.ref === entry.ref)
+  assert.ok(Buffer.byteLength(path.basename(long.path)) < 255)
+  assert.equal(await fs.readFile(long.path, 'utf8'), entry.content)
+})
+
+test('failed staging leaves the previous bundle intact and removes temporary files', async t => {
+  const { createWorldbookSkillFiles } = await import('../tavern-plugin/lib/domain/worldbook-skill-files.js')
+  const root = outputDirectory(t), files = createWorldbookSkillFiles(root), key = 'a'.repeat(20)
+  await files.sync(key, new Map([['主题/SKILL.md', 'previous']]))
+  await assert.rejects(files.sync(key, new Map([['../escape.md', 'bad']])), /Invalid/)
+  assert.equal(await fs.readFile(path.join(files.directory(key), '主题/SKILL.md'), 'utf8'), 'previous')
+  assert.deepEqual(await fs.readdir(root), [key])
 })

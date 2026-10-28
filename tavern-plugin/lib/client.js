@@ -26964,10 +26964,11 @@ function TavernWorldbookInspector(props) {
     const matches = value => String(value || '').toLowerCase().includes(query.toLowerCase());
     return h('aside', { className: 'dsh-tavern-status dsh-wb-inspector', 'aria-label': '虚拟 Skill 排查' },
         h('header', null, h('strong', null, '虚拟 Skill'), button(busy ? '加载中…' : '刷新', refresh, busy)),
-        h('p', { className: 'dsh-wb-muted' }, '本局世界书派生的主题分类与原文。只读查看不会计入模型调用。'),
+        h('p', { className: 'dsh-wb-muted' }, '本局世界书生成的实体 Skill。只读查看不会计入模型调用。'),
         error && h('p', { role: 'alert' }, error),
         data && h(React.Fragment, null,
             h('div', { className: 'dsh-wb-stats' }, `${clusters.length} 类 · ${clusters.reduce((n, c) => n + c.entries.length, 0)} 条原文`, h('br'), `成功加载 ${data.counts.skills} 次 · 原文读取 ${data.counts.entries} 次 · 错误 ${data.counts.errors} 次`),
+            data.catalog?.directory && h('details', null, h('summary', null, '实体文件夹'), h('code', null, data.catalog.directory), h('p', { className: 'dsh-wb-muted' }, '由世界书自动同步；修改生成文件不会修改世界书。')),
             h('nav', null, button('分类与内容', () => { setMode('catalog'); setSource(null); }), button(`调用记录 (${data.total})`, () => { setMode('history'); setSource(null); })),
             h('input', { type: 'search', placeholder: '搜索分类、条目或本页调用', 'aria-label': '搜索虚拟 Skill', value: query, onChange: e => setQuery(e.target.value) }),
             source ? h('section', null, button('← 返回目录', () => setSource(null)), h('h3', null, source.title), h('pre', null, source.content)) : mode === 'catalog' ? h('section', null,
@@ -26978,11 +26979,11 @@ function TavernWorldbookInspector(props) {
                     h('summary', null, `${c.title} · ${c.entries.length} 条 · 加载 ${c.readCount} 次`),
                     h('p', { className: 'dsh-wb-muted' }, c.keywords.join(' · ')),
                     h('code', null, c.name),
-                    h('details', null, h('summary', null, 'SKILL.md · 阅读指南'), h('pre', null, c.guide)),
-                    c.entries.map(e => h('div', { key: e.ref, className: 'dsh-wb-entry' }, button(e.title + " · 读取 " + e.readCount + " 次", () => read(e), busy), h('small', null, `ID ${e.uid ?? e.ref} · ${e.source || '本局世界书'}`)))))) : h('section', null,
+                    h('details', null, h('summary', null, 'SKILL.md · 主题与资料'), h('pre', null, c.guide)),
+                    c.entries.map(e => h('div', { key: e.ref, className: 'dsh-wb-entry' }, button(e.title + " · 读取 " + e.readCount + " 次", () => read(e), busy), h('small', null, `原始条目 ID ${e.uid ?? e.ref} · references/${e.path.split(/[\\/]/).pop()}`)))))) : h('section', null,
                 h('p', { className: 'dsh-wb-muted' }, '原生调用历史（含重试／回退前记录）。成功读取不代表正文一定采用；轮次为原生会话轮次。'),
                 !data.historyLoaded && h('p', null, '会话事件尚未加载，统计暂不可用。'),
-                data.records.filter(r => matches(r.target) || matches(r.title)).map(r => h('details', { key: r.id }, h('summary', null, `第 ${r.turn} 轮 · ${r.kind === 'skill' ? '加载 Skill' : r.target.includes('/entries/') ? '读取原文' : '读取目录／指南'} · ${{ success: '成功', error: '失败', pending: '等待结果' }[r.status]}`), h('p', null, r.title), h('code', null, r.target), h('p', null, `步骤 ${r.step}${r.offset ? ' · 起始行 ' + r.offset : ''}${r.totalLines !== undefined ? ' · 共 ' + r.totalLines + ' 行' : ''}`), h('pre', null, r.result || '暂无返回内容'))),
+                data.records.filter(r => matches(r.target) || matches(r.title)).map(r => h('details', { key: r.id }, h('summary', null, `第 ${r.turn} 轮 · ${r.kind === 'skill' ? '加载 Skill' : r.reference ? '读取原文' : '读取目录／指南'} · ${{ success: '成功', error: '失败', pending: '等待结果' }[r.status]}`), h('p', null, r.title), h('code', null, r.target), h('p', null, `步骤 ${r.step}${r.offset ? ' · 起始行 ' + r.offset : ''}${r.totalLines !== undefined ? ' · 共 ' + r.totalLines + ' 行' : ''}`), h('pre', null, r.result || '暂无返回内容'))),
                 h('nav', null, button('上一页', () => setPage(Math.max(0, page - 40)), busy || page === 0), h('small', null, `${data.total ? page + 1 : 0}–${Math.min(page + 40, data.total)} / ${data.total}`), button('下一页', () => setPage(page + 40), busy || page + 40 >= data.total)))));
 }
 
@@ -30047,7 +30048,7 @@ function createConversationSettingsModule({
                 h("label", null, "召回策略", h("select", { "aria-label": "本局世界书策略", className: "dsh-tavern-settings-select", value: features.worldbookStrategy || "legacy", disabled: !loaded || busy,
                     onChange: event => save({ worldbookStrategy: event.target.value }) },
                     (features.worldbookStrategies?.length ? features.worldbookStrategies : [{ id: "legacy", label: "当前注入策略（默认）" }, { id: "native-skills", label: "本局原生 Skill 库" }]).map(strategy => h("option", { key: strategy.id, value: strategy.id }, strategy.label)))),
-                h("p", { className: "dsh-tavern-settings-desc" }, "只影响本局后续请求，不修改原世界书，可随时切回；此前已加载内容仍保留在历史中。原生 Skill 策略将条目统一放入本局 Skill 目录，常驻条目仍自动注入，也可按需读取。非常驻条目改由模型按需读取，不再按关键词、概率和冷却召回；请在前台工具中保持 skill 开启。"),
+                h("p", { className: "dsh-tavern-settings-desc" }, "只影响本局后续请求，不修改原世界书，可随时切回；此前已加载内容仍保留在历史中。静态非常驻条目生成本局独立的实体 Skill，按需读取 references 中的原文。常驻条目仍自动注入，动态条目保留运行时处理。请在前台工具中保持 skill 开启；分类、实体目录与读取记录可在「虚拟 Skill」侧栏查看。"),
                 toggle("worldbookScreening", "世界书模型筛选", "仅当前注入策略生效：请后台模型筛选相关条目，被排除条目冷却 10 轮。多一次后台请求。切换策略保留此开关。", tasks.worldbookScreening === true, checked => ({ backgroundTasks: { worldbookScreening: checked } }), (features.worldbookStrategy || "legacy") !== "legacy")),
             h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,

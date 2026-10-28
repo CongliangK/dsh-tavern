@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createWorldbookSkillProvider } from '../tavern-plugin/lib/domain/worldbook-skill-provider.js'
@@ -6,12 +9,13 @@ import { installWorldbookSkillRead } from '../tavern-plugin/lib/domain/worldbook
 
 // Opt-in official-source integration: native registry, Cordis, skill catalog,
 // read definition and full tool dispatch/permission/schema/render pipeline.
-// Only Session/working-directory/filesystem data are synthetic; no model calls.
-test('native skill and read pipeline isolates grouped virtual resources and refreshes lifecycle state', {
-  skip: !process.env.DSH_SOURCE_ROOT && 'Set DSH_SOURCE_ROOT to an official DSH checkout (Node 24+)',
+// Session and working-directory data are synthetic; reference IO uses real files. No model calls.
+test('native skill and read pipeline isolates real per-game files and refreshes lifecycle state', {
+  skip: !process.env.DSH_SOURCE_ROOT && !process.env.DSH_RUNTIME_ROOT && 'Set DSH_RUNTIME_ROOT to installed node_modules or DSH_SOURCE_ROOT to an official checkout',
 }, async t => {
-  const { nativeSkillSource } = await import('./helpers/native-skill-source.mjs')
-  const native = await nativeSkillSource(process.env.DSH_SOURCE_ROOT)
+  const native = process.env.DSH_RUNTIME_ROOT
+    ? await (await import('./helpers/native-skill-runtime.mjs')).nativeSkillRuntime(process.env.DSH_RUNTIME_ROOT)
+    : await (await import('./helpers/native-skill-source.mjs')).nativeSkillSource(process.env.DSH_SOURCE_ROOT)
   t.after(native.close)
   const ctx = new native.Context()
   for (const plugin of [native.SkillRegistry, native.SystemPrompt, native.ToolsService]) {
@@ -33,10 +37,12 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
   }
   const a = agent('game-a'), b = agent('game-b'), background = agent('background')
   const states = new Map([[a, state(a.session.id, 'A 港口', 'SECRET BODY A')], [b, state(b.session.id, 'B 港口', 'SECRET BODY B')]])
-  const provider = createWorldbookSkillProvider({ load: async scope => states.get(scope) || null })
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'native-worldbook-'))
+  t.after(() => fs.rm(directory, { recursive: true, force: true }))
+  const provider = createWorldbookSkillProvider({ directory, load: async scope => states.get(scope) || null })
   let resourceReads = 0
-  const readResource = provider.readResource
-  provider.readResource = (...args) => { resourceReads++; return readResource(...args) }
+  const authorizeRead = provider.authorizeRead
+  provider.authorizeRead = (...args) => { resourceReads++; return authorizeRead(...args) }
   t.after(() => provider.dispose())
   let invalidate
   const unregister = ctx.skills.registerProvider(control => { invalidate = control.invalidate; return provider })
@@ -51,8 +57,8 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
     emit: (...args) => ctx.emit(...args),
     fs: {
       resolve: async path => ({ displayPath: path, targetKey: path }),
-      stat: async () => ({ type: 'file', size: 20, version: 'ordinary-v1' }),
-      readText: async () => { filesystemReads++; return 'ORDINARY FILE\nsecond line\n' },
+      stat: async target => { const s = await fs.stat(target.displayPath); return { type: 'file', size: s.size, version: String(s.mtimeMs) } },
+      readText: async target => { filesystemReads++; return fs.readFile(target.displayPath, 'utf8') },
       processPath: target => target.displayPath,
     },
   }, { limit: 2000, maxLineLength: 2000, maxBytes: 50 * 1024, streamMinSize: 10 * 1024 * 1024 })
@@ -79,10 +85,10 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
     const name = entries.find(entry => entry.name.startsWith('wb-')).name
     const skill = success(await execute(caller, 'skill', { name }))
     assert.doesNotMatch(skill.content, /SECRET BODY/)
-    assert.match(skill.content, /INDEX\.md/)
+    assert.match(skill.content, /references\//)
+    assert.doesNotMatch(skill.content, /INDEX\.md/)
     const base = skill.resourceBase.path
-    const index = success(await read(caller, base + '/INDEX.md'))
-    const file = index.lines.map(line => line.text).join('\n').match(/entries\/[a-f0-9]{20}\.md/)[0]
+    const file = skill.content.match(/\]\((references\/[^)]+)\)/)[1]
     return { name, base, entry: base + '/' + file }
   }
   const [ra, rb] = await Promise.all([discover(a), discover(b)])
@@ -91,14 +97,17 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
   assert.deepEqual(success(body).lines, [{ number: 1, text: 'SECRET BODY A' }])
   assert.match(output(body), /SECRET BODY A/, 'native output renderer ran on bridge value')
   assert.equal(body.meta.path, ra.entry, 'native presentation metadata was produced')
-  assert.equal(filesystemReads, 0, 'virtual paths never reach filesystem')
+  assert.equal(filesystemReads, 1, 'generated references reach the native filesystem reader')
   for (const caller of [b, background, undefined]) failure(await read(caller, ra.entry))
   failure(await execute(b, 'skill', { name: ra.name }))
   failure(await execute(background, 'skill', { name: ra.name }))
   assert.deepEqual((await ctx.skills.list()).map(item => item.name), ['core-skill'])
   assert.equal((await step(a)).length, 0)
-  success(await read(a, '/ordinary.txt', { offset: 2, limit: 1 }))
-  assert.equal(filesystemReads, 1, 'ordinary reads retain real native body')
+  const ordinary = path.join(directory, '..', path.basename(directory) + '-ordinary.txt')
+  await fs.writeFile(ordinary, 'ORDINARY FILE\nsecond line\n')
+  t.after(() => fs.rm(ordinary, { force: true }))
+  success(await read(a, ordinary, { offset: 2, limit: 1 }))
+  assert.equal(filesystemReads, 2, 'ordinary reads retain real native body')
   const beforeDenied = resourceReads
   const deny = ctx.on('tools/pre-execute', async (exec, next) => exec.name === 'read' ? { kind: 'deny', reason: 'policy denies read' } : next())
   assert.match(failure(await read(a, ra.entry)), /policy denies read/)
@@ -107,13 +116,14 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
   const aborted = new AbortController(); aborted.abort()
   failure(await execute(a, 'read', { file_path: ra.entry }, aborted.signal))
   failure(await read(a, ra.base + '/../INDEX.md'))
-  failure(await read(a, ra.entry, { limit: 2001 }))
+  // Native reader owns its own paging limits.
   failure(await read(a, ra.entry, { offset: 0 }))
   failure(await read(a, ra.entry, { offset: '1' }))
-  assert.equal(filesystemReads, 1)
-  assert.equal(filesystemReads, 1)
+  assert.equal(filesystemReads, 2)
 
   states.get(a).worldBook.view.entries[0].content = 'EDITED BODY A\nsecond'
+  const edited = await discover(a)
+  Object.assign(ra, edited)
   assert.deepEqual(success(await read(a, ra.entry, { offset: 2, limit: 1 })).lines, [{ number: 2, text: 'second' }])
   await step(a) // semantic body features may legitimately change clustered routing metadata
   assert.equal((await step(a)).length, 0, 'unchanged edited state does not repeat catalog')
@@ -186,7 +196,7 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
   })
   const firstControlled = await discover(controlled)
   assert.equal(preparations, 1, 'first native request sees preparation in this very step')
-  const visibleIndex = success(await read(controlled, firstControlled.base + '/INDEX.md'))
+  const visibleIndex = success(await read(controlled, firstControlled.base + '/SKILL.md'))
   assert.doesNotMatch(JSON.stringify(visibleIndex), /hidden-ref|HIDDEN ROUTE|controller/)
   assert.equal(success(await read(controlled, firstControlled.entry)).lines[0].text, 'VISIBLE ORIGINAL')
   controlledState.worldBook.view.entries[0].content = 'EDIT REVOKES OLD VISIBILITY'
@@ -195,7 +205,7 @@ test('native skill and read pipeline isolates grouped virtual resources and refr
   allowedRefs = ['hidden-ref']
   const nextControlled = await discover(controlled)
   assert.equal(preparations, 2)
-  const nextIndex = success(await read(controlled, nextControlled.base + '/INDEX.md'))
+  const nextIndex = success(await read(controlled, nextControlled.base + '/SKILL.md'))
   assert.doesNotMatch(JSON.stringify(nextIndex), /book:entry-42|Visible port|controller/)
   assert.equal(success(await read(controlled, nextControlled.entry)).lines[0].text, 'HIDDEN ORIGINAL')
   failure(await read(controlled, firstControlled.entry))

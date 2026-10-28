@@ -1342,6 +1342,7 @@ export async function apply(ctx) {
     const chat = await readChat(str(chatId))
     const footprint = chat ? await gameFootprint.describe(chat, { ownsSession: id => ownsBackgroundSession(chat, id) }) : null
     const result = await conversationRegistry.remove(chatId)
+    await worldbookSkillProvider?.removeChat(chat)
     deletedChatIds.add(chatId)
     await pluginMedia.removeChat(chatId).catch(() => console.warn('dsh-tavern: 插件媒体记录清理失败', chatId))
     await pluginData.removeChat(chatId).catch(() => console.warn('dsh-tavern: 插件数据清理失败', chatId))
@@ -1911,6 +1912,7 @@ export async function apply(ctx) {
   skillRegistry.registerProvider(control => {
     invalidateWorldbookSkills = () => control.invalidate()
     worldbookSkillProvider = createWorldbookSkillProvider({
+      directory: path.join(dataRoot, 'worldbook-skills'),
       resourcesAvailable: scope => nativeWorldbookReadAvailable(ctx.get('tools'), scope),
       async load(agent) {
         const sessionId = agent?.session?.id

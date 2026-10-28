@@ -207,7 +207,7 @@ export function compileWorldbookSkillClusters(input, { previousClusters = [], ma
     const keywords = [...scores].sort((a, b) => b[1] - a[1] || compare(a[0], b[0])).map(([term]) => term).filter((term, i, all) => !all.slice(0, i).some(prior => prior.includes(term))).slice(0, 6)
     const refs = set.map(i => entries[i].ref)
     const title = keywords.slice(0, 3).join(' · ') || String(entries[set[0]]?.title || '世界书资料').slice(0, 60)
-    return { id: '', refs, keywords, title, description: `世界书主题：${title}。包含 ${refs.length} 条原始资料；先读 INDEX.md 定位，再按需读取 entries/ 下原文。` }
+    return { id: '', refs, keywords, title, description: `世界书主题：${title}。包含 ${refs.length} 条原始资料；按需读取 references/ 下原文。` }
   }).sort((a, b) => compare(String(a.refs[0]), String(b.refs[0])))
   const matches = []
   clusters.forEach((cluster, i) => previousClusters.forEach(previous => {
