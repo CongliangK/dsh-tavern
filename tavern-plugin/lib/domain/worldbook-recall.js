@@ -188,7 +188,7 @@ export async function projectWorldBookTemplates(input = {}) {
   if (!runtime || typeof runtime.render !== 'function') throw new Error('缺少世界书模板运行时')
   const resources = allEntries(input.worldBook)
   const controllers = promptOrder((input.selectedEntries || resources).filter(function (entry) {
-    return (entry.enabled !== false || (input.activationRequests || []).some(request => request.ref === entry.ref && request.force)) && (input.selectedEntries || entry.constant === true) && !isMvuUpdateEntry(entry) && (input.includeConstants === true || isWorldBookTemplateEntry(entry))
+    return (entry.enabled !== false || (input.activationRequests || []).some(request => request.ref === entry.ref && request.force)) && (input.selectedEntries || entry.constant === true) && (input.mvuUpdateOnly === true ? isMvuUpdateEntry(entry) : !isMvuUpdateEntry(entry)) && (input.includeConstants === true || isWorldBookTemplateEntry(entry))
   }))
   const { foregroundRefs, prefixRefs } = worldbookPlacement([...resources.filter(entry => !isMvuUpdateEntry(entry)), ...controllers.filter(entry => entry.enabled === false).map(entry => ({ ...entry, enabled: true }))])
   const projectedEntries = []
@@ -196,7 +196,7 @@ export async function projectWorldBookTemplates(input = {}) {
     global: clone(input.globalVariables || {}),
     initial: clone(input.chat && input.chat.promptTemplateInitialVariables || {}),
     local: clone(input.chat && input.chat.variables || {}),
-    message: lastTavernHelperVariables(input.chat?.promptTemplateInput?.message ? [input.chat.promptTemplateInput.message] : input.chat && input.chat.messages) || {}
+    message: input.messageVariables ?? lastTavernHelperVariables(input.chat?.promptTemplateInput?.message ? [input.chat.promptTemplateInput.message] : input.chat && input.chat.messages) ?? {}
   }
   let macroState = clone(input.chat?.macroState || {})
   const context = []
