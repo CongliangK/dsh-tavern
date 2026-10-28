@@ -26,7 +26,9 @@ function fixture(t, extra = {}) {
 test('cluster catalog and SKILL contain metadata only; entry resources preserve exact original bytes', async t => {
   const f = fixture(t), before = structuredClone([...f.states])
   const a = await f.paths('one'), b = await f.paths('two')
-  assert.notEqual(a.skill.name, b.skill.name)
+  assert.equal(a.skill.name, 'cheng-men-shou-wei')
+  assert.equal(a.skill.name, b.skill.name)
+  assert.notEqual(a.base, b.base)
   const guide = await f.provider.get(a.skill, f.lookup('one'))
   assert.doesNotMatch(JSON.stringify(await f.provider.list(f.lookup('one'))), /PRIVATE FULL BODY/)
   assert.doesNotMatch(guide.content, /PRIVATE FULL BODY/)

@@ -79,10 +79,11 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   }
   async function discover(caller) {
     const messages = await step(caller)
-    const entries = messages[0].source.entries
+    const catalogMessage = messages[0] || [...caller.session.surface.nodes].reverse().map(seq => caller.session.eventAt(seq).data).find(m => m.source?.entries)
+    const entries = catalogMessage.source.entries
     assert.ok(entries.some(entry => entry.name === 'core-skill'))
     assert.doesNotMatch(JSON.stringify(messages), /SECRET BODY|CORE BODY/)
-    const name = entries.find(entry => entry.name.startsWith('wb-')).name
+    const name = entries.find(entry => entry.name !== 'core-skill').name
     const skill = success(await execute(caller, 'skill', { name }))
     assert.doesNotMatch(skill.content, /SECRET BODY/)
     assert.match(skill.content, /references\//)

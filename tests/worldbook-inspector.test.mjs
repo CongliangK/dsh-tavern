@@ -31,3 +31,10 @@ test('physical references and historical virtual paths are both visible, ordinar
   const records = worldbookReadHistory(events, root)
   assert.deepEqual(records.map(r => [r.id, r.reference, r.status]), [['old', true, 'success'], ['new', true, 'success']])
 })
+
+test('unprefixed Skill calls are identified by current names or their historical resource directory', () => {
+  const root='/profile/worldbook-skills'
+  const historical=result('old');historical.data.message.content=[{type:'text',text:'Base directory for this skill: '+root+'/game/科举'}]
+  const records=worldbookReadHistory([call('pending','skill',{name:'ke-ju'}),call('old','skill',{name:'old-topic'}),historical,call('other','skill',{name:'writing'})],root,['ke-ju'])
+  assert.deepEqual(records.map(r=>r.id),['old','pending'])
+})

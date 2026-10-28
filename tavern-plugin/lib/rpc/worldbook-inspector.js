@@ -1,5 +1,5 @@
 // Only native tool events are evidence of loading/reading, never prose adoption.
-export function worldbookReadHistory(events, directory) {
+export function worldbookReadHistory(events, directory, skillNames = []) {
   const calls = new Map()
   for (const event of events || []) {
     const d = event.data || {}
@@ -9,7 +9,7 @@ export function worldbookReadHistory(events, directory) {
       const target = d.name === 'skill' ? args?.name : d.name === 'read' ? args?.file_path : null
       const normalized = typeof target === 'string' ? target.replaceAll('\\', '/') : ''
       const physical = directory && normalized.startsWith(directory.replaceAll('\\', '/') + '/')
-      if (typeof target !== 'string' || !(d.name === 'skill' ? target.startsWith('wb-') : target.startsWith('/__tavern_worldbook__/') || physical)) continue
+      if (typeof target !== 'string' || !(d.name === 'skill' ? true : target.startsWith('/__tavern_worldbook__/') || physical)) continue
       calls.set(d.callId, { id: d.callId, seq: event.seq, turn: d.turn, step: d.step, kind: d.name, target, reference: /\/(?:entries|references)\//.test(normalized), offset: args.offset, limit: args.limit, status: 'pending' })
     } else if (event.type === 'tool/result' && calls.has(d.message?.toolCallId)) {
       const item = calls.get(d.message.toolCallId)
@@ -20,7 +20,7 @@ export function worldbookReadHistory(events, directory) {
       item.totalLines = d.meta?.totalLines
     }
   }
-  return [...calls.values()].reverse()
+  return [...calls.values()].filter(r => r.kind !== 'skill' || r.target.startsWith('wb-') || skillNames.includes(r.target) || (directory && r.result?.includes(directory))).reverse()
 }
 
 export function createWorldbookInspectorHandlers({ agentRegistry, chatForSession, worldbookSkillProvider, sessionDebugEvidence }) {
@@ -37,14 +37,16 @@ export function createWorldbookInspectorHandlers({ agentRegistry, chatForSession
       const agent = await scope(args)
       const catalog = await worldbookSkillProvider.inspect({ scope: agent })
       const evidence = sessionDebugEvidence(agent.session.id)
-      const records = worldbookReadHistory(evidence.events, worldbookSkillProvider.directory)
+      const records = worldbookReadHistory(evidence.events, worldbookSkillProvider.directory, (catalog?.clusters || []).map(c => c.name))
       const labels = new Map()
       for (const cluster of catalog?.clusters || []) {
-        cluster.readCount = records.filter(r => r.target === cluster.name && r.status === 'success').length
+        cluster.readCount = records.filter(r => [cluster.name, cluster.legacyName].includes(r.target) && r.status === 'success').length
         labels.set(cluster.name, cluster.title)
+        if (cluster.legacyName) labels.set(cluster.legacyName, cluster.title)
         for (const entry of cluster.entries) {
-          entry.readCount = records.filter(r => [entry.path, entry.previousPath, entry.legacyPath].includes(r.target) && r.status === 'success').length
+          entry.readCount = records.filter(r => [entry.path, entry.previousPath, entry.previousShortPath, entry.legacyPath].includes(r.target) && r.status === 'success').length
           labels.set(entry.path, entry.title)
+          if (entry.previousShortPath) labels.set(entry.previousShortPath, entry.title)
           if (entry.previousPath) labels.set(entry.previousPath, entry.title)
           if (entry.legacyPath) labels.set(entry.legacyPath, entry.title)
         }
