@@ -891,6 +891,7 @@ window.__ModuleLoader__.load({
 // @include modules/view-tabs.js
 // @include features/settings.js
 
+// @include features/prose-layout.js
 // @include features/text-layout.js
 
 // @include features/user-profile.js
