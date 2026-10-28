@@ -265,7 +265,7 @@ function createConversationSettingsModule({
                 h("label", null, "召回策略", h("select", { "aria-label": "本局世界书策略", className: "dsh-tavern-settings-select", value: features.worldbookStrategy || "legacy", disabled: !loaded || busy,
                     onChange: event => save({ worldbookStrategy: event.target.value }) },
                     (features.worldbookStrategies?.length ? features.worldbookStrategies : [{ id: "legacy", label: "当前注入策略（默认）" }, { id: "native-skills", label: "本局原生 Skill 库" }]).map(strategy => h("option", { key: strategy.id, value: strategy.id }, strategy.label)))),
-                h("p", { className: "dsh-tavern-settings-desc" }, "只影响本局后续请求，不修改原世界书，可随时切回；此前已加载内容仍保留在历史中。静态非常驻条目生成本局独立的实体 Skill，按需读取 references 中的原文。常驻条目仍自动注入，动态条目保留运行时处理。请在前台工具中保持 skill 开启；分类、实体目录与读取记录可在「虚拟 Skill」侧栏查看。"),
+                h("p", { className: "dsh-tavern-settings-desc" }, "只影响本局后续请求，不修改原世界书，可随时切回；此前已加载内容仍保留在历史中。静态非常驻条目生成实体 Skill；短内容直接内联，长内容从 SKILL.md 的目录按需读取原文。常驻条目仍自动注入，动态条目保留运行时处理。请在前台工具中保持 skill 开启。"),
                 toggle("worldbookScreening", "世界书模型筛选", "仅当前注入策略生效：请后台模型筛选相关条目，被排除条目冷却 10 轮。多一次后台请求。切换策略保留此开关。", tasks.worldbookScreening === true, checked => ({ backgroundTasks: { worldbookScreening: checked } }), (features.worldbookStrategy || "legacy") !== "legacy")),
             h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,

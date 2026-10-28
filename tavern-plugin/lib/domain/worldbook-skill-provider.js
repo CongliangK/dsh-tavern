@@ -178,19 +178,13 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     const estimatedTokens = entries.reduce((n, entry) => n + estimateWorldBookTokens(entry.content), 0)
     return { estimatedTokens, inline: inlineTokenBudget > 0 && estimatedTokens <= inlineTokenBudget }
   }
-  function referenceIndex(entries) {
-    const label = value => text(value).replace(/[\[\]\\]/g, '\\$&')
-    return entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${path.posix.basename(referenceFile(entry, entries))})`).join('\n') + '\n'
-  }
   function guide(state, cluster) {
     const item = candidate(state, cluster)
     const entries = members(state, cluster)
     const label = value => text(value).replace(/[\[\]\\]/g, '\\$&')
     return `---\nname: ${item.name}\ndescription: ${JSON.stringify(cluster.description)}\n---\n\n# ${cluster.title}\n\n` + (cluster.inline
       ? entries.map(entry => `## ${worldbookEntryTitle(entry)}\n\n${String(entry.content ?? '')}\n`).join('\n')
-      : entries.length > 12
-        ? `共 ${entries.length} 条资料。先读取 [资料目录](references/资料目录.md)，按名称选择所需原文；无需一次读取全部条目。\n`
-        : entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${referenceFile(entry, entries)})`).join('\n') + '\n')
+      : entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${referenceFile(entry, entries)})`).join('\n') + '\n')
   }
   function documents(state, compiled) {
     const output = new Map()
@@ -198,7 +192,6 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       const base = clusterDirectory(cluster)
       output.set(`${base}/SKILL.md`, guide(state, cluster))
       const entries = members(state, cluster)
-      if (!cluster.inline && entries.length > 12) output.set(`${base}/references/资料目录.md`, `# ${cluster.title}资料目录\n\n` + referenceIndex(entries))
       if (!cluster.inline) for (const entry of entries) output.set(`${base}/${referenceFile(entry, entries)}`, String(entry.content ?? ''))
     }
     return output
