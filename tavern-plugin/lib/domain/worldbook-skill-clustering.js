@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { worldbookEntryTitle } from './worldbook-skill-labels.js'
+import { worldbookEntryTitle, worldbookTitleParts } from './worldbook-skill-labels.js'
 
 const hash = value => createHash('sha256').update(String(value)).digest('hex').slice(0, 20)
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0
@@ -177,7 +177,35 @@ export function buildWorldbookSimilarityGraph(entries, { neighbors = 12, minSimi
 export function worldbookEntryHash(entry) { return hash(JSON.stringify(entry)) }
 export function worldbookClusterInputHash(entries) { return hash(JSON.stringify(entries.map(entry => [entry.ref, worldbookEntryHash(entry)]).sort((a, b) => compare(a[0], b[0])))) }
 
-export function compileWorldbookSkillClusters(input, { previousClusters = [], maxEntries = Number.MAX_SAFE_INTEGER, maxCharacters = Number.MAX_SAFE_INTEGER, resolution = 0.02, respectSourceCategories = true, ...graphOptions } = {}) {
+// Bound discovery cost without dropping source entries. Absorb the smallest
+// community into its nearest TF-IDF centroid; ties prefer smaller groups and
+// stable source order. This is a local deterministic coarsening pass, not an LLM.
+function capCommunities(sets, vectors, limit) {
+  const centroid = indices => {
+    const sums = new Map()
+    for (const i of indices) for (const [term, weight] of vectors[i]) sums.set(term, (sums.get(term) || 0) + weight)
+    const norm = Math.sqrt([...sums.values()].reduce((sum, value) => sum + value * value, 0)) || 1
+    return new Map([...sums].map(([term, weight]) => [term, weight / norm]))
+  }
+  const groups = sets.map(indices => ({ indices, vector: centroid(indices) }))
+  while (groups.length > limit) {
+    groups.sort((a, b) => a.indices.length - b.indices.length || a.indices[0] - b.indices[0])
+    const source = groups.shift()
+    let best = 0, score = -1
+    groups.forEach((target, index) => {
+      let similarity = 0
+      const [small, large] = source.vector.size < target.vector.size ? [source.vector, target.vector] : [target.vector, source.vector]
+      for (const [term, weight] of small) similarity += weight * (large.get(term) || 0)
+      if (similarity > score + EPS) { score = similarity; best = index }
+    })
+    const indices = [...groups[best].indices, ...source.indices].sort((a, b) => a - b)
+    groups[best] = { indices, vector: centroid(indices) }
+  }
+  return groups.map(group => group.indices)
+}
+
+export function compileWorldbookSkillClusters(input, { previousClusters = [], maxSkills = 29, maxEntries = Number.MAX_SAFE_INTEGER, maxCharacters = Number.MAX_SAFE_INTEGER, resolution = 0.02, respectSourceCategories = true, ...graphOptions } = {}) {
+  if (!Number.isInteger(maxSkills) || maxSkills < 1 || maxSkills > 29) throw new Error('Skill count limit must be an integer between 1 and 29')
   const started = performance.now()
   const entries = [...input].sort((a, b) => compare(String(a.ref), String(b.ref)))
   if (new Set(entries.map(e => e.ref)).size !== entries.length) throw new Error('Worldbook entry refs must be unique')
@@ -206,7 +234,7 @@ export function compileWorldbookSkillClusters(input, { previousClusters = [], ma
   // File size belongs to progressive reading, not Skill discovery granularity.
   const categories = new Map()
   if (respectSourceCategories) entries.forEach((entry, i) => {
-    const parts = worldbookEntryTitle(entry).split(/[·｜|]/).map(s => s.trim()).filter(Boolean)
+    const parts = worldbookTitleParts(worldbookEntryTitle(entry))
     if (parts.length < 2) return
     if (!categories.has(parts[0])) categories.set(parts[0], [])
     categories.get(parts[0]).push(i)
@@ -214,7 +242,8 @@ export function compileWorldbookSkillClusters(input, { previousClusters = [], ma
   const structured = [...categories.values()].filter(indices => indices.length > 1)
   const assigned = new Set(structured.flat())
   const fallback = entries.map((_, i) => i).filter(i => !assigned.has(i))
-  const sets = [...structured, ...partition(fallback, resolution)]
+  const initialSets = [...structured, ...partition(fallback, resolution)]
+  const sets = initialSets.length > maxSkills ? capCommunities(initialSets, vectors, maxSkills) : initialSets
   const clusters = sets.map(set => {
     const scores = new Map()
     for (const i of set) for (const [term, weight] of vectors[i]) if (/^[\p{L}\p{N}]+$/u.test(term)) scores.set(term, (scores.get(term) || 0) + weight)
@@ -240,5 +269,5 @@ export function compileWorldbookSkillClusters(input, { previousClusters = [], ma
     while (used.has(id)) id = `topic-${hash(JSON.stringify(cluster.refs))}-${++suffix}`
     cluster.id = id; used.add(id)
   }
-  return { clusters, entryHashes: Object.fromEntries(entries.map(entry => [entry.ref, worldbookEntryHash(entry)])), inputHash: worldbookClusterInputHash(entries), metrics: { entries: entries.length, vocabularySize, edges: adjacency.reduce((sum, neighbors) => sum + neighbors.size, 0) / 2, clusters: clusters.length, sourceCategories: structured.length, fallbackEntries: fallback.length, refinements, refinedSplits, aggregations, elapsedMs: performance.now() - started } }
+  return { clusters, entryHashes: Object.fromEntries(entries.map(entry => [entry.ref, worldbookEntryHash(entry)])), inputHash: worldbookClusterInputHash(entries), metrics: { entries: entries.length, vocabularySize, edges: adjacency.reduce((sum, neighbors) => sum + neighbors.size, 0) / 2, clusters: clusters.length, initialClusters: initialSets.length, maxSkills, sourceCategories: structured.length, fallbackEntries: fallback.length, refinements, refinedSplits, aggregations, elapsedMs: performance.now() - started } }
 }

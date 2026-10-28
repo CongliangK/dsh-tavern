@@ -147,3 +147,21 @@ test('original repeated categories stay whole despite body size; unrelated uncat
   assert.deepEqual(result.clusters.flatMap(c => c.refs).sort(), input.map(e => e.ref).sort())
   assert.deepEqual(compileWorldbookSkillClusters([...input].reverse()).clusters, result.clusters)
 })
+
+test('discovery is capped below 30 without losing entries, with deterministic coarsening', () => {
+  const input = Array.from({ length: 80 }, (_, i) => entry(`entry-${i}`, `独立资料${i}`, { title: `分类${i}·资料` }))
+  const a = compileWorldbookSkillClusters(input, { minSimilarity: 1 })
+  assert.equal(a.clusters.length, 29)
+  assert.equal(new Set(a.clusters.flatMap(c => c.refs)).size, input.length)
+  assert.deepEqual(a.clusters.flatMap(c => c.refs).sort(), input.map(e => e.ref).sort())
+  assert.deepEqual(a.clusters, compileWorldbookSkillClusters([...input].reverse(), { minSimilarity: 1 }).clusters)
+  assert.equal(compileWorldbookSkillClusters(input, { maxSkills: 5, minSimilarity: 1 }).clusters.length, 5)
+  assert.throws(() => compileWorldbookSkillClusters(input, { maxSkills: 30 }), /29/)
+})
+
+test('bracketed author paths form readable broad categories instead of tiny city clusters', () => {
+  const input = ['[王国-城镇-港口]', '[王国-城镇-王都]', '[王国-地理-平原]', '[种族-人类]', '[种族-精灵]'].map((title, i) => entry(`path-${i}`, '资料' + i, { title }))
+  const result = compileWorldbookSkillClusters(input)
+  assert.equal(result.clusters.length, 2)
+  assert.ok(result.clusters.some(c => c.refs.length === 3))
+})

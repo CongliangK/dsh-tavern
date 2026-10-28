@@ -88,12 +88,17 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     const directory = path.join(files.directory(key), clusterDirectory(cluster))
     return {
       name: cluster.skillName,
-      description: cluster.inline ? cluster.description.replace('按资料链接查阅原文。', '') : cluster.description,
+      description: discoveryDescription(cluster),
       invocation: { modelInvocable: true, userInvocable: false }, source: provider, provider, rank: 600,
       locator: { sessionId: state.chat.sessionId, scopeKey: key, clusterId: cluster.id },
       resourceBase: { kind: 'directory', path: directory },
       metadata: { worldbook: { inline: cluster.inline, estimatedTokens: cluster.estimatedTokens, refs: cluster.refs, keywords: cluster.keywords, book: state.worldBook.view.displayName } }
     }
+  }
+  function discoveryDescription(cluster) {
+    const description = cluster.inline ? cluster.description.replace('按资料链接查阅原文。', '') : cluster.description
+    const chars = Array.from(description)
+    return chars.length <= 100 ? description : chars.slice(0, 99).join('') + '…'
   }
   const operations = new Map()
   async function current(lookup) {
@@ -142,9 +147,9 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     const item = candidate(state, cluster)
     const entries = members(state, cluster)
     const label = value => text(value).replace(/[\[\]\\]/g, '\\$&')
-    return `---\nname: ${item.name}\ndescription: ${JSON.stringify(item.description)}\n---\n\n# ${cluster.title}\n\n` + (cluster.inline
+    return `---\nname: ${item.name}\ndescription: ${JSON.stringify(cluster.description)}\n---\n\n# ${cluster.title}\n\n` + (cluster.inline
       ? entries.map(entry => `## ${worldbookEntryTitle(entry)}\n\n${String(entry.content ?? '')}\n`).join('\n')
-      : entries.length > 40
+      : entries.length > 12
         ? `共 ${entries.length} 条资料。先读取 [资料目录](references/资料目录.md)，按名称选择所需原文；无需一次读取全部条目。\n`
         : entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${referenceFile(entry, entries)})`).join('\n') + '\n')
   }
@@ -154,7 +159,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       const base = clusterDirectory(cluster)
       output.set(`${base}/SKILL.md`, guide(state, cluster))
       const entries = members(state, cluster)
-      if (!cluster.inline && entries.length > 40) output.set(`${base}/references/资料目录.md`, `# ${cluster.title}资料目录\n\n` + referenceIndex(entries))
+      if (!cluster.inline && entries.length > 12) output.set(`${base}/references/资料目录.md`, `# ${cluster.title}资料目录\n\n` + referenceIndex(entries))
       if (!cluster.inline) for (const entry of entries) output.set(`${base}/${referenceFile(entry, entries)}`, String(entry.content ?? ''))
     }
     return output

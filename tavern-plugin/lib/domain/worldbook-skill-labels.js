@@ -8,7 +8,13 @@ export function worldbookEntryTitle(entry) {
   const heading = String(entry.content || '').match(/^#{1,3}\s+([^\n]+)$/m)?.[1]
   return clean(entry.title || entry.comment) || clean(heading) || `条目 ${entry.sourceUid ?? entry.ref}`
 }
-const parts = title => title.split(/[·｜|]/).map(s => s.trim()).filter(Boolean)
+export function worldbookTitleParts(title) {
+  // Bracketed paths are explicit author categories, not fragments inferred
+  // from prose. Keep unbracketed hyphenated names intact.
+  const path = title.match(/^\[([^\[\]]+[-_][^\[\]]+)\]/)?.[1]
+  return (path ? path.split(/[-_]/) : title.split(/[·｜|]/)).map(s => s.trim()).filter(Boolean)
+}
+const parts = worldbookTitleParts
 const category = entry => String(entry.content || '').match(/(?:^|[\n；;：:])\s*(?:类别|分类|类型)\s*[：:=]\s*["“]?([^"”\n；;,，。]{1,20})/m)?.[1]?.trim()
 const fields = entry => [...String(entry.content || '').matchAll(/^(?:[-*]\s+)?(?:\*\*)?([\p{L}][\p{L}\d ]{0,14})(?:\*\*)?\s*[：:]/gmu)].map(m => m[1].trim())
 export function describeWorldbookCluster(entries) {

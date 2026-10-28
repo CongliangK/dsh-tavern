@@ -281,12 +281,16 @@ test('readable scope directories survive restart, disambiguate games and migrate
 
 test('large source category exposes a compact Skill and an authorized relative reference directory', async t => {
   const f = fixture(t), state = f.states.get('one'), seed = state.worldBook.view.entries[0]
-  state.worldBook.view.entries = Array.from({length:45}, (_,i) => ({...seed,ref:`ref-${i}`,sourceUid:i,title:`功法·招式${i}`,content:`完整原文${i}`}))
+  state.worldBook.view.entries = Array.from({length:13}, (_,i) => ({...seed,ref:`ref-${i}`,sourceUid:i,title:`功法·招式${i}`,content:`完整原文${i}`}))
   const view = await f.provider.inspect(f.lookup('one'))
   assert.equal(view.clusters.length, 1)
   const cluster = view.clusters[0]
   assert.equal(cluster.title, '功法')
   assert.match(cluster.guide, /references\/资料目录.md/)
+  assert.doesNotMatch(cluster.guide, /完整原文/)
+  const listed = (await f.provider.list(f.lookup('one'))).candidates
+  assert.ok(listed.every(item => Array.from(item.description).length <= 100))
+  assert.ok(listed.every(item => !item.description.includes('完整原文')))
   assert.ok(cluster.guide.length < 1000)
   const index = await f.provider.readResource(path.join(cluster.directory, 'references/资料目录.md'), f.lookup('one'))
   for (const e of cluster.entries) {
