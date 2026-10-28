@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "76b83d690c1749d42c5aa8a7181a8e62cb9ec88f",
-  "releaseSequence": 963,
+  "revision": "bbc20acf0089836dc5758115320a37ca88fe5cd2",
+  "releaseSequence": 964,
   "version": "3.1.0",
   "files": [
     {
@@ -1076,8 +1076,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/character-design-document.js",
-      "sha256": "67f2dcb8adbbeeac8e5c193b4b69ef26aeacf0eabda457a2956ca60b78b7466e",
-      "size": 13142
+      "sha256": "07b5d92948b035026e0e38861986b09c3432a89ff0a70a791c593c513e702b85",
+      "size": 13191
     },
     {
       "path": "tavern-plugin/lib/domain/character-design-stage.js",
@@ -1336,8 +1336,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/foreground-tools.js",
-      "sha256": "736081fe0ed7565fcb5a8e8a94acb5415d1e44e39a3c2d4149ccbec60c78cad3",
-      "size": 2177
+      "sha256": "c67da0f9716542a6b442116b41cf754273a6eef2f2ba49ace34f1dc40a631f49",
+      "size": 2066
     },
     {
       "path": "tavern-plugin/lib/domain/foreground-variable-changes.js",
@@ -2686,8 +2686,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/turn-orchestration.js",
-      "sha256": "d4c635b020be467bf1ddfa0bf3d2a0159148e217e9d633dc9ac06259b415d4be",
-      "size": 50873
+      "sha256": "02abd576a6f32398ac7a8f8e6468b92dac1a73558b3a520a20d0d201b9c21a3d",
+      "size": 50868
     },
     {
       "path": "tavern-plugin/lib/domain/turn-settled-events.js",
@@ -2986,8 +2986,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "3b2c65e95b2fc98858806bed5b73f7bd66778bd5251e820e11d23137c0d4308c",
-      "size": 252337
+      "sha256": "538a89d0d3a74591c78abf724a1be523185367023c7aad20519e155fbea20eb1",
+      "size": 251106
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -3106,8 +3106,8 @@
     },
     {
       "path": "tavern-plugin/lib/tools/gameplay.js",
-      "sha256": "7c38984c1e90aa7b21302d5b2d5871d5e14964d86e60ee041e71d00ec9560029",
-      "size": 4036
+      "sha256": "c60e5e4f83757bf018939a1abe8b8af9b66c71bb42e6f9218889a18d6baf4134",
+      "size": 3489
     },
     {
       "path": "tavern-plugin/lib/tools/play-chat.js",
@@ -5146,9 +5146,9 @@
     }
   ],
   "archive": {
-    "commit": "26d7d733f2660da23b27a1e83817b92c874d79bd",
+    "commit": "87a92edeff593d87fd74a5f93a1f9903973ee058",
     "path": "runtime.zip",
-    "sha256": "0c090c7092d8ce1c06ab48fd80b7e9884b92c0ae3d285ff57eba257bba2aaccf",
-    "size": 10554452
+    "sha256": "3223b28281cf2f63e763ef9d2acb1df3db65ed7bed498fdc98ef176bc0231f3f",
+    "size": 10554117
   }
 }
