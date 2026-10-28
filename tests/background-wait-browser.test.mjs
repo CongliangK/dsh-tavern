@@ -27,3 +27,25 @@ test('long-wait notice shows a working stop button in Chromium',async()=>{
   assert.deepEqual(calls.find(call=>call.method==='stopBackground'),{method:'stopBackground',args:{operationId:'op-1'},sessionId:'game'})
  } finally {await browser.close()}
 })
+test('后台任务列表在 Chromium 中显示运行、排队与失败',async()=>{
+ let script='const modules={};\n'
+ for(const [name,file] of [['react','react.production.js'],['scheduler','scheduler.production.js'],['react-dom','react-dom.production.js'],['react-dom/client','react-dom-client.production.js']]) {
+  script+=`modules[${JSON.stringify(name)}]=(()=>{const module={exports:{}};const exports=module.exports;const require=name=>modules[name];\n${await readFile(join(dirname(require.resolve(name)),'cjs',file),'utf8')}\nreturn module.exports;})();\n`
+ }
+ const wait=await readFile(new URL('../tavern-plugin/src/client/modules/background-wait.js',import.meta.url),'utf8')
+ script+=`const React=modules.react;const t=Date.now();
+ async function rpc(method){return {runs:[
+  {id:'run-3',task:'plugin',plugin:'地图',lane:'ephemeral',turn:5,model:'m',status:'failed',queuedAt:t-9000,startedAt:t-9000,endedAt:t-4000,error:'信号读取失败'},
+  {id:'run-2',task:'candidate',lane:'resident',turn:5,model:'m',status:'queued',queuedAt:t-2000},
+  {id:'run-1',task:'settlement',lane:'resident',turn:5,model:'m',status:'running',queuedAt:t-8000,startedAt:t-8000}]}}
+ ${wait}\nmodules['react-dom/client'].createRoot(document.querySelector('main')).render(React.createElement(TavernBackgroundRuns,{sessionId:'game'}));`
+ const browser=await chromium.launch({headless:true})
+ try {
+  const page=await browser.newPage();page.on('pageerror', error => { throw error });await page.setContent('<main></main>');await page.addScriptTag({content:script})
+  await page.getByText('运行 1 · 排队 1 · 失败 1').click()
+  await page.getByText('插件「地图」').waitFor()
+  assert.ok(await page.getByText('信号读取失败').isVisible())
+  assert.ok(await page.getByText('变量结算').isVisible())
+  assert.match(await page.locator('li').nth(1).innerText(), /生成选项[\s\S]*排队中[\s\S]*第 5 轮 · 常驻/)
+ } finally {await browser.close()}
+})
