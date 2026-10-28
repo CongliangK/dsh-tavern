@@ -132,7 +132,7 @@ for (const embedded of [false, true]) test(`脚本增删改 → Skill 文件/稳
   })
   const chat={sessionId:'audit',cardPath:'card.json',worldbookStrategy:'native-skills'}
   const session={id:'audit',events:[],append(type,data){const event={seq:this.events.length,type,data};this.events.push(event);return event}}
-  const scope={session}, lookup={scope}, payload={agent:scope,messages:[]}
+  const scope={session}, lookup={scope}, payload={agent:scope}
   const oldBook=structuredClone(await host.record())
   const oldScope={session:{id:'old'}}
   const create=()=>createWorldbookSkillProvider({directory,inlineTokenBudget:0,load:async agent=>({chat:{...chat,sessionId:agent.session.id},worldBook:agent===oldScope?oldBook:await host.record()})})
