@@ -978,9 +978,9 @@ body.dsh-tavern-shell-active [data-dsh-panel-host] { overflow: clip; }
 .dsh-ledger > .dsh-tavern-character-design-head .dsh-ledger-toggle { flex: 1; width: auto; min-width: 0; margin-right: 8px; }
 .dsh-ledger-tabs { display: flex; gap: 3px; margin: 12px 0; padding: 3px; border-radius: 9px; background: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.12)); }
 .dsh-ledger-tabs button { display: flex; flex: 1; align-items: center; justify-content: center; gap: 6px; min-width: 0; border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; font: inherit; color: var(--dsw-alias-label-secondary, inherit); }
-.dsh-ledger-tabs [aria-selected="true"] { color: var(--dsw-alias-label-primary, inherit); background: var(--dsw-specific-sidebar-fill, Canvas); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.dsh-ledger-tabs [aria-selected="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-specific-sidebar-fill, Canvas); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
 .dsh-ledger-count { font-size: 11px; opacity: .65; font-variant-numeric: tabular-nums; }
-.dsh-ledger .dsh-ledger-add, .dsh-ledger-actions button { border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.3)); background: transparent; color: var(--dsw-alias-label-primary, inherit); border-radius: 6px; padding: 5px 9px; font: inherit; }
+.dsh-ledger .dsh-ledger-add, .dsh-ledger-actions button { border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.3)); background: transparent; color: var(--dsw-alias-label-primary); border-radius: 6px; padding: 5px 9px; font: inherit; }
 .dsh-ledger .dsh-ledger-add { font-size: 12px; }
 .dsh-ledger button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.12)); }
 .dsh-ledger button:focus-visible { outline: 2px solid var(--dsh-tavern-accent); outline-offset: 2px; }
@@ -4920,3 +4920,11 @@ nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !importa
 .dsh-wb-muted, .dsh-wb-entry small { opacity:.65; font-size:12px; line-height:1.6; }
 .dsh-wb-entry { display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin:10px 0; }
 .dsh-wb-stats { padding:12px; background:#8881; border-radius:8px; line-height:1.8; margin-bottom:12px; }
+.dsh-tavern-background-runs summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.dsh-tavern-background-runs-summary { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.dsh-tavern-background-runs ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 12px; line-height: 1.5; }
+.dsh-tavern-background-run { display: flex; flex-wrap: wrap; gap: 0 8px; color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-background-run-name { color: var(--dsw-alias-label-primary); font-weight: 600; }
+.dsh-tavern-background-run.running .dsh-tavern-background-run-name { color: var(--dsh-tavern-accent); }
+.dsh-tavern-background-run.failed .dsh-tavern-background-run-name, .dsh-tavern-background-run-error { color: #c45f5f; }
+.dsh-tavern-background-run-error { flex-basis: 100%; overflow-wrap: anywhere; }
