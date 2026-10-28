@@ -110,7 +110,9 @@ function environment(options = {}) {
     readTavernSettings,
     fileSize: async path => Buffer.byteLength(state.cards.get(path) ?? state.worldbooks.get(path) ?? state.presets.get(path) ?? ''),
     tavernVersion: '3.1.0',
-    assets: options.assets
+    assets: options.assets,
+    chats: options.chats,
+    memory: options.memory
   })
 
   const importer = createTransferImport({
@@ -133,6 +135,8 @@ function environment(options = {}) {
       return { path: 'presets/' + payload.name }
     },
     assets: options.assets,
+    chats: options.chats,
+    memory: options.memory,
     backup: async (name, text) => { state.backups.push({ name, text }); return 'backups/transfer/20261027-160000/' + name },
     removeCreated: async (kind, path) => {
       const map = { cards: state.cards, worldbooks: state.worldbooks, presets: state.presets }[kind]
@@ -295,4 +299,43 @@ test('素材包：预览认得这个板块，应用时按标题建新包、重�
   assert.equal(row.added, 1)
   assert.deepEqual(row.failed, [])
   assert.deepEqual(calls, [{ key: 'pack-a', name: '秋日教室 (2)', bytes: 14 }])
+})
+
+test('游玩记忆随同包的存档并进新局；包里没带存档时明确说明无处可并', async () => {
+  const merged = []
+  const chats = {
+    async list() { return [{ key: 'chat-1', title: '作家 · 第 3 章', meta: '3 轮', bytes: 0 }] },
+    async collect(keys) { return keys.map(key => ({ key, title: '作家 · 第 3 章', fileName: 'game.dshsave', content: Buffer.from('save-bytes') })) },
+    async importOne() { return { chatId: 'chat-new', sessionId: 'session-new', title: '作家 · 第 3 章 (2)' } },
+    async importedHashes() { return new Set() }
+  }
+  const memory = {
+    async list() { return [{ key: 'chat-1', title: '作家 · 第 3 章', meta: '2 轮召回记录', bytes: 120 }] },
+    async collect(keys) { return keys.map(key => ({ key, title: '作家 · 第 3 章', fileName: key + '.recalls.json', content: Buffer.from('{"spec":"dsh-tavern.transfer.recalls","version":1,"records":[{"turn":3,"operationId":"op-1","log":{}}]}') })) },
+    async importOne(payload) { merged.push({ chatId: payload.chatId, sessionId: payload.sessionId }); return { added: 1, skipped: 0 } }
+  }
+  const to = environment({ chats, memory })
+  const withSave = await bundleFrom(to, { chats: ['chat-1'], memory: ['chat-1'] })
+  assert.deepEqual(withSave.manifest.parts.map(part => part.kind), ['chats', 'memory'])
+  const preview = await to.importer.preview(withSave.manifest, withSave.files)
+  const part = preview.parts.find(row => row.kind === 'memory')
+  assert.equal(part.importable, true)
+  assert.equal(part.items[0].usable, true)
+
+  const result = await to.importer.apply({ manifest: withSave.manifest, files: withSave.files,
+    selection: { chats: ['chat-1'], memory: ['chat-1'] } })
+  assert.equal(result.results.find(row => row.kind === 'memory').added, 1)
+  assert.deepEqual(merged, [{ chatId: 'chat-new', sessionId: 'session-new' }])
+
+  // 只带记忆、不带存档：预览就说明无处可并，应用时不写、并记一条失败原因。
+  const memoryOnly = await bundleFrom(to, { memory: ['chat-1'] })
+  const lonely = (await to.importer.preview(memoryOnly.manifest, memoryOnly.files)).parts.find(row => row.kind === 'memory')
+  assert.equal(lonely.items[0].usable, false)
+  assert.match(lonely.items[0].reason, /无处可并/)
+  const skipped = await to.importer.apply({ manifest: memoryOnly.manifest, files: memoryOnly.files })
+  const row = skipped.results.find(item => item.kind === 'memory')
+  assert.equal(row.added, 0)
+  assert.equal(row.failed.length, 1, '应用时也说明一遍，不静默丢掉')
+  assert.match(row.failed[0].error, /无处可并/)
+  assert.equal(merged.length, 1, '没有新局，不会再写记忆')
 })

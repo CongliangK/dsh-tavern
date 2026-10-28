@@ -48,7 +48,8 @@ const PART_DEFS = [
   // 配图没有单独的存储入口：它们随 .dshsave 的 scene/files 与附件一起走，页面上由「含对话配图」控制。
   { kind: 'scene', group: 'story', label: '场景配图', unit: '张', supported: false,
     note: '配图随「对话与存档」一起打包，勾选下面的「含对话配图」即可，不单独成项' },
-  { kind: 'memory', group: 'story', label: '游玩记忆', unit: '局', supported: false, note: '下一版支持' },
+  { kind: 'memory', group: 'story', label: '游玩记忆', unit: '局', supported: true, privacy: '含私人剧情',
+    note: '每局最近十轮的世界书召回记录；导入随同包的存档并进同一局，操作 id 相同的跳过。卡记忆暂不搬' },
   { kind: 'plugins', group: 'ext', label: '插件', unit: '个', supported: true, privacy: '可执行代码',
     note: '插件文件夹原样打包；导入只复制，不启用、不执行' },
   { kind: 'plugin-data', group: 'ext', label: '插件数据', unit: '个', supported: true, privacy: '可能含 token',
@@ -75,7 +76,7 @@ export const TRANSFER_GROUPS = Object.freeze([
  */
 export function createTransferCatalog(deps) {
   const { fileResources, cardPreparation, readCardWorkspace, worldBooks, presetLibrary, promptDocuments,
-    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins, materials, fonts, pluginData, skills, logs, assets } = deps
+    userPreferenceProfile, regexManager, readTavernSettings, fileSize, tavernVersion, chats, plugins, materials, fonts, pluginData, skills, logs, assets, memory } = deps
 
   async function sizeOf(relative) {
     try { return await fileSize(relative) } catch { return 0 }
@@ -162,6 +163,7 @@ export function createTransferCatalog(deps) {
   if (skills) LISTS.skills = () => skills.list()
   if (logs) LISTS.logs = () => logs.list()
   if (assets) LISTS.assets = () => assets.list()
+  if (memory) LISTS.memory = () => memory.list()
 
   async function listParts() {
     const parts = []
@@ -271,6 +273,11 @@ export function createTransferCatalog(deps) {
       const embedPreset = selected(selection, 'presets').length === 0
       const exports = await chats.collect(selected(selection, 'chats'), { images: options.images !== false, embedWorldbook, embedPreset })
       for (const item of exports) add('chats', '对话与存档', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'game.dshsave'), item.content)
+    }
+
+    if (memory && selected(selection, 'memory').length) {
+      const exports = await memory.collect(selected(selection, 'memory'))
+      for (const item of exports) add('memory', '游玩记忆', { key: item.key, title: item.title }, safeTransferFileName(item.fileName, 'recalls.json'), item.content)
     }
 
     if (fonts && selected(selection, 'fonts').length) {

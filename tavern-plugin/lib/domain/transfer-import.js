@@ -9,7 +9,7 @@ function stemOf(value) {
   return path.posix.basename(str(value), path.posix.extname(str(value))) || '未命名'
 }
 
-const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins', 'scripts', 'fonts', 'plugin-data', 'skills', 'assets'])
+const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins', 'scripts', 'fonts', 'plugin-data', 'skills', 'assets', 'memory'])
 const SETTINGS_PART = 'settings'
 
 /** A name that does not collide: 名字, 名字 (2), 名字 (3), … */
@@ -35,7 +35,7 @@ function errorText(error) {
 export function createTransferImport(deps) {
   const { fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
     readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts, pluginData, skills,
-    removeCreated, readSettingsDocument, assets } = deps
+    removeCreated, readSettingsDocument, assets, memory } = deps
 
   async function cardIndex() {
     const names = new Set(), stems = new Set()
@@ -219,6 +219,9 @@ export function createTransferImport(deps) {
     const contents = await contentIndex()
     // Only these kinds can be compared byte-for-byte after import; prompts/regex have no local twin.
     const dedupeKinds = new Set(['cards', 'worldbooks', 'presets', 'scripts'])
+    // 一局的召回记录没有地方可去，除非同一个包也带着那一局的存档。
+    const chatKeys = new Set(manifest.parts.filter(function (part) { return part.kind === 'chats' })
+      .flatMap(function (part) { return part.items.map(function (item) { return str(item.key) }) }))
     const parts = manifest.parts.map(function (part) {
       if (!IMPORTABLE.includes(part.kind)) {
         return { kind: part.kind, label: part.label, importable: false, conflicts: 0, selectable: 0,
@@ -229,6 +232,8 @@ export function createTransferImport(deps) {
       const items = part.items.map(function (item) {
         const usable = item.usable !== false && (files.size === 0 || files.has(item.entry))
         if (!usable) return { key: item.key, title: item.title, bytes: item.bytes, usable: false, conflict: false, duplicate: false, reason: '包内文件损坏或缺失，已跳过' }
+        if (part.kind === 'memory' && !chatKeys.has(str(item.key)))
+          return { key: item.key, title: item.title, bytes: item.bytes, usable: false, conflict: false, duplicate: false, reason: '包里没有这一局的存档，导入无处可并' }
         const conflictReason = itemConflict(index, part.kind, item)
         let duplicate = false, reason = conflictReason
         const packed = files.get(item.entry)
@@ -289,6 +294,8 @@ export function createTransferImport(deps) {
 
     const results = []
     let backupPath = ''
+    // 新局 id：召回记录要落进刚导入的那一局，源 chatId 只用来配对。
+    const chatIdMap = new Map()
 
     for (const part of manifest.parts) {
       const result = { kind: part.kind, label: part.label, added: 0, skipped: 0, overwritten: 0, failed: [], created: [] }
@@ -409,6 +416,15 @@ export function createTransferImport(deps) {
             result.overwritten += 1
             continue
           }
+          if (part.kind === 'memory') {
+            if (!memory) throw new Error('游玩记忆导入不可用')
+            const target = chatIdMap.get(str(item.key))
+            if (!target) { result.failed.push({ title: item.title, error: '同包这一局的存档没有导入，记忆无处可并' }); continue }
+            const merged = await memory.importOne({ key: item.key, chatId: target.chatId, sessionId: target.sessionId, content })
+            result.added += Number(merged.added) || 0
+            result.skipped += Number(merged.skipped) || 0
+            continue
+          }
           if (part.kind === 'assets') {
             if (!assets) throw new Error('素材包导入不可用')
             const name = uniqueName(used.assetNames, str(item.title) || '导入的素材包')
@@ -453,6 +469,7 @@ export function createTransferImport(deps) {
             contents.get('chats').add(saveHash)
             result.added += 1
             result.chatIds = (result.chatIds || []).concat(imported.chatId ? [imported.chatId] : [])
+            if (imported.chatId) chatIdMap.set(str(item.key), imported)
             continue
           }
           if (part.kind === 'plugins') {

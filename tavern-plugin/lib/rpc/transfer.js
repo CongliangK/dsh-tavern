@@ -9,6 +9,7 @@ import { createTransferFonts } from '../domain/transfer-fonts.js'
 import { createTransferImport } from '../domain/transfer-import.js'
 import { createTransferLogs } from '../domain/transfer-logs.js'
 import { createTransferMaterials } from '../domain/transfer-materials.js'
+import { createTransferMemory } from '../domain/transfer-memory.js'
 import { createTransferPluginData } from '../domain/transfer-plugin-data.js'
 import { createTransferSkills } from '../domain/transfer-skills.js'
 import { createTransferUndo } from '../domain/transfer-undo.js'
@@ -38,7 +39,7 @@ export function createTransferHandlers(deps) {
     regexManager, readTavernSettings, updateTavernSettings, importCard, importPreset, readCardWorkspace,
     cardPreparation, TAVERN_PACKAGE_VERSION, listTavernSessions, readChat, exportGameSave, importGameSave,
     userPluginInstaller, pluginDataStore, tavernSkills, transferExports, exportTavernLogs,
-    deleteCard, deletePreset, deleteResource, readRawTavernSettings, updateChat, assetLibrary } = deps
+    deleteCard, deletePreset, deleteResource, readRawTavernSettings, updateChat, assetLibrary, profileData } = deps
 
   async function writeBackup(name, text) {
     const directory = path.join(dataRoot, '..', 'backups', 'transfer', stamp())
@@ -64,6 +65,8 @@ export function createTransferHandlers(deps) {
   const pluginData = createTransferPluginData({ pluginDataStore, listPlugins: pluginDataEntries })
   const logs = createTransferLogs({ listSessions: listTavernSessions, exportLogs: exportTavernLogs })
   const skills = createTransferSkills({ skillsDir: path.join(dataRoot, 'skills'), listSkills: () => tavernSkills.list() })
+  // 召回记录和存档一样放在 profile 数据根下（worldbook-recalls/<chatId>/），由 profileData 读写。
+  const memory = profileData ? createTransferMemory({ store: profileData, listSessions: listTavernSessions }) : null
   // 素材库的根在 tavern dataRoot 旁边（index.js 里建 assetLibrary 用的是同一个路径）。
   const assets = assetLibrary ? createTransferAssets({ root: path.join(path.dirname(dataRoot), 'asset-packs'), library: assetLibrary }) : null
 
@@ -86,13 +89,14 @@ export function createTransferHandlers(deps) {
     pluginData,
     skills,
     logs,
-    assets
+    assets,
+    memory
   })
 
   const importer = createTransferImport({
     fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
     readTavernSettings, readSettingsDocument: readRawTavernSettings, updateTavernSettings, importCard, importPreset,
-    backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills, assets, removeCreated
+    backup: writeBackup, chats, plugins, materials, fonts, pluginData, skills, assets, memory, removeCreated
   })
 
   const tokens = new Map()
