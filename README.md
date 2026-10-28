@@ -15,7 +15,7 @@
 
 [![观看 3 分钟实机演示：兼容酒馆生态，更快、更稳、更鲜活](docs/images/readme/promo-video.jpg)](https://www.bilibili.com/video/BV1MHaU6NE7S/)
 
-[下载安装](#快速开始) · [使用文档](https://flizzywine.github.io/dsh-tavern/) · [贡献指南](https://flizzywine.github.io/dsh-tavern/#contributing) · [宣传视频](https://www.bilibili.com/video/BV1MHaU6NE7S/) · [Discord 交流群](https://discord.gg/hYAEjKnpra)
+[下载安装](#快速开始) · [使用文档](https://flizzywine.github.io/dsh-tavern/) · [贡献指南](docs/pages/contributing.md) · [宣传视频](https://www.bilibili.com/video/BV1MHaU6NE7S/) · [Discord 交流群](https://discord.gg/hYAEjKnpra)
 
 - **兼容 SillyTavern 生态**：人物卡、世界书、预设、正则美化、MVU、酒馆助手脚本，导入就能用。
 - **更快**：一轮约 10 秒，缓存命中率 95% 以上。
@@ -258,3 +258,9 @@ curl -fsSL 'https://raw.githubusercontent.com/flizzywine/dsh-tavern/main/install
 [![用户反馈：AI 修改内容方便，变量更新稳定，轻前端游玩体验不错](docs/images/readme/testimonials/ai-editing-and-variable-stability.jpg)](docs/images/readme/testimonials/ai-editing-and-variable-stability.jpg)
 
 </details>
+
+## 参与贡献
+
+欢迎各种 PR：完善文档、写小白教程、给配置项改名、折叠复杂设置，或改进其他使用体验。
+
+详见 [贡献指南](docs/pages/contributing.md)。新增文档页面只需在 `docs/pages/` 中添加 Markdown 文件，网站会自动收录。
