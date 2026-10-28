@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "6637be56dffdedda27bf6fd99543047386fc9f09",
-  "releaseSequence": 962,
+  "revision": "76b83d690c1749d42c5aa8a7181a8e62cb9ec88f",
+  "releaseSequence": 963,
   "version": "3.1.0",
   "files": [
     {
@@ -751,13 +751,18 @@
     },
     {
       "path": "tavern-plugin/lib/background-agent-sessions.js",
-      "sha256": "4b28e83002566a4da6fcb58679abf4b53372b9b4a1d2814a839429fed36a3ef9",
-      "size": 22030
+      "sha256": "dbaae50cb655499ee17d9b1fe2b95d9f1d575fe47e7071c1cab10547b0e1311f",
+      "size": 22769
     },
     {
       "path": "tavern-plugin/lib/background-agent-task.js",
-      "sha256": "f10a581dae02d4ba7085b06fb08a99b414802378d0739419e41909ed0a9f5be6",
-      "size": 29415
+      "sha256": "ca712f811e7e3985630281c8790ebf1ecc4f172875edab391d68b80086ebcd7b",
+      "size": 29677
+    },
+    {
+      "path": "tavern-plugin/lib/background-run-ledger.js",
+      "sha256": "596f5620641a13e2173c3ba673b48c2de69e5961ac020f76e24f24b347063d1b",
+      "size": 2269
     },
     {
       "path": "tavern-plugin/lib/client-assets/lockup-dark.svg",
@@ -776,13 +781,13 @@
     },
     {
       "path": "tavern-plugin/lib/client-assets/tavern.css",
-      "sha256": "631c7e45a3600330b08ab5721d534a06be198db75bf1b5db0f37b87094d8ea47",
-      "size": 514959
+      "sha256": "4d5ab045e6e99d35e22eb9bee096d58c35f491ad52a05a2300bfc943ec8eb3b6",
+      "size": 516045
     },
     {
       "path": "tavern-plugin/lib/client.js",
-      "sha256": "a16f0889732ce61ad9f7ef98bf6828dd76b699fada701c0822c81f03aa1c71e4",
-      "size": 2929724
+      "sha256": "a2e0793061e1608df7fc1123cd89e425a0b7e44a777341d216fe75956073f10e",
+      "size": 2937199
     },
     {
       "path": "tavern-plugin/lib/cordis-inspect.js",
@@ -2881,13 +2886,18 @@
     },
     {
       "path": "tavern-plugin/lib/domain/worldbook-skill-provider.js",
-      "sha256": "00457d46ac796518f652d8e0e12fa31fb8f4dd53bbb3a65de08b72120e20411b",
-      "size": 17856
+      "sha256": "b8e0ec3e4859541bb3a9cbc6af6a1ea0e23dc0d971600c96a75ffff31275bbc7",
+      "size": 17888
     },
     {
       "path": "tavern-plugin/lib/domain/worldbook-skill-read.js",
       "sha256": "b4c349f40f9675d8bfa16c6806310e22df95bd7292f9580dc575f442c5067507",
       "size": 1516
+    },
+    {
+      "path": "tavern-plugin/lib/domain/worldbook-skill-scope.js",
+      "sha256": "797e05ab42791737af4ce216115a7fac0fd0d199bee8e95a2c687742c467a781",
+      "size": 750
     },
     {
       "path": "tavern-plugin/lib/domain/worldbook-snapshot.js",
@@ -2976,8 +2986,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "6662d3dd2f465607366bb8b6b1bb65b62b91589b397325ad8b0e92329f26563b",
-      "size": 252169
+      "sha256": "3b2c65e95b2fc98858806bed5b73f7bd66778bd5251e820e11d23137c0d4308c",
+      "size": 252337
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -3031,8 +3041,8 @@
     },
     {
       "path": "tavern-plugin/lib/rpc/play.js",
-      "sha256": "fa3636c0d9d7d0f7c0f2bc809e2c0d8f0bf6c566ecf67acea2538eb94ed0fcca",
-      "size": 16160
+      "sha256": "896365afc0f3cf69b33ec807ab395fe48c726a94a06ce771ad881ce508d6e7b2",
+      "size": 16277
     },
     {
       "path": "tavern-plugin/lib/rpc/plugins.js",
@@ -5136,9 +5146,9 @@
     }
   ],
   "archive": {
-    "commit": "b7bef6b69ad5f73fda936ffeedcb2db394040396",
+    "commit": "26d7d733f2660da23b27a1e83817b92c874d79bd",
     "path": "runtime.zip",
-    "sha256": "57356b20a8d29369d4f74c068c8e4b7c6679862de4e2db6df3a071b078168be3",
-    "size": 10550538
+    "sha256": "0c090c7092d8ce1c06ab48fd80b7e9884b92c0ae3d285ff57eba257bba2aaccf",
+    "size": 10554452
   }
 }
