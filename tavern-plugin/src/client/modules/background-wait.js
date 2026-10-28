@@ -41,7 +41,7 @@ function TavernBackgroundWait(props) {
         React.createElement("p", null, message),
         React.createElement(TavernStopBackgroundAction, {sessionId:props.sessionId}));
 }
-const BACKGROUND_RUN_TASKS = { settlement: "变量结算", ledger: "手动记账", candidate: "生成选项", "worldbook-filter": "世界书预筛", "style-reference": "文风联想", "stage-director": "舞台导演", phone: "手机", "character-design": "人物设计", subagent: "子任务", edit: "编辑" };
+const BACKGROUND_RUN_TASKS = { polish: "正文精修", settlement: "变量结算", ledger: "手动记账", candidate: "生成选项", "worldbook-filter": "世界书预筛", "style-reference": "文风联想", "stage-director": "舞台导演", phone: "手机", "character-design": "人物设计", subagent: "子任务", edit: "编辑" };
 const BACKGROUND_RUN_STATUS = { queued: "排队中", running: "运行中", completed: "完成", failed: "失败", cancelled: "已取消" };
 function backgroundRunName(run) {
     return run.task === "plugin" ? "插件「" + (run.plugin || "未知") + "」" : BACKGROUND_RUN_TASKS[run.task] || run.task;
@@ -104,7 +104,7 @@ function TavernBackgroundTasksTab(props) {
             h("section", { className: "dsh-tavern-status-section" },
                 h("div", { className: "dsh-tavern-status-label" }, "最近完成"),
                 list(done, "服务启动以来本局还没有结束的后台任务。")),
-            h("p", { className: "dsh-tavern-settings-desc" }, "常驻：本局共用的后台 Agent，按顺序执行；临时：单独新开的 Agent，可同时运行。记录只保留最近 30 条，重启服务后清空。")));
+            h("p", { className: "dsh-tavern-settings-desc" }, "常驻：保留历史的后台 Agent，精修使用独立会话；临时：单独新开的 Agent，可同时运行。记录只保留最近 30 条，重启服务后清空。")));
 }
 // One line in 酒馆状态 that opens the page.
 function TavernBackgroundRunsLink(props) {

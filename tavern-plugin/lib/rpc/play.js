@@ -183,6 +183,9 @@ export function createPlayHandlers(deps) {
         .catch(error => console.warn('dsh-tavern: 精修记录保存失败', error))
       return { edits, view }
     },
+    async polishProgress(args) {
+      return { progress: polishReviewer.progress(str(args?.sessionId)) }
+    },
     async polishComparison(args) {
       return { comparison: await polishRecords.latest(str(args?.sessionId)), prereview: (await readTavernSettings()).polishPrereview === true }
     },

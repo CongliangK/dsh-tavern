@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { createBackgroundAgentRunner } from '../../tavern-plugin/lib/background-agent-runner.js'
 import { createProfileDataStore } from '../../tavern-plugin/lib/profile-data-store.js'
 
-export async function createBackgroundNativeRuntime(bootPath, { systemAppend, resolveModelSelection, beforeModelRequest, residentOptions = {}, setupHost } = {}) {
+export async function createBackgroundNativeRuntime(bootPath, { systemAppend, resolveModelSelection, beforeModelRequest, modelResponse, residentOptions = {}, setupHost } = {}) {
   const bootUrl = pathToFileURL(bootPath)
   const { boot } = await import(bootUrl.href)
   const { LlmAdapter } = await import(new URL('../../dsh-llm/lib/index.js', bootUrl))
@@ -27,14 +27,16 @@ export async function createBackgroundNativeRuntime(bootPath, { systemAppend, re
     async *stream(input) {
       await beforeModelRequest?.(input)
       requests.push(structuredClone({ model: input.model, reasoningEffort: input.reasoningEffort, maxTokens: input.maxTokens, system: input.messages.filter(message => message.role === 'system').flatMap(message => message.content || []), messages: input.messages, tools: input.tools }))
-      const block = { type: 'text', text: '已完成。' }
-      yield { type: 'block-start', index: 0, blockType: block.type }
-      yield { type: 'block-end', index: 0, block }
-      yield { type: 'finish', reason: { kind: 'stop' } }
+      const blocks = modelResponse ? await modelResponse(input, requests.length) : [{ type: 'text', text: '已完成。' }]
+      for (const [index, block] of blocks.entries()) {
+        yield { type: 'block-start', index, blockType: block.type }
+        yield { type: 'block-end', index, block }
+      }
+      yield { type: 'finish', reason: { kind: blocks.some(block => block.type === 'tool-call') ? 'tool-calls' : 'stop' } }
     }
   }
   ctx.llm.registerAdapter(['scene-fixture', 'scene-fixture-other', 'deepseek-official'], new FixtureModel())
-  for (const name of ['skill', 'tavern_read_skill_reference', 'web_search']) ctx.tools.register({
+  for (const name of ['skill', 'read', 'tavern_read_skill_reference', 'web_search']) ctx.tools.register({
     name, description: 'Fixture tool', parameters: { type: 'object', properties: {} },
     output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
     async execute() { return 'fixture' }

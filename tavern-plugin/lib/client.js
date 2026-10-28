@@ -30540,7 +30540,7 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
 				else if (e.key === "Escape") { e.preventDefault(); props.onCancel(); }
 			}
 			const body = props.loading
-				? h("div", { className: "dsh-tavern-regen-loading" }, props.loading)
+				? h(React.Fragment, null, h("div", { className: "dsh-tavern-regen-loading" }, props.loading), props.loadingExtra || null)
 				: h(React.Fragment, null,
 					props.error ? h("div", { className: "dsh-tavern-choice-error" }, props.error) : null,
 					h("textarea", {
@@ -30582,6 +30582,24 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
 			const [reviewing, setReviewing] = React.useState(false);
 			const [reviewNote, setReviewNote] = React.useState("");
 			const [reviewSeconds, setReviewSeconds] = React.useState(0);
+            const [reviewProgress, setReviewProgress] = React.useState(null);
+            React.useEffect(function () {
+                let disposed = false, loading = false;
+                setReviewProgress(null);
+                if (!reviewing) return;
+                async function refresh() {
+                    if (loading) return;
+                    loading = true;
+                    try {
+                        const result = await rpc("polishProgress", {}, props.sessionId);
+                        if (!disposed) setReviewProgress(result.progress);
+                    } catch (_) { /* The running request reports failures. */ }
+                    finally { loading = false; }
+                }
+                void refresh();
+                const timer = setInterval(refresh, 1000);
+                return function () { disposed = true; clearInterval(timer); };
+            }, [reviewing, props.sessionId]);
 			React.useEffect(() => {
 				if (!reviewing) return undefined;
 				const started = Date.now();
@@ -30621,8 +30639,13 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
 			return h(RegenGuideForm, {
 				title: "重新生成正文",
 				hint: "不填意见是重新来一次；填了意见就在当前正文基础上改；精修：按原则直接改好，填了意见会在精修后再照意见改一次，对比和撤销在「精修对比」页",
-				loading: reviewing ? "正在精修正文… " + reviewSeconds + " 秒" : panel.phase === "loading" ? (panel.restyle ? "正在换文风联想并重新生成…" : panel.rewrite ? "正在按意见改写正文…" : "正在重新生成正文…") : "",
-				extra: h(React.Fragment, null, styleEnabled ? h("div", { className: "dsh-tavern-regen-style" },
+				loading: reviewing ? "正在精修正文… " + reviewSeconds + " 秒" + (reviewProgress?.edits?.length ? " · 已修 " + reviewProgress.edits.length + " 处" : "") : panel.phase === "loading" ? (panel.restyle ? "正在换文风联想并重新生成…" : panel.rewrite ? "正在按意见改写正文…" : "正在重新生成正文…") : "",
+				loadingExtra: reviewing && reviewProgress?.edits?.length ? h("div", { className: "dsh-tavern-settings-desc", role: "status" },
+                    h("p", null, "逐处生成中，完成后统一保存："),
+                    reviewProgress.edits.map(function (edit, index) { return h("details", { key: index },
+                        h("summary", null, (index + 1) + ". " + edit.reason),
+                        h("p", null, h("del", null, edit.find)), h("p", null, h("ins", null, edit.replace || "（删除）"))); })) : null,
+                extra: h(React.Fragment, null, styleEnabled ? h("div", { className: "dsh-tavern-regen-style" },
 					h("label", null, h("input", { type: "checkbox", checked: restyle, onChange: event => setRestyle(event.target.checked) }), " 同时换一段文风联想"),
 					restyle ? h("input", { className: "dsh-tavern-regen-input", value: styleGuidance, maxLength: 500, placeholder: "换参考的要求（可选），例如：要金庸的打斗描写", onChange: event => setStyleGuidance(event.target.value) }) : null) : null),
 				error: panel.error || reviewNote,
@@ -32217,7 +32240,7 @@ function createTurnRailFilter(root, options) {
                 React.createElement("p", null, message),
                 React.createElement(TavernStopBackgroundAction, {sessionId:props.sessionId}));
         }
-        const BACKGROUND_RUN_TASKS = { settlement: "变量结算", ledger: "手动记账", candidate: "生成选项", "worldbook-filter": "世界书预筛", "style-reference": "文风联想", "stage-director": "舞台导演", phone: "手机", "character-design": "人物设计", subagent: "子任务", edit: "编辑" };
+        const BACKGROUND_RUN_TASKS = { polish: "正文精修", settlement: "变量结算", ledger: "手动记账", candidate: "生成选项", "worldbook-filter": "世界书预筛", "style-reference": "文风联想", "stage-director": "舞台导演", phone: "手机", "character-design": "人物设计", subagent: "子任务", edit: "编辑" };
         const BACKGROUND_RUN_STATUS = { queued: "排队中", running: "运行中", completed: "完成", failed: "失败", cancelled: "已取消" };
         function backgroundRunName(run) {
             return run.task === "plugin" ? "插件「" + (run.plugin || "未知") + "」" : BACKGROUND_RUN_TASKS[run.task] || run.task;
@@ -32280,7 +32303,7 @@ function createTurnRailFilter(root, options) {
                     h("section", { className: "dsh-tavern-status-section" },
                         h("div", { className: "dsh-tavern-status-label" }, "最近完成"),
                         list(done, "服务启动以来本局还没有结束的后台任务。")),
-                    h("p", { className: "dsh-tavern-settings-desc" }, "常驻：本局共用的后台 Agent，按顺序执行；临时：单独新开的 Agent，可同时运行。记录只保留最近 30 条，重启服务后清空。")));
+                    h("p", { className: "dsh-tavern-settings-desc" }, "常驻：保留历史的后台 Agent，精修使用独立会话；临时：单独新开的 Agent，可同时运行。记录只保留最近 30 条，重启服务后清空。")));
         }
         // One line in 酒馆状态 that opens the page.
         function TavernBackgroundRunsLink(props) {

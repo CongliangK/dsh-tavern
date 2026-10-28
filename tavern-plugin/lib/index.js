@@ -2109,7 +2109,7 @@ export async function apply(ctx) {
     // Nor does it learn of a new one; the same signal reloads the list so the header counts it.
     onCreated: (_id, parentId) => sessionSignals.publish(parentId, { kind: 'subagents', version: String(Date.now()) + ':' + Math.random().toString(36).slice(2) }),
     systemAppend: () => runtimePrompt('system-append'),
-    resolveModelSelection: async input => input.task === 'stage-director' ? input.selection : backgroundModelSelection(await backgroundConfigForSession(input.sessionId)) || input.selection,
+    resolveModelSelection: async input => ['stage-director', 'polish'].includes(input.task) ? input.selection : backgroundModelSelection(await backgroundConfigForSession(input.sessionId)) || input.selection,
     resolveWebSearch: async input => input.task !== 'stage-director' && (await backgroundConfigForSession(input.sessionId))?.webSearchEnabled === true,
     resolveWorldbookSkills: async input => (await backgroundConfigForSession(input.sessionId))?.worldbookStrategy === 'native-skills',
     backgroundTools: BACKGROUND_TOOLS,
@@ -2315,7 +2315,12 @@ export async function apply(ctx) {
   const pluginSettlementProgress = createPluginSettlementProgress()
   // What each 精修 changed, shown on the 精修对比 page.
   const polishRecords = createPolishRecords({ data: pluginData, turns: pluginTurns })
-  const polishReviewer = createPolishReviewer({ latestFloors: (sessionId, count) => chatHeaderWithLatestFloors(sessionId, count), readCard, prompt: runtimePrompt, callModel })
+  const polishReviewer = createPolishReviewer({ latestFloors: (sessionId, count) => chatHeaderWithLatestFloors(sessionId, count), readCard, prompt: runtimePrompt, runAgent: input => backgroundAgentRunner.run(input), selection: async sessionId => {
+    if (!agentRegistry.get(sessionId)?.session) await agentRegistry.resume({ resumeSessionId: sessionId })
+    const selected = modelSelection(sessionId)
+    if (!selected) throw new Error('没有可用的模型配置，请先选择模型')
+    return selected
+  }, data: pluginData })
   // 精修预审 (a setting, off by default): each reply is reviewed as soon as it is written.
   const polishPrereview = createPolishPrereview({
     enabled: async () => (await readTavernSettings()).polishPrereview === true,

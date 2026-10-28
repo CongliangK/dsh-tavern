@@ -3,34 +3,13 @@
 // written, so pressing 精修 mostly finds it done.
 
 import { createHash } from 'node:crypto'
-import { buildPolishGuidanceRequest, buildPolishReviewRequest, parsePolishReview, polishReviewContext } from './polish-review.js'
+export { createPolishReviewer } from './polish-agent.js'
 
 function str(value) { return typeof value === 'string' ? value : value == null ? '' : String(value) }
 
 /** The text version a review belongs to: the reply's text parts. */
 export function polishTextKey(texts) {
   return createHash('sha256').update(JSON.stringify((texts || []).map(str))).digest('hex')
-}
-
-/** Model calls of a 精修, each reading the card and the latest floors of the game. */
-export function createPolishReviewer({ latestFloors, readCard, prompt, callModel }) {
-  async function material(sessionId) {
-    const chat = await latestFloors(sessionId, 4)
-    const card = await readCard(chat.cardPath).catch(() => undefined) || chat.cardDefinitionSnapshot?.raw?.data || chat.cardDefinitionSnapshot?.raw
-    return { card, playerName: chat.macroState?.userName, ...polishReviewContext(chat.messages) }
-  }
-  return Object.freeze({
-    /** The principles review of `texts`. */
-    async review(sessionId, texts, signal) {
-      const request = buildPolishReviewRequest({ principles: prompt('polish'), ...await material(sessionId), reply: texts.join('\n\n') })
-      return parsePolishReview(await callModel({ sessionId, signal, ...request }), texts)
-    },
-    /** Edits that carry out the player's guidance on `texts`, nothing else. */
-    async guide(sessionId, texts, guidance, signal) {
-      const request = buildPolishGuidanceRequest({ instructions: prompt('polish-guidance'), ...await material(sessionId), reply: texts.join('\n\n'), guidance })
-      return parsePolishReview(await callModel({ sessionId, signal, ...request }), texts)
-    }
-  })
 }
 
 /**
