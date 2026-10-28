@@ -44,6 +44,7 @@
 
 | 目录 | 网站分组 |
 | --- | --- |
+| `docs/pages/getting-started/` | 入门指南 |
 | `docs/pages/play/` | 游玩模式 |
 | `docs/pages/cards/` | 卡片模式 |
 | `docs/pages/compatibility/` | 酒馆生态兼容 |
@@ -60,7 +61,7 @@
 
 教程围绕一个具体目标，写清前提、操作和结果。步骤里使用当前界面上的实际名称，先写点哪里，再写做什么；复杂选项和原理放后面，告诉新手哪些可以跳过。
 
-支持普通段落、二三级标题、单层有序／无序列表、表格、单行引用、围栏代码块、粗体、行内代码和链接。一级标题用于页面名称，正文从 `##` 开始。当前渲染器不支持完整 Markdown，嵌套列表、Markdown 图片和原始 HTML 暂不支持。
+支持普通段落、二三级标题、单层有序／无序列表、表格、单行引用、围栏代码块、粗体、行内代码和链接。一级标题用于页面名称，标题后的第一段普通文本会显示为简介；简介请用纯文字，链接、粗体等格式放在后面的正文中。正文使用 `##` 分节。当前渲染器不支持完整 Markdown，嵌套列表、Markdown 图片和原始 HTML 暂不支持。
 
 站内链接可直接写 `[开始第一局](#a04)`。在新文章之间，也可以使用相对 Markdown 链接，例如 `[第一次游玩](play/first-game.md)`；构建时会转换为站内地址。相对路径按当前文件位置计算，目标必须是 `docs/pages/` 中已有的页面。外部链接使用完整 `https://` 地址。
 
@@ -68,21 +69,25 @@
 
 ## 修改现有文档
 
-新教程直接写 Markdown。旧功能说明暂时仍保留原有源文件，修改时可按下表查找；不要直接编辑生成的 `docs/index.html`。
+所有文章的标题、简介和正文都在 `docs/pages/` 的 Markdown 文件中，修改原有页面也不用编辑 JavaScript。网页地址对应文件名：例如 `#b07` 的正文在 `docs/pages/play/b07.md`。可以按文件名查找，也可以在该目录搜索页面标题。
 
 | 想改什么 | 源文件 |
 | --- | --- |
-| 新增的 Markdown 页面 | `docs/pages/` 下的对应 `.md` 文件 |
-| 产品概览、安装与启动 | `docs/manual/introduction.mjs` |
-| 原有功能的操作步骤、结果和注意事项 | `docs/manual/topics.mjs` |
-| 原有功能标题、入口和简述 | `docs/feature-inventory.md` |
-| 原有目录和概览 | `docs/manual/navigation.mjs` |
-| 插件开发、人物卡教程 | `docs/plugin-*.md`、`docs/dshcard-guide.md`、`docs/dshcard-tutorial.md` |
-| 网站样式和手机排版 | `docs/assets/manual.css` |
+| 产品概览 | `docs/pages/getting-started/a01.md` |
+| 安装与启动 | `docs/pages/getting-started/a02.md` |
+| 各分类概览 | 对应分类目录下的同名文件，例如 `docs/pages/play/play.md` |
+| 功能说明 | 对应分类目录下的编号文件，例如 `docs/pages/play/b07.md` |
+| 插件开发文档 | `docs/pages/plugins/plugin-*.md` |
+| 人物卡教程 | `docs/pages/dshcard/dshcard-*.md` |
+| 本篇贡献指南 | `docs/pages/contributing.md` |
 
-已有功能说明中的 `page(...)` 参数依次是简介、步骤数组、结果、注意事项、相关功能编号数组。`A01` 和 `A02` 正文由 `introduction.mjs` 提供。
+原有页面的文件名用于保持旧链接有效，不必把新增教程也命名成编号。修改标题直接改 Markdown 第一行；网站目录和索引会使用新标题。
 
-截图仍通过 `docs/manual/screenshots.mjs` 登记，图片放在 `docs/images/manual/`，通过 `pageScreenshots` 关联页面 ID；可以沿用现有条目。截图使用公开样例，去掉密钥和私人对话。
+`docs/manual/navigation.mjs` 只保留原有分组、章节顺序和交叉目录，`build.mjs` 负责生成网页。只有调整这些原有目录结构时才需要改它们；新增独立教程仍然只需添加 Markdown。`docs/feature-inventory.md` 保留功能盘点，页面正文和显示标题以 Markdown 为准。自动生成的功能索引、搜索及通用导航由构建器维护。
+
+安装页中的 `{{dshVersion}}` 会在构建时替换为项目当前适配的 DSH 版本，请保留这个占位符。不要直接编辑生成的 `docs/index.html`。
+
+网站样式在 `docs/assets/manual.css`。截图仍通过 `docs/manual/screenshots.mjs` 登记，图片放在 `docs/images/manual/`，通过 `pageScreenshots` 关联页面 ID；可以沿用现有条目。截图使用公开样例，去掉密钥和私人对话。
 
 ## 本地预览文档
 

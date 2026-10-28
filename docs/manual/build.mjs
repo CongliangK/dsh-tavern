@@ -1,9 +1,7 @@
 import { readMarkdownPages } from './markdown-pages.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { sections, help, overview, gettingStarted, extraPages } from './navigation.mjs'
-import { topics as topicContent } from './topics.mjs'
-import { introduction, installation } from './introduction.mjs'
+import { sections as sectionStructure, help as helpStructure, gettingStarted, extraPageOrder } from './navigation.mjs'
 import { adaptedDshVersion } from '../../bin/dsh-compatibility.mjs'
 import { screenshots, pageScreenshots, screenshotSource } from './screenshots.mjs'
 import { demoDownloads } from '../../examples/manual-demo/downloads.mjs'
@@ -54,27 +52,32 @@ export function readTopics(inventory) {
 const link = (id, label, cls = '') => `<a class="${cls}" href="#${id}">${escapeHTML(label)}</a>`
 
 export function renderSite(inventory, pagesRoot = fileURLToPath(new URL('../pages/', import.meta.url))) {
-  const topics = readTopics(inventory), byId = new Map(topics.map(t => [t.key, t]))
+  const structure = [gettingStarted, ...sectionStructure, helpStructure]
+  const pages = readMarkdownPages(pagesRoot, structure.map(g => g.id), ['index', 'not-found'])
+  const pageById = new Map(pages.map(page => [page.id, { ...page, content: page.content.replaceAll('{{dshVersion}}', adaptedDshVersion) }]))
+  const requirePage = id => {
+    const page = pageById.get(id)
+    if (!page) throw new Error(`Missing Markdown page: ${id}`)
+    return page
+  }
+  const sections = sectionStructure.map(group => ({ ...group, ...requirePage(group.id) }))
+  const help = { ...helpStructure, ...requirePage('help') }
   const groups = [gettingStarted, ...sections, help]
+  const topics = readTopics(inventory).map(topic => ({ ...topic, ...requirePage(topic.id) }))
+  const byId = new Map(topics.map(t => [t.key, t]))
   const groupRoute = group => group === gettingStarted ? 'a01' : group.id
-  const owner = new Map()
-  for (const group of groups) for (const [, keys] of group.chapters) for (const key of keys.split(' ')) if (!owner.has(key)) owner.set(key, group)
-  // Shared links point to one article; its main home follows the user's task.
-  for (const [key, id] of Object.entries({ I01: 'play', J01: 'cards', L02: 'cards', D02: 'play', E01: 'advanced', E02: 'advanced', E03: 'advanced', E04: 'advanced', M04: 'advanced', M05: 'advanced', L05: 'advanced', L06: 'advanced' })) owner.set(key, groups.find(g => g.id === id))
-  if (owner.size !== topics.length || topics.some(t => !owner.has(t.key))) throw new Error('The manual must cover every inventory topic exactly once or via shared links.')
-  const allPages = groups.filter(g => g !== gettingStarted).map(g => ({ ...g, group: g.id, content: overview[g.id] }))
+  const owner = new Map(topics.map(topic => [topic.key, groups.find(group => group.id === topic.group)]))
+  if (topics.some(topic => !owner.get(topic.key))) throw new Error('Every topic must have a documentation group.')
+  for (const group of groups) for (const [, keys] of group.chapters) for (const key of keys.split(' ')) {
+    if (!byId.has(key)) throw new Error(`Unknown documentation topic: ${key}`)
+  }
   const orderedTopics = groups.flatMap(g => [...new Set(g.chapters.flatMap(([, keys]) => keys.split(' ')))].filter(key => owner.get(key) === g).map(key => byId.get(key)))
-  for (const topic of orderedTopics) {
-    const content = topicContent[topic.key]
-    if (!content?.intro || !content.steps?.length || !content.result || !content.note) throw new Error(`Missing text: ${topic.key}`)
-    const related = content.related.map(key => { const target = byId.get(key); if (!target) throw new Error(`Missing related topic: ${key}`); return `- [${target.title}](#${target.id})` }).join('\n')
-    allPages.push({ ...topic, group: owner.get(topic.key).id, intro: content.intro, content: `## 在哪里\n\n${topic.entry}\n\n## ${topic.entry.startsWith('自动') ? '怎样参与游玩' : '如何使用'}\n\n${content.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')}\n\n## 结果与生效范围\n\n${content.result}\n\n## 注意事项\n\n${content.note}\n\n${related ? '## 相关说明\n\n' + related : ''}` })
-  }
-  for (const page of allPages) {
-    if (page.id === 'a01') page.content = introduction
-    if (page.id === 'a02') page.content = installation.replaceAll('{{dshVersion}}', adaptedDshVersion)
-  }
-  const additionalPages = [...extraPages, ...readMarkdownPages(pagesRoot, groups.map(g => g.id).filter(id => id !== 'getting-started'), [...allPages.map(p => p.id), ...extraPages.map(p => p.id), 'index', 'not-found'])]
+  if (orderedTopics.length !== topics.length) throw new Error('Every topic must appear in its group directory.')
+  const allPages = [...sections, help, ...orderedTopics]
+  const existing = new Set(allPages.map(page => page.id))
+  const extraOrder = new Map(extraPageOrder.map((id, i) => [id, i]))
+  const additionalPages = pages.filter(page => !existing.has(page.id)).map(page => requirePage(page.id))
+    .sort((a, b) => (extraOrder.get(a.id) ?? Infinity) - (extraOrder.get(b.id) ?? Infinity))
   allPages.push(...additionalPages)
   allPages.sort((a, b) => Number(b.group === gettingStarted.id) - Number(a.group === gettingStarted.id))
   const navGroup = (group, index) => `<section class="nav-group" data-group="${group.id}"><div class="nav-group-heading">${link(group.id, `${index + 1}. ${group.title}`)}<button class="group-toggle" aria-expanded="true" aria-controls="nav-${group.id}" aria-label="折叠${group.title}">⌄</button></div><div id="nav-${group.id}" class="nav-children">${link(group.id, '概览', 'overview-link')}${additionalPages.filter(p => p.group === group.id).map(p => link(p.id, p.title, 'overview-link')).join('')}${group.chapters.map(([name, keys]) => `<details class="chapter"><summary>${escapeHTML(name)}</summary><div>${keys.split(' ').map(key => link(byId.get(key).id, byId.get(key).title)).join('')}</div></details>`).join('')}</div></section>`
@@ -117,7 +120,7 @@ export function renderSite(inventory, pagesRoot = fileURLToPath(new URL('../page
 <a class="skip-link" href="#main">跳到正文</a>
 <header class="site-header"><a class="brand" href="#a01"><span class="brand-mark" aria-hidden="true"></span><span>DSH Tavern <b>Docs</b></span></a><button class="search-trigger" type="button" hidden>搜索文档 <kbd>⌘ K</kbd></button><nav aria-label="顶部导航">${link('a02', '安装与启动')}${link('index', '功能索引')}${link('help', '帮助')}<a href="https://github.com/flizzywine/dsh-tavern" target="_blank" rel="noopener noreferrer">GitHub ↗</a><button id="theme-toggle" type="button" aria-label="切换深色主题" hidden>◐</button></nav></header>
 <div class="mobile-bar"><button id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">☰ 功能目录</button><span>使用文档</span></div>
-<aside class="sidebar" id="sidebar" aria-label="功能目录"><div class="sidebar-label">使用文档 <span>功能指南</span></div><nav class="getting-started" aria-label="入门指南"><p>从这里开始</p>${link('a01', '产品概览')}${link('a02', '安装与启动')}</nav><nav aria-label="文档目录">${sections.map(navGroup).join('')}</nav><div class="sidebar-bottom">${link('index', '全部功能索引')}${link('help', '帮助与维护')}${additionalPages.filter(p => p.group === 'help').map(p => link(p.id, p.title)).join('')}<p>先开始使用，再按需了解。</p></div></aside>
+<aside class="sidebar" id="sidebar" aria-label="功能目录"><div class="sidebar-label">使用文档 <span>功能指南</span></div><nav class="getting-started" aria-label="入门指南"><p>从这里开始</p>${link('a01', '产品概览')}${link('a02', '安装与启动')}${additionalPages.filter(p => p.group === gettingStarted.id).map(p => link(p.id, p.title)).join('')}</nav><nav aria-label="文档目录">${sections.map(navGroup).join('')}</nav><div class="sidebar-bottom">${link('index', '全部功能索引')}${link('help', '帮助与维护')}${additionalPages.filter(p => p.group === 'help').map(p => link(p.id, p.title)).join('')}<p>先开始使用，再按需了解。</p></div></aside>
 <div class="page-layout"><main id="main">${allPages.map(article).join('')}<article class="doc-page" id="index" data-title="全部功能索引" data-group="index"><div class="breadcrumb">使用文档 / 索引</div><h1 tabindex="-1">全部功能索引</h1><p class="lead">${topics.length} 个功能与指南主题，按部分逐项查阅。帮助与维护单列。</p>${groups.map(g => `<h2 id="index--${g.id}">${link(groupRoute(g), g.title)}</h2><ul class="topic-list">${orderedTopics.filter(t => owner.get(t.key) === g).map(t => `<li>${link(t.id, t.title)}</li>`).join('')}</ul>`).join('')}</article><article class="doc-page" id="not-found" data-title="没有找到这篇文档" data-group="help"><h1 tabindex="-1">没有找到这篇文档</h1><p>这个链接可能已经变更。请打开${link('index', '全部功能索引')}，或搜索功能名称。</p></article></main><aside class="page-toc" aria-label="本页导航"><p>本页导航</p><nav id="toc-links"></nav><div class="toc-note">按需查阅<br>界面截图均使用公开样例。</div></aside></div>
 <dialog id="search-dialog" aria-labelledby="search-title"><div class="search-header"><label id="search-title" for="doc-search">搜索文档</label><button type="button" id="search-close" aria-label="关闭搜索">Esc</button></div><input id="doc-search" type="search" placeholder="输入功能或操作，例如：重写、世界书…" autocomplete="off"><p id="search-status" role="status"></p><ul id="search-results"></ul></dialog>
 <noscript><div class="noscript-note">未启用 JavaScript：下方按顺序展示全部文字，可通过目录跳转。</div></noscript>

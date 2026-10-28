@@ -18,7 +18,12 @@ export function readMarkdownPages(root, groups, reserved = []) {
         const text = readFileSync(file, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trim()
         const title = /^# +(.+)\n?/.exec(text)
         if (!title) throw new Error(`Markdown page must start with # Title: ${file}`)
-        pages.push({ id, title: title[1].trim(), group, intro: '', content: text.slice(title[0].length).trim(), file })
+        const body = text.slice(title[0].length).trim()
+        const firstParagraph = body.split(/\n\s*\n/, 1)[0]
+        const hasIntro = firstParagraph && !/^(?:#|>|-|\*|`|\[|\||\d+\.)/.test(firstParagraph)
+        const intro = hasIntro ? firstParagraph : ''
+        const content = hasIntro ? body.slice(firstParagraph.length).trimStart() : body
+        pages.push({ id, title: title[1].trim(), group, intro, content, file })
       }
     }
   }

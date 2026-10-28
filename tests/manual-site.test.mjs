@@ -73,12 +73,12 @@ test('Markdown 转换转义原始 HTML，只允许安全链接，生成语义表
 })
 
 test('新增 Markdown 自动进入对应目录、正文和搜索，链接转为页面地址', async () => {
-  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises')
+  const { mkdtemp, mkdir, writeFile, rm, cp } = await import('node:fs/promises')
   const { tmpdir } = await import('node:os')
   const path = await import('node:path')
   const root = await mkdtemp(path.join(tmpdir(), 'manual-markdown-'))
   try {
-    await mkdir(path.join(root, 'play'))
+    await cp(new URL('../docs/pages/', import.meta.url), root, { recursive: true })
     await writeFile(path.join(root, 'play/first-game.md'), '# 我的第一局\n\n## 开始\n\n独特的教程搜索词。\n\n[帮助](../tips.md)')
     await writeFile(path.join(root, 'tips.md'), '# 使用提示\n\n这里是帮助。\n\n`[示例](missing.md)`')
     const output = renderSite(inventory, root)
@@ -88,6 +88,16 @@ test('新增 Markdown 自动进入对应目录、正文和搜索，链接转为�
     assert.match(output, /sidebar-bottom[^]*href="#tips">使用提示/)
     const entries = [...output.matchAll(/<article class="doc-page" id="([^"]+)" data-group="([^"]+)" data-title="([^"]+)"[^>]*>([\s\S]*?)<\/article>/g)].map(([, id, group, title, body]) => ({ id, group, title, text: body.replace(/<[^>]+>/g, ' ') }))
     assert.ok(searchPages(entries, '独特的教程搜索词').some(p => p.id === 'first-game'))
+    // Existing pages use the same Markdown path, including navigation titles and dynamic versions.
+    await writeFile(path.join(root, 'play/b07.md'), '# 重写教程新标题\n\n新的简介。\n\n## 操作\n\n这是修改后的正文。')
+    const changed = renderSite(inventory, root)
+    assert.match(changed, /href="#b07">重写教程新标题<\/a>/)
+    assert.match(changed, /<p class="lead">新的简介。<\/p>/)
+    assert.match(changed, /这是修改后的正文。/)
+    assert.doesNotMatch(changed, /\{\{dshVersion\}\}/)
+    await rm(path.join(root, 'play/b07.md'))
+    assert.throws(() => renderSite(inventory, root), /Missing Markdown page: b07/)
+    await writeFile(path.join(root, 'play/b07.md'), '# 重写教程\n\n正文。')
     await writeFile(path.join(root, 'a01.md'), '# 冲突\n')
     assert.throws(() => renderSite(inventory, root), /Duplicate documentation page id: a01/)
     await rm(path.join(root, 'a01.md'))
