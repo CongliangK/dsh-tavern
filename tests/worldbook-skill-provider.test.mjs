@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createWorldbookSkillProvider } from '../tavern-plugin/lib/domain/worldbook-skill-provider.js'
+import { createWorldbookSkillProvider, nameWorldbookSkillDirectories } from '../tavern-plugin/lib/domain/worldbook-skill-provider.js'
 import { compileWorldbookSkillClusters } from '../tavern-plugin/lib/domain/worldbook-skill-clustering.js'
 import { installWorldbookSkillRead, nativeWorldbookReadAvailable } from '../tavern-plugin/lib/domain/worldbook-skill-read.js'
 
@@ -201,4 +201,13 @@ test('failed staging leaves the previous bundle intact and removes temporary fil
   await assert.rejects(files.sync(key, new Map([['../escape.md', 'bad']])), /Invalid/)
   assert.equal(await fs.readFile(path.join(files.directory(key), '主题/SKILL.md'), 'utf8'), 'previous')
   assert.deepEqual(await fs.readdir(root), [key])
+})
+
+
+test('folder names omit internal IDs and resolve case-insensitive collisions deterministically', () => {
+  const input = [{ id: 'topic-b', title: '武市 · 拓本' }, { id: 'topic-a', title: '武市 · 拓本' }, { id: 'topic-c', title: '武市、拓本--2' }, { id: 'topic-d', title: '独立分类' }]
+  const named = nameWorldbookSkillDirectories(input)
+  assert.deepEqual(named.map(c => c.directoryName), ['武市、拓本--2', '武市、拓本', '武市、拓本--2--2', '独立分类'])
+  assert.deepEqual(nameWorldbookSkillDirectories([...input].reverse()).reverse(), named)
+  assert.ok(named.every(c => !c.directoryName.includes('topic-')))
 })

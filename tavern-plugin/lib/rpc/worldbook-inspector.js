@@ -43,8 +43,9 @@ export function createWorldbookInspectorHandlers({ agentRegistry, chatForSession
         cluster.readCount = records.filter(r => r.target === cluster.name && r.status === 'success').length
         labels.set(cluster.name, cluster.title)
         for (const entry of cluster.entries) {
-          entry.readCount = records.filter(r => [entry.path, entry.legacyPath].includes(r.target) && r.status === 'success').length
+          entry.readCount = records.filter(r => [entry.path, entry.previousPath, entry.legacyPath].includes(r.target) && r.status === 'success').length
           labels.set(entry.path, entry.title)
+          if (entry.previousPath) labels.set(entry.previousPath, entry.title)
           if (entry.legacyPath) labels.set(entry.legacyPath, entry.title)
         }
       }

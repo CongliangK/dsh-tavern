@@ -12,7 +12,18 @@ const eligible = entry => entry.enabled !== false && !isMvuUpdateEntry(entry) &&
 export const WORLDBOOK_SKILL_RESOURCE_ROOT = '/__tavern_worldbook__/'
 const scopeKey = state => digest(JSON.stringify([state.chat.sessionId, state.chat.id, state.chat.cardPath]))
 const members = (state, cluster) => entriesOf(state).filter(entry => cluster.refs.includes(entry.ref))
-const clusterDirectory = cluster => `${skillFileLabel(cluster.title)}--${cluster.id}`
+const clusterDirectory = cluster => cluster.directoryName
+export function nameWorldbookSkillDirectories(clusters) {
+  const used = new Set(), names = new Map()
+  // Stable ordering makes collision suffixes independent of catalog display order.
+  for (const cluster of [...clusters].sort((a, b) => a.id.localeCompare(b.id))) {
+    const base = skillFileLabel(cluster.title.replace(/[\s·]+/g, '、'))
+    let name = base, suffix = 2
+    while (used.has(name.toLocaleLowerCase('en-US'))) name = `${base}--${suffix++}`
+    used.add(name.toLocaleLowerCase('en-US')); names.set(cluster.id, name)
+  }
+  return clusters.map(cluster => ({ ...cluster, directoryName: names.get(cluster.id) }))
+}
 const sourceEntries = new WeakMap()
 const entriesOf = state => {
   if (!sourceEntries.has(state)) sourceEntries.set(state, eligibleVirtualSourceEntries(state.worldBook, state.chat).filter(eligible))
@@ -91,11 +102,12 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
         return null
       }
       const version = versionOf(state), key = scopeKey(state)
-      const compiled = await abortable(catalog.update(key, entriesOf(state)), lookup?.signal)
+      let compiled = await abortable(catalog.update(key, entriesOf(state)), lookup?.signal)
       lookup?.signal?.throwIfAborted()
       const latest = await stateFor(lookup)
       if (!latest) return null
       if (scopeKey(latest) !== key || versionOf(latest) !== version) continue
+      compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters) }
       const prepared = documents(latest, compiled)
       await files.sync(key, prepared)
       const verified = await stateFor(lookup)
@@ -170,6 +182,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
               ref: entry.ref, title: text(entry.title || entry.comment || entry.ref),
               source: entry.sourcePath, uid: entry.sourceUid,
               path: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),
+              previousPath: path.join(files.directory(scopeKey(result.state)), `${skillFileLabel(cluster.title)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
               legacyPath: `${WORLDBOOK_SKILL_RESOURCE_ROOT}${scopeKey(result.state)}/${cluster.id}/entries/${digest(entry.ref)}.md`
             })) }
         }) }
