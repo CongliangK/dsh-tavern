@@ -1,14 +1,26 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { worldbookEntryTitle } from './worldbook-skill-labels.js'
 import { createHash, randomUUID } from 'node:crypto'
 
 export const skillDigest = value => createHash('sha256').update(String(value)).digest('hex').slice(0, 20)
 // Keep Unicode titles readable, but portable on Windows and safe in Markdown links.
 export const skillFileLabel = value => String(value || '资料').normalize('NFC').replace(/[<>:"/\\|?*\x00-\x1f\[\]()#%`]/g, '-').replace(/\s+/g, '-').replace(/^[. -]+|[. -]+$/g, '').slice(0, 44) || '资料'
-export function referenceFile(entry, entries) {
+export function legacyReferenceFile(entry, entries) {
   const uid = skillFileLabel(entry.sourceUid ?? entry.ref).slice(0, 18)
   const suffix = entries.filter(e => skillFileLabel(e.sourceUid ?? e.ref).slice(0, 18).toLowerCase() === uid.toLowerCase()).length > 1 ? `${uid}-${skillDigest(entry.ref).slice(0, 12)}` : uid
   return `references/${skillFileLabel(entry.title || entry.comment || entry.ref)}--${suffix}.md`
+}
+
+export function referenceFile(entry, entries) {
+  const used = new Set(['资料目录']), names = new Map()
+  for (const item of [...entries].sort((a, b) => String(a.ref).localeCompare(String(b.ref)))) {
+    const base = skillFileLabel(worldbookEntryTitle(item))
+    let name = base, suffix = 2
+    while (used.has(name.toLowerCase())) name = `${base}--${suffix++}`
+    used.add(name.toLowerCase()); names.set(item.ref, name)
+  }
+  return `references/${names.get(entry.ref)}.md`
 }
 
 /** Derived files live outside global skill scan roots. Each scope owns exactly

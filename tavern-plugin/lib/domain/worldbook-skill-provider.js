@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import { estimateWorldBookTokens } from './worldbook-activation.js'
 import { describeWorldbookCluster, worldbookEntryTitle, worldbookSkillSlug } from './worldbook-skill-labels.js'
 import path from 'node:path'
-import { createWorldbookSkillFiles, skillDigest, skillFileLabel, referenceFile } from './worldbook-skill-files.js'
+import { createWorldbookSkillFiles, skillDigest, skillFileLabel, referenceFile, legacyReferenceFile } from './worldbook-skill-files.js'
 import { isMvuUpdateEntry } from './worldbook-recall.js'
 import { classifyWorldbookEntry } from './worldbook-entry-classification.js'
 import { createWorldbookSkillCatalog } from './worldbook-skill-catalog.js'
@@ -201,10 +201,11 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
               ref: entry.ref, inline: cluster.inline, inlineText: cluster.inline ? `## ${worldbookEntryTitle(entry)}\n\n${String(entry.content ?? '')}\n` : undefined, title: worldbookEntryTitle(entry),
               source: entry.sourcePath, uid: entry.sourceUid,
               path: path.join(item.resourceBase.path, cluster.inline ? 'SKILL.md' : referenceFile(entry, members(result.state, cluster))),
+              previousIdPath: path.join(item.resourceBase.path, legacyReferenceFile(entry, members(result.state, cluster))),
               referencePath: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),
-              previousRootPath: path.join(files.root, legacyScopeKey(result.state), clusterDirectory(cluster), referenceFile(entry, members(result.state, cluster))),
-              previousPath: path.join(files.root, legacyScopeKey(result.state), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
-              previousShortPath: path.join(files.root, legacyScopeKey(result.state), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), referenceFile(entry, members(result.state, cluster))),
+              previousRootPath: path.join(files.root, legacyScopeKey(result.state), clusterDirectory(cluster), legacyReferenceFile(entry, members(result.state, cluster))),
+              previousPath: path.join(files.root, legacyScopeKey(result.state), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, legacyReferenceFile(entry, members(result.state, cluster))),
+              previousShortPath: path.join(files.root, legacyScopeKey(result.state), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), legacyReferenceFile(entry, members(result.state, cluster))),
               legacyPath: `${WORLDBOOK_SKILL_RESOURCE_ROOT}${legacyScopeKey(result.state)}/${cluster.id}/entries/${digest(entry.ref)}.md`
             })) }
         }) }

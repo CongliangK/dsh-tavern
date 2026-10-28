@@ -32,7 +32,7 @@ test('cluster catalog and SKILL contain metadata only; entry resources preserve 
   const guide = await f.provider.get(a.skill, f.lookup('one'))
   assert.doesNotMatch(JSON.stringify(await f.provider.list(f.lookup('one'))), /PRIVATE FULL BODY/)
   assert.doesNotMatch(guide.content, /PRIVATE FULL BODY/)
-  assert.match(guide.content, /references\/城门守卫--7.md/)
+  assert.match(guide.content, /references\/城门守卫.md/)
   assert.doesNotMatch(guide.content, /INDEX.md|阅读顺序/)
   await assert.rejects(fs.access(path.join(a.base, 'INDEX.md')))
   assert.equal(await fs.readFile(a.entry, 'utf8'), f.states.get('one').worldBook.view.entries[0].content)
@@ -293,4 +293,14 @@ test('large source category exposes a compact Skill and an authorized relative r
     assert.ok(index.includes(`(${path.basename(e.path)})`))
     assert.equal(await fs.readFile(e.path,'utf8'), state.worldBook.view.entries.find(raw => raw.ref===e.ref).content)
   }
+})
+
+test('reference filenames omit IDs and control tags and resolve actual name collisions deterministically', async () => {
+  const { referenceFile } = await import('../tavern-plugin/lib/domain/worldbook-skill-files.js')
+  const entries = [{ref:'a',sourceUid:129,title:'[mvu_plot]大事·大江山鬼战'}, {ref:'b',title:'同名'}, {ref:'c',title:'同名'}, {ref:'d',title:'同名--2'}, {ref:'e',title:'资料目录'}]
+  assert.equal(referenceFile(entries[0],entries),'references/大事·大江山鬼战.md')
+  const names=entries.map(e=>referenceFile(e,entries))
+  assert.equal(new Set(names).size,entries.length)
+  assert.ok(!names.includes('references/资料目录.md'))
+  assert.deepEqual(entries.map(e=>referenceFile(e,[...entries].reverse())),names)
 })
