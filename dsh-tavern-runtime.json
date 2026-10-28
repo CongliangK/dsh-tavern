@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "f3a752bb5253ce09b0ca66e9baa658dd49d63b93",
-  "releaseSequence": 950,
+  "revision": "cd51fcffd300f1d366cd03a426546950daeeef7c",
+  "releaseSequence": 952,
   "version": "3.1.0",
   "files": [
     {
@@ -776,8 +776,8 @@
     },
     {
       "path": "tavern-plugin/lib/client-assets/tavern.css",
-      "sha256": "7c624206fee6cef575824d5b7f043824837e0342a9743bc5009e9e20ce93492c",
-      "size": 512384
+      "sha256": "3aa22ac941adf9e5ddba38c4bca16213d1b91ef82a8bdc4fcaec4be91783db56",
+      "size": 513975
     },
     {
       "path": "tavern-plugin/lib/client.js",
@@ -2881,8 +2881,8 @@
     },
     {
       "path": "tavern-plugin/lib/font-assets.js",
-      "sha256": "30bcefa37680c65ab6fe614d978c9e40a871d36fa51f0194867501c54a3fd349",
-      "size": 7805
+      "sha256": "fb25d05cab723d28d5b2b086f088b016baed9aaff4f62a3a32a558f4aab9b412",
+      "size": 8116
     },
     {
       "path": "tavern-plugin/lib/font-catalog.json",
@@ -5081,9 +5081,9 @@
     }
   ],
   "archive": {
-    "commit": "70046350c4d508f012d3afbbcb894b5422c5c4bd",
+    "commit": "120fc54423bf793028eba2bfe3740e443ce3a7f1",
     "path": "runtime.zip",
-    "sha256": "96c4e76062ad9d3fcc1fb6bc629b45a6182db5087a482d2e1a8cf0d5b81a16e0",
-    "size": 10514820
+    "sha256": "67e283566ba3529ffce2e82b32aa469495c9b229cbdd6fa5ff62362390808e82",
+    "size": 10515382
   }
 }
