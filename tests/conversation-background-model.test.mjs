@@ -91,7 +91,7 @@ test('worldbook strategy is per-game, defaults to legacy and preserves screening
   await settings.save({ sessionId: 'one', backgroundTasks: { styleReference: true } })
   assert.equal(chats.get('one').worldbookStrategy, 'native-skills')
   await settings.save({ sessionId: 'one', worldbookStrategy: 'legacy' })
-  assert.equal(chats.get('one').backgroundTasks.worldbookScreening, true)
+  assert.equal(chats.get('one').backgroundTasks.worldbookScreening, false)
   assert.equal(chats.get('one').backgroundTasks.posture, false)
   assert.equal(chats.get('one').backgroundTasks.styleReference, true)
   assert.deepEqual(chats.get('one').worldBookReads, reads)

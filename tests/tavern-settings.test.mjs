@@ -158,7 +158,7 @@ test('世界书模型筛选是本局开关，默认关闭', () => {
   assert.equal(normalizeBackgroundTasks({}).worldbookScreening, false)
   assert.equal(normalizePlayDefaults({}).backgroundTasks.worldbookScreening, false)
   const saved = patchConversationBackground({ backgroundTasks: { styleReference: true } }, { backgroundTasks: { worldbookScreening: true } })
-  assert.deepEqual([saved.backgroundTasks.worldbookScreening, saved.backgroundTasks.styleReference], [true, true])
+  assert.deepEqual([saved.backgroundTasks.worldbookScreening, saved.backgroundTasks.styleReference], [false, true])
 })
 
 test('新游戏默认使用 Skill 世界书，全局可切回旧机制且严格校验', () => {

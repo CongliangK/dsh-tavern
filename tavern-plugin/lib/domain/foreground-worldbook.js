@@ -46,7 +46,7 @@ function unreadCharacterDesigns(worldBook, chat) {
 }
 
 /** One request uses one bound-book snapshot for both selection and rendering. */
-export function createForegroundWorldbook({ bound, runtime, globalVariables, scanText = () => '', filterCandidates }) {
+export function createForegroundWorldbook({ bound, runtime, globalVariables, scanText = () => '' }) {
   const requests = new Map()
   const project = async function project({ requestKey, chat, card, userText, userTextInHistory = false, worldBook: snapshot, purpose = 'generation', signal, strategy = chat.worldbookStrategy || 'legacy', selectedRefs = [] }) {
     try {
@@ -61,10 +61,8 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
           if (Number(reads[ref]?.turn) === Number(chat.preparedWorldBook.turn)) delete reads[ref]
         }
       }
-      // Model screening is a per-game switch (off by default): while off, the model is never
-      // asked and its earlier exclusions stop cooling entries down.
-      const screeningOn = strategy === 'legacy' && Boolean(filterCandidates) && chat.backgroundTasks?.worldbookScreening === true
-      if (!screeningOn) for (const ref of Object.keys(reads)) if (reads[ref]?.kind === 'screened') delete reads[ref]
+      // Retired model screening must not suppress entries in older saves.
+      for (const ref of Object.keys(reads)) if (reads[ref]?.kind === 'screened') delete reads[ref]
       const templateRuntime = await runtime(chat.sessionId), globals = await globalVariables()
       if (strategy === 'native-skills') {
         const sourceEntries = worldBook?.view?.entries || []
@@ -124,8 +122,6 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
       const preparedActivations = [...(worldBook?.templateActivationRequests || []), ...unreadCharacterDesigns(worldBook, chat), ...(worldBook?.pluginActivationRequests || [])]
       let activationRequests = preparedActivations, recalled, projected
       const tokenCosts = {}
-      // Only the post-reply prefilter may ask a model; sending and history import stay local.
-      let screeningDone = purpose !== 'prefilter' || !screeningOn, screening, allowedRefs
       const protectedRefs = () => new Set(activationRequests.flatMap(request => [request.ref, request.sourceRef]))
       // Rebuild from the same snapshot and original scopes; speculative passes never mutate Chat.
       // Only requests from controllers still selected survive to the next pass.
@@ -135,7 +131,7 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
         let randomIndex = 0
         const random = () => { const index = randomIndex++; return randomValues[index] ?? (randomValues[index] = Math.random()) }
         recalled = prepareWorldBookRecall({ worldBook, chat: { ...chat, worldBookReads: reads }, card, turn, userText, userTextInHistory,
-          scanText: scanText(chat), activationRequests, random, tokenCosts, ignoreBudget: pass === 0 || !screeningDone, allowedRefs, protectedRefs: protectedRefs() })
+          scanText: scanText(chat), activationRequests, random, tokenCosts, ignoreBudget: pass === 0, protectedRefs: protectedRefs() })
         projected = await projectWorldBookTemplates({ worldBook, selectedEntries: recalled.entries || [], includeConstants: true,
           runtime: templateRuntime, globalVariables: globals, chat, card, activationRequests, random, randomSeed: randomState.seed })
         let costsChanged = false
@@ -148,18 +144,6 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
         const next = [...preparedActivations, ...(projected.activationRequests || [])]
         const key = requests => JSON.stringify(requests.map(request => [request.sourceRef, request.ref, request.force]).sort())
         if (pass > 0 && !costsChanged && key(next) === key(activationRequests)) {
-          if (!screeningDone) {
-            const protectedSet = protectedRefs()
-            const candidates = (recalled.entries || []).filter(entry => !entry.constant && !protectedSet.has(entry.ref) && tokenCosts[entry.ref] > 0).map(entry => ({
-              ref: entry.ref, title: entry.title || entry.comment, tokenCost: tokenCosts[entry.ref],
-              text: projected.renderedEntries.find(output => output.ref === entry.ref).text,
-              match: recalled.diagnostics.find(item => item.ref === entry.ref)?.match
-            }))
-            screening = await filterCandidates({ chat, card, userText, candidates, corpus: (worldBook?.view?.entries || []).filter(entry => entry.enabled !== false && !isMvuUpdateEntry(entry)), signal })
-            allowedRefs = new Set(screening.selected)
-            screeningDone = true
-            continue
-          }
           converged = true; break
         }
         activationRequests = next
@@ -181,7 +165,7 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
         return { ...entry, outputOrder: outputIndex >= 0 ? outputIndex + 1 : null,
           rendering: outputIndex >= 0 ? 'rendered' : failure ? failure.code : entry.reason === 'selected' ? 'empty-output' : 'not-selected' }
       })
-      const log = { settings: { ...recalled.settings, cooldownTurns: 10 }, budget: recalled.budget, screening, scanSources: recalled.scanSources || [],
+      const log = { settings: { ...recalled.settings, cooldownTurns: 10 }, budget: recalled.budget,  scanSources: recalled.scanSources || [],
         counts: entries.reduce((result, entry) => { result[entry.reason] = (result[entry.reason] || 0) + 1; return result }, {}), entries, outputs,
         dynamicRefs: accepted, activationRequests, templateDiagnostics: projected.diagnostics }
       return { ...projected, randomState: { ...randomState, outputs: Object.fromEntries(outputs.filter(output => hasWorldbookRandom(worldBook.view.entries.find(entry => entry.ref === output.ref)?.content)).map(output => [output.ref, output.text])) }, log, context: projected.foregroundContext, refs: accepted, reads: nextReads,

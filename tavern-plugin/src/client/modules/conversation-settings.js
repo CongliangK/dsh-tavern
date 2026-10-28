@@ -266,7 +266,7 @@ function createConversationSettingsModule({
                     onChange: event => save({ worldbookStrategy: event.target.value }) },
                     (features.worldbookStrategies?.length ? features.worldbookStrategies : [{ id: "legacy", label: "关键词注入（旧机制）" }, { id: "native-skills", label: "Skill 世界书（推荐）" }]).map(strategy => h("option", { key: strategy.id, value: strategy.id }, strategy.label)))),
                 h("p", { className: "dsh-tavern-settings-desc" }, "只影响本局后续请求，不修改原世界书，可随时切回；此前已加载内容仍保留在历史中。静态非常驻条目生成实体 Skill；短内容直接内联，长内容从 SKILL.md 的目录按需读取原文。常驻条目仍自动注入，动态条目保留运行时处理。请在前台工具中保持 skill 开启。"),
-                toggle("worldbookScreening", "世界书模型筛选", "仅关键词注入策略生效：请后台模型筛选相关条目，被排除条目冷却 10 轮。多一次后台请求。切换策略保留此开关。", tasks.worldbookScreening === true, checked => ({ backgroundTasks: { worldbookScreening: checked } }), (features.worldbookStrategy || "legacy") !== "legacy")),
+                ),
             h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,
                 toggle("posture", "人物姿势", "每轮总结人物的位置、动作和姿势，供前台保持一致。", tasks.posture, checked => ({ backgroundTasks: { posture: checked } })),
