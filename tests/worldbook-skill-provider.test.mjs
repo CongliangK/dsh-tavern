@@ -304,3 +304,15 @@ test('reference filenames omit IDs and control tags and resolve actual name coll
   assert.ok(!names.includes('references/资料目录.md'))
   assert.deepEqual(entries.map(e=>referenceFile(e,[...entries].reverse())),names)
 })
+
+test('physical Skill catalog excludes constants, initialization, code, macros and MVU rules', async t => {
+  const f = fixture(t), state = f.states.get('one')
+  const original = state.worldBook.view.entries[0]
+  state.worldBook.view.entries.push(...[
+    { constant: true }, { content: '<%= value %>' }, { content: '{{getvar::value}}' },
+    { title: '[InitVar]初始化', content: '{}' }, { title: '[mvu_update]规则' },
+    { content: '<script>run()</script>' }
+  ].map((overrides, index) => ({ ...original, ref: 'excluded-' + index, sourceUid: index + 100, ...overrides })))
+  const inspected = await f.provider.inspect(f.lookup('one'))
+  assert.deepEqual(inspected.clusters.flatMap(cluster => cluster.entries.map(entry => entry.ref)), [original.ref])
+})

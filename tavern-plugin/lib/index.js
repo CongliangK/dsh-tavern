@@ -261,7 +261,6 @@ import { createWorldbookSearch, sharedWorldbookSearch } from './domain/worldbook
 import { createForegroundWorldbook } from './domain/foreground-worldbook.js'
 import { createWorldbookStrategies } from './domain/worldbook-strategies.js'
 import { createWorldbookSkillProvider } from './domain/worldbook-skill-provider.js'
-import { projectVirtualWorldbookPrefix } from './domain/worldbook-virtual-state.js'
 import { installWorldbookSkillRead, nativeWorldbookReadAvailable } from './domain/worldbook-skill-read.js'
 import { prepareTemplateWorldbook, prepareWorldBookRecall, projectWorldBookTemplates } from './domain/worldbook-recall.js'
 import {
@@ -2930,7 +2929,6 @@ export async function apply(ctx) {
       return { context: '', refs: [], diagnostics: [{ kind: 'worldbook-template', code: 'worldbook-read-failed' }] }
     }
     if (!worldBook || !worldBook.view) return { context: '', refs: [], diagnostics: [] }
-    if (chat.worldbookStrategy === 'native-skills') return projectVirtualWorldbookPrefix(worldBook, chat, options)
     try {
       const runtime = await promptTemplateRuntime(chat.sessionId)
       worldBook = await prepareTemplateWorldbook(worldBook, runtime, chat, await readPromptTemplateGlobalVariables())

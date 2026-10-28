@@ -3,14 +3,13 @@ import { estimateWorldBookTokens } from './worldbook-activation.js'
 import { describeWorldbookCluster, worldbookEntryTitle, worldbookSkillSlug } from './worldbook-skill-labels.js'
 import path from 'node:path'
 import { createWorldbookSkillFiles, skillDigest, skillFileLabel, referenceFile, legacyReferenceFile } from './worldbook-skill-files.js'
-import { isMvuUpdateEntry } from './worldbook-recall.js'
-import { classifyWorldbookEntry } from './worldbook-entry-classification.js'
+import { isStaticWorldbookSkillEntry } from './worldbook-entry-classification.js'
 import { createWorldbookSkillCatalog } from './worldbook-skill-catalog.js'
 import { eligibleVirtualSourceEntries } from './worldbook-virtual-state.js'
 
 const digest = skillDigest
 const text = value => String(value ?? '').replace(/\s+/g, ' ').trim()
-const eligible = entry => entry.enabled !== false && !isMvuUpdateEntry(entry) && text(entry.content) && classifyWorldbookEntry(entry).kind === 'static-skill'
+const eligible = isStaticWorldbookSkillEntry
 export const WORLDBOOK_SKILL_RESOURCE_ROOT = '/__tavern_worldbook__/'
 const legacyScopeKey = state => digest(JSON.stringify([state.chat.sessionId, state.chat.id, state.chat.cardPath]))
 // Shared by source and effective content, never by chat/session identity.

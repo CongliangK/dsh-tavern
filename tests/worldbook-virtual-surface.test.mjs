@@ -48,7 +48,7 @@ test('native request prefix preserves original whitespace without modifying pers
   assert.equal(fixed[0].text, 'stale')
 })
 
-test('actual system assembly hook passes missing snapshots, leaves history untouched, and excludes background', async () => {
+test('system assembly uses native constant projection, ignores old snapshots and excludes background', async () => {
   const { registerTurnLifecycleHooks } = await import('../tavern-plugin/lib/hooks/turn-lifecycle.js')
   const hooks = new Map(), calls = []
   const nativeSession = { id: 'game', ...session([message('first', '晴天', 'sun')]) }
@@ -69,11 +69,11 @@ test('actual system assembly hook passes missing snapshots, leaves history untou
   const initial = structuredClone(nativeSession)
   const assemble = hooks.get('system-prompt/assemble')
   const result = await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
-  assert.deepEqual(calls[0], { restoreRefs: ['second'] })
-  assert.match(result.sections[0].text, /  STATIC EXACT\n\n港口开放/)
+  assert.equal(calls[0], undefined)
+  assert.match(result.sections[0].text, /STATIC EXACT\n\n港口开放/)
   assert.deepEqual(nativeSession, initial)
   await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
-  assert.deepEqual(calls[1], { restoreRefs: ['second'] }, 'request-only recovery survives subsequent requests')
+  assert.equal(calls[1], undefined)
   background = true
   await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
   assert.equal(calls.length, 2)

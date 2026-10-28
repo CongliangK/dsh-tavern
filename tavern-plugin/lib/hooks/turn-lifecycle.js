@@ -9,7 +9,6 @@ import { synchronizeBodyEdits } from '../domain/body-editor.js'
 import { synchronizeTemplateHistory } from '../domain/template-history.js'
 import { turnRepliedByModel } from '../domain/story-alignment.js'
 import { sessionEvents } from '../domain/session-events.js'
-import { virtualWorldbookRestoreRefs, withVirtualWorldbook } from '../domain/worldbook-virtual-surface.js'
 import { appendStorySubmissionReminder } from '../domain/story-tool-submission.js'
 
 export function registerTurnLifecycleHooks({
@@ -116,10 +115,8 @@ export function registerTurnLifecycleHooks({
     catch { console.error('dsh-tavern: 资源工作区投影刷新失败，继续使用现有资源文件') }
     let fixedSystemSections = sessionStablePrefixSections(agent.session)
     if (chat && ['story', 'script'].includes(chat.mode || 'story')) {
-      const native = chat.worldbookStrategy === 'native-skills'
-      const projected = await nativeWorldBookTemplateContext(chat, await readChatCard(chat), native
-        ? { restoreRefs: virtualWorldbookRestoreRefs(agent.session, chat.worldBookVirtualState) } : undefined)
-      fixedSystemSections = (native ? withVirtualWorldbook : withCurrentWorldbook)(fixedSystemSections, projected.prefixContext ?? '')
+      const projected = await nativeWorldBookTemplateContext(chat, await readChatCard(chat))
+      fixedSystemSections = withCurrentWorldbook(fixedSystemSections, projected.prefixContext ?? '')
     }
     const assembled = await foregroundStrategies.assembleSystemPrompt(assembly, {
       sessionId: agent.session.id,

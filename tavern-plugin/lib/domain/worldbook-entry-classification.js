@@ -1,3 +1,5 @@
+import { isMvuUpdateEntry } from './worldbook-recall.js'
+
 export function hasWorldbookPreprocessingSyntax(entry = {}) {
   return /^@@/m.test(String(entry.content || '')) || /\[(?:GENERATE:|RENDER:|InitialVariables|Preprocessing)|@INJECT/.test(String(entry.content || '') + '\n' + String(entry.comment || entry.title || ''))
 }
@@ -12,9 +14,10 @@ export function classifyWorldbookEntry(entry = {}) {
   const ejs = /<%|%>/.test(body)
   const decorators = hasWorldbookPreprocessingSyntax(entry)
   const macros = /\{\{|\}\}/.test(body)
-  const dynamic = ejs || decorators || macros
+  const program = isMvuUpdateEntry(entry) || /\[(?:initvar|initialvariables|mvu[_ -])/i.test(String(entry.comment || entry.title || '')) || /<script\b|```\s*(?:javascript|js|typescript|ts|ejs)\b/i.test(body)
+  const dynamic = ejs || decorators || macros || program
   const dependencies = []
-  let nativeFallback = ejs || decorators
+  let nativeFallback = ejs || decorators || program
   if (macros) {
     const remainder = body.replace(/\{\{\s*(getvar|getglobalvar|hasvar|hasglobalvar)\s*::\s*([^{}:=<>!?|+]+?)\s*\}\}/gi, (_, name, key) => {
       dependencies.push({ scope: /global/i.test(name) ? 'global' : 'local', key: key.trim() })
@@ -27,4 +30,9 @@ export function classifyWorldbookEntry(entry = {}) {
   const constant = entry.constant === true
   return { kind: dynamic ? (constant ? 'dynamic-constant' : 'dynamic-conditional') : (constant ? 'static-constant' : 'static-skill'),
     dynamic, constant, dependencies, nativeFallback, occasion: nativeFallback ? 'request' : 'dependency' }
+}
+
+/** The only entries replaced by native Skills; all others stay in recall. */
+export function isStaticWorldbookSkillEntry(entry = {}) {
+  return entry.enabled !== false && String(entry.content || '').trim() !== '' && classifyWorldbookEntry(entry).kind === 'static-skill'
 }
