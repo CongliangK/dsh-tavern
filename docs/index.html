@@ -2146,6 +2146,8 @@ try { /* 这段归我说话 */ } finally { lease.release() }</code></pre></div>
 <p>这些只是例子。任何能让酒馆更好用、更容易理解的改动，都欢迎提出。小改动可以直接提 PR；涉及较大功能或行为调整，请先到 <a href="https://discord.gg/hYAEjKnpra">Discord 交流群</a> 讨论，确定方案后再提交 PR。<strong>GitHub Issue 只用于 Bug 反馈</strong>，功能建议请在 Discord 群讨论。</p>
 <p><strong>特别欢迎功能精简的意见。</strong> 当前功能繁多，非常需要简化和删除一部分。如果你觉得某些功能很少用、彼此重复，或者让界面和操作变得复杂，欢迎在 Discord 群提出合并、简化或删除的建议。让用户少学几个概念、少面对几个选项，同样是有价值的贡献。</p>
 <h2 id="contributing--section-2">上传一个 Markdown 文件，就能增加页面</h2>
+<p>文档网站：<a href="https://flizzywine.github.io/dsh-tavern/">https://flizzywine.github.io/dsh-tavern/</a>。</p>
+<p><code>docs/pages/</code> 里的 Markdown 就是这个网站的页面源文件。新增或修改这些文件，合并到 <code>main</code> 并自动发布成功后，内容就会出现在上述网站中，供所有用户阅读。</p>
 <p>把 <code>.md</code> 文件放进 <code>docs/pages/</code>，构建时就会自动生成网页、加入侧栏和搜索，不需要修改 JavaScript，也不需要写配置头。</p>
 <p>例如新建 <code>docs/pages/first-game.md</code>：</p>
 <div class="code-block"><div class="code-heading"><span>md</span><button type="button" class="copy-code" aria-label="复制这段命令" hidden>复制</button></div><pre tabindex="0"><code># 第一次开始游玩

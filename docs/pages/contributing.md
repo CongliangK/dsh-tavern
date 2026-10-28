@@ -17,6 +17,10 @@
 
 ## 上传一个 Markdown 文件，就能增加页面
 
+文档网站：[https://flizzywine.github.io/dsh-tavern/](https://flizzywine.github.io/dsh-tavern/)。
+
+`docs/pages/` 里的 Markdown 就是这个网站的页面源文件。新增或修改这些文件，合并到 `main` 并自动发布成功后，内容就会出现在上述网站中，供所有用户阅读。
+
 把 `.md` 文件放进 `docs/pages/`，构建时就会自动生成网页、加入侧栏和搜索，不需要修改 JavaScript，也不需要写配置头。
 
 例如新建 `docs/pages/first-game.md`：
