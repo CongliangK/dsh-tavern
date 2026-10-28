@@ -4920,9 +4920,10 @@ nav[data-dsh-tavern-rail-hidden] [role="tooltip"] { visibility: visible !importa
 .dsh-wb-muted, .dsh-wb-entry small { opacity:.65; font-size:12px; line-height:1.6; }
 .dsh-wb-entry { display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin:10px 0; }
 .dsh-wb-stats { padding:12px; background:#8881; border-radius:8px; line-height:1.8; margin-bottom:12px; }
-.dsh-tavern-background-runs summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
-.dsh-tavern-background-runs-summary { color: var(--dsw-alias-label-secondary); font-size: 12px; }
-.dsh-tavern-background-runs ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 12px; line-height: 1.5; }
+.dsh-tavern-background-runs { margin: 8px 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 12px; line-height: 1.5; }
+.dsh-tavern-background-runs-link button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: baseline; gap: 8px; cursor: pointer; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.dsh-tavern-background-runs-link button > span:last-child { margin-left: auto; color: var(--dsh-tavern-accent); }
+.dsh-tavern-background-runs-link button:focus-visible { outline: 2px solid var(--dsh-tavern-accent); outline-offset: 2px; }
 .dsh-tavern-background-run { display: flex; flex-wrap: wrap; gap: 0 8px; color: var(--dsw-alias-label-secondary); }
 .dsh-tavern-background-run-name { color: var(--dsw-alias-label-primary); font-weight: 600; }
 .dsh-tavern-background-run.running .dsh-tavern-background-run-name { color: var(--dsh-tavern-accent); }
