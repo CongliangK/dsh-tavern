@@ -907,6 +907,7 @@ window.__ModuleLoader__.load({
         // @include card-memory.js
 
 // @include features/skills.js
+// @include features/worldbook-inspector.js
 
 
 // @include features/preset-library.js
@@ -1140,6 +1141,7 @@ window.__ModuleLoader__.load({
             ctx.effect(() => ctx.betterSidebar.registerTab({ id: "dsh-tavern:guide-library", title: "Guide 库", order: 9, single: true, component: GuideLibraryTab }), "dsh-tavern: guide library");
             ctx.effect(() => ctx.betterSidebar.registerTab({ id: "dsh-tavern:regex-library", title: "正则库", order: 9, single: true, component: RegexLibraryTab }), "dsh-tavern: regex library");
 			ctx.effect(() => ctx.betterSidebar.registerTab({ id: "dsh-tavern:skills", title: "Skill 库", order: 8, single: true, component: props => React.createElement(TavernSkillsTab, { sessionId: props.scope.sessionId }) }), "dsh-tavern: Skill library");
+            ctx.effect(() => ctx.betterSidebar.registerTab({ id: "dsh-tavern:virtual-skills", title: "虚拟 Skill", order: 8, single: true, component: props => React.createElement(TavernWorldbookInspector, { key: props.scope.sessionId, sessionId: props.scope.sessionId }) }), "dsh-tavern: virtual Skill inspector");
             ctx.effect(() => ctx.betterSidebar.registerTab({ id: "dsh-tavern:card-memory", title: "改卡记忆", order: 9, single: true, component: props => React.createElement(TavernCardMemoryTab, { sessionId: props.scope.sessionId }) }), "dsh-tavern: card memory");
 			worldBookLibraryFeature.register({ ctx: ctx, appendMention: appendMention });
 			ctx.effect(function () {

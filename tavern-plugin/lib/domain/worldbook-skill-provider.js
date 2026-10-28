@@ -94,6 +94,21 @@ export function createWorldbookSkillProvider({ load, catalog = createWorldbookSk
       versions.set(scope, version)
       return previous === undefined ? candidates.length > 0 : previous !== version
     },
+    async inspect(lookup) {
+      const result = await current(lookup)
+      if (!result) return null
+      const entries = entriesOf(result.state)
+      return { book: result.state.worldBook.view.displayName, metrics: result.compiled.metrics,
+        clusters: result.compiled.clusters.map(cluster => {
+          const item = candidate(result.state, cluster)
+          return { name: item.name, title: cluster.title, keywords: cluster.keywords, guide: guide(result.state, cluster),
+            entries: entries.filter(entry => cluster.refs.includes(entry.ref)).map(entry => ({
+              ref: entry.ref, title: text(entry.title || entry.comment || entry.ref),
+              source: entry.sourcePath, uid: entry.sourceUid,
+              path: item.resourceBase.path + '/' + entryFile(entry.ref)
+            })) }
+        }) }
+    },
     async list(lookup) {
       const result = await current(lookup)
       return { candidates: result ? result.compiled.clusters.map(cluster => candidate(result.state, cluster)) : [], complete: true }

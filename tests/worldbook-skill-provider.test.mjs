@@ -139,3 +139,15 @@ test('preprocessing-controlled books require current runtime visibility, never e
   state.worldBook.view.entries[0].content = 'new source invalidates old visibility'
   assert.deepEqual((await f.provider.list(f.lookup('one'))).candidates, [])
 })
+
+test('inspector shares actual catalog, excludes bodies and revalidates entry paths', async t => {
+  const f = fixture(t)
+  const view = await f.provider.inspect(f.lookup('one'))
+  assert.equal(view.clusters[0].name, (await f.candidate('one')).name)
+  assert.doesNotMatch(JSON.stringify(view), /PRIVATE FULL BODY/)
+  const entry = view.clusters[0].entries[0]
+  assert.equal(await f.provider.readResource(entry.path, f.lookup('one')), f.states.get('one').worldBook.view.entries[0].content)
+  assert.equal(await f.provider.readResource(entry.path, f.lookup('two')), undefined)
+  f.states.get('one').chat.worldbookStrategy = 'legacy'
+  assert.equal(await f.provider.inspect(f.lookup('one')), null)
+})
