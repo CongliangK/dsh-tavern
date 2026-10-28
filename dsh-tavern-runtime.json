@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "72792415d9c94098719a1c31a9f7ad5206f0ee41",
-  "releaseSequence": 949,
+  "revision": "f3a752bb5253ce09b0ca66e9baa658dd49d63b93",
+  "releaseSequence": 950,
   "version": "3.1.0",
   "files": [
     {
@@ -2610,14 +2610,19 @@
       "size": 16484
     },
     {
+      "path": "tavern-plugin/lib/domain/transfer-assets.js",
+      "sha256": "75c4a0141dd27ba0745fd311ce2c36c08242f5b760df1b6863bfdca67580a996",
+      "size": 8071
+    },
+    {
       "path": "tavern-plugin/lib/domain/transfer-bundle.js",
       "sha256": "f92b3532dec838ffd6ee401d18921c38686fd0155399f7e8c897ac9c8ab19eb7",
       "size": 7301
     },
     {
       "path": "tavern-plugin/lib/domain/transfer-catalog.js",
-      "sha256": "2fe81371155c3fbfe7b2432a5fb47837856adf5d4bc6b754aa30f0a691a975b5",
-      "size": 16946
+      "sha256": "26a96b6c1c722696f316c5af5bf51c9cd8faca9aadaf6e315c78f2a83d3a836f",
+      "size": 18346
     },
     {
       "path": "tavern-plugin/lib/domain/transfer-chats.js",
@@ -2631,8 +2636,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/transfer-import.js",
-      "sha256": "ba19dd15859f60102ac0eac50b3a8fde5abdf6967893652f30552bc22725155f",
-      "size": 25540
+      "sha256": "8604d88d8b9a7c91f285c7929605d2427baa65a32e9889c7dc67e12a90a9fd3a",
+      "size": 27670
     },
     {
       "path": "tavern-plugin/lib/domain/transfer-logs.js",
@@ -2643,6 +2648,11 @@
       "path": "tavern-plugin/lib/domain/transfer-materials.js",
       "sha256": "b515ad63a8ef533ae014451486cfed6b71d55718e9dad7b5ec76b420263e01e6",
       "size": 4009
+    },
+    {
+      "path": "tavern-plugin/lib/domain/transfer-memory.js",
+      "sha256": "00652faed2d79ba7386650a3dadd77539af72bf49d5e3a44a3543ffd32585328",
+      "size": 5386
     },
     {
       "path": "tavern-plugin/lib/domain/transfer-plugin-data.js",
@@ -2916,8 +2926,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "d419c845c6158dc3a6204a828a9c30771b24f410df6a22bf2fea32d3e05e5e0c",
-      "size": 250859
+      "sha256": "b4c3841fd3aaca7e539fb6984554333cb59a8aab67d2e5ab8dffca93dbb91e00",
+      "size": 250872
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -3001,8 +3011,8 @@
     },
     {
       "path": "tavern-plugin/lib/rpc/transfer.js",
-      "sha256": "ce5301f991d12d0366b0191f107fc555fea3e041acdb8330161d4eec24c47162",
-      "size": 10183
+      "sha256": "3243a2e33fd105998e25b7921696ec495d5545e2016081d3deca0aaaa0262c5e",
+      "size": 10876
     },
     {
       "path": "tavern-plugin/lib/stage-director-commit.js",
@@ -5071,9 +5081,9 @@
     }
   ],
   "archive": {
-    "commit": "19021eb5b024d60a66a5e2dd98349088ce8aada7",
+    "commit": "70046350c4d508f012d3afbbcb894b5422c5c4bd",
     "path": "runtime.zip",
-    "sha256": "87b54945108f2b9f2f331c09dd76f584e4c6f25a1dbdf878b1d45967a6a5a7e1",
-    "size": 10507716
+    "sha256": "96c4e76062ad9d3fcc1fb6bc629b45a6182db5087a482d2e1a8cf0d5b81a16e0",
+    "size": 10514820
   }
 }
