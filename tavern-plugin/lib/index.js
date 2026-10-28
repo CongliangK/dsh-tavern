@@ -261,6 +261,8 @@ import { createWorldbookSearch, sharedWorldbookSearch } from './domain/worldbook
 import { createForegroundWorldbook } from './domain/foreground-worldbook.js'
 import { createWorldbookStrategies } from './domain/worldbook-strategies.js'
 import { createWorldbookSkillProvider } from './domain/worldbook-skill-provider.js'
+import { projectVirtualWorldbookPrefix } from './domain/worldbook-virtual-state.js'
+import { installWorldbookSkillRead, nativeWorldbookReadAvailable } from './domain/worldbook-skill-read.js'
 import { prepareTemplateWorldbook, prepareWorldBookRecall, projectWorldBookTemplates } from './domain/worldbook-recall.js'
 import {
   createBackgroundTaskCoordinator,
@@ -1889,16 +1891,24 @@ export async function apply(ctx) {
     scanText: scriptPromptScanText,
     filterCandidates: input => worldbookFilter(input)
   })
+  ctx.effect(() => () => projectBuiltinWorldbook.dispose())
   const worldbookStrategies = createWorldbookStrategies({
     legacy: input => projectBuiltinWorldbook({ ...input, strategy: 'legacy' }),
     nativeSkills: input => projectBuiltinWorldbook({ ...input, strategy: 'native-skills' })
   })
-  const projectForegroundWorldbook = input => worldbookStrategies.project(input)
+  const projectForegroundWorldbook = async input => {
+    const projected = await worldbookStrategies.project(input)
+    // Native preprocessing may revoke visibility without changing source JSON.
+    // Its runtime result must invalidate an earlier pre-step discovery snapshot.
+    if (input.chat?.worldbookStrategy === 'native-skills') invalidateWorldbookSkills()
+    return projected
+  }
   let invalidateWorldbookSkills = () => {}
   let worldbookSkillProvider
   skillRegistry.registerProvider(control => {
     invalidateWorldbookSkills = () => control.invalidate()
     worldbookSkillProvider = createWorldbookSkillProvider({
+      resourcesAvailable: scope => nativeWorldbookReadAvailable(ctx.get('tools'), scope),
       async load(agent) {
         const sessionId = agent?.session?.id
         if (!sessionId || backgroundAgentRunner.owns(sessionId)) return null
@@ -1913,25 +1923,22 @@ export async function apply(ctx) {
           console.warn('dsh-tavern: 本局世界书 Skill 库不可用:', str(error?.message || error))
           return null
         }
-      },
-      async render({ chat, card, worldBook }, entry) {
-        const runtime = await promptTemplateRuntime(chat.sessionId), globalVariables = await readPromptTemplateGlobalVariables()
-        worldBook = await prepareTemplateWorldbook(worldBook, runtime, chat, globalVariables)
-        const current = worldBook.view.entries.find(item => item.ref === entry.ref)
-        if (!current || current.enabled === false) return ''
-        const projected = await projectWorldBookTemplates({ worldBook, runtime, globalVariables, chat, card,
-          includeConstants: true, selectedEntries: worldBook.view.entries.filter(item => item.constant || item.ref === entry.ref),
-          randomSeed: chat.worldBookRandomState?.seed, randomOutputs: chat.worldBookRandomState?.outputs })
-        return projected.renderedEntries.find(item => item.ref === entry.ref)?.text || ''
       }
     })
+    control.signal.addEventListener('abort', () => worldbookSkillProvider.dispose(), { once: true })
     return worldbookSkillProvider
+  })
+  installWorldbookSkillRead(ctx, worldbookSkillProvider, {
+    async virtualOnly(agent) {
+      const chat = agent?.session?.id && await chatHeaderForSession(agent.session.id, ['mode', 'worldbookStrategy'])
+      return chat?.worldbookStrategy === 'native-skills' && ['story', 'script'].includes(chat.mode || 'story')
+    }
   })
   // The native registry caches by agent scope. Refresh before its catalog hook on
   // EVERY step: this includes cold loads, plugin entries, external edits and switches.
   // Provider.get still revalidates, so an old catalog never authorizes a stale read.
   ctx.on('agent/pre-step', async (payload, next) => {
-    if (await worldbookSkillProvider.refresh(payload.agent)) invalidateWorldbookSkills()
+    if (await worldbookSkillProvider.refresh(payload.agent, { signal: payload.signal })) invalidateWorldbookSkills()
     return next()
   }, { prepend: true })
   const searchWorldbook = createWorldbookSearch({
@@ -2909,7 +2916,7 @@ export async function apply(ctx) {
     return next()
   }, { prepend: true })
   ctx.on('agent/status', ({ agent, status }) => { if (status === 'idle') queueAutoCompaction(agent.session.id) })
-  async function nativeWorldBookTemplateContext(chat, card) {
+  async function nativeWorldBookTemplateContext(chat, card, options = {}) {
     let worldBook
     try {
       worldBook = await playWorldBook(chat, card)
@@ -2918,6 +2925,7 @@ export async function apply(ctx) {
       return { context: '', refs: [], diagnostics: [{ kind: 'worldbook-template', code: 'worldbook-read-failed' }] }
     }
     if (!worldBook || !worldBook.view) return { context: '', refs: [], diagnostics: [] }
+    if (chat.worldbookStrategy === 'native-skills') return projectVirtualWorldbookPrefix(worldBook, chat, options)
     try {
       const runtime = await promptTemplateRuntime(chat.sessionId)
       worldBook = await prepareTemplateWorldbook(worldBook, runtime, chat, await readPromptTemplateGlobalVariables())
