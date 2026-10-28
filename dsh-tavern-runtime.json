@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "5192d59d435e5a32b29966f36dcd349c02748012",
-  "releaseSequence": 959,
+  "revision": "8102a93813298dd9ca9b430f95690fef4bd43581",
+  "releaseSequence": 960,
   "version": "3.1.0",
   "files": [
     {
@@ -86,8 +86,8 @@
     },
     {
       "path": "android/README.md",
-      "sha256": "addb9d68bb95ead327f7026de4d36558ac3753381bc308de0d155015b44a713d",
-      "size": 2116
+      "sha256": "6c3a067ebe888a0bed87165d93aaaf20afb1a874ed901a8fff926780d1786a34",
+      "size": 2189
     },
     {
       "path": "android/setup.sh",
@@ -166,8 +166,8 @@
     },
     {
       "path": "bin/dsh-compatibility.mjs",
-      "sha256": "56b46929db0492ef5ba7ed7bf07deed70e623d7f266a2a52f6dc615d1c1bd96c",
-      "size": 4916
+      "sha256": "0e38113b1782f90a04085953238f3ebc8ea31ac7a8f073bc7f2864627feb3088",
+      "size": 5009
     },
     {
       "path": "bin/dsh-tavern",
@@ -421,8 +421,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "6ddc086838de2dd1b3d9096308821ae3334f5a43db0b0ba900415b3053d70647",
-      "size": 2957
+      "sha256": "f07e7e611ad390154563c02d365c249854bffe4f578f4cdbad1777121bfd12d7",
+      "size": 2683
     },
     {
       "path": "patches/dsh-better-sidebar@0.26.0.patch",
@@ -566,8 +566,8 @@
     },
     {
       "path": "presets/tavern/skills/tavern-plugin/references/plugin-recipes.md",
-      "sha256": "8a6ce6c3c51f1e5f306b1142b16c859775c853f30dd8507984dc2b8f739ff73f",
-      "size": 11604
+      "sha256": "2ed4a4aabe04ed8b24ee42451d19349de39c92beeb4b7140b7403531268b6d41",
+      "size": 11662
     },
     {
       "path": "presets/tavern/skills/tavern-plugin/SKILL.md",
@@ -5081,9 +5081,9 @@
     }
   ],
   "archive": {
-    "commit": "445b67b15c7c28ad40ee0e66e51e8fb437d35c55",
+    "commit": "883c9a3dd7bc8fac77bfa8bff0d17d7ae4348cb3",
     "path": "runtime.zip",
-    "sha256": "16a7422d71da9ca9a36d08bf0feb3d6b3c386d322bfbb847410734c3f9abbc3e",
-    "size": 10517332
+    "sha256": "761bf95d6441f7387f46ae0bec62279ca39083e76aea109c27514e3d4cf98441",
+    "size": 10517453
   }
 }
