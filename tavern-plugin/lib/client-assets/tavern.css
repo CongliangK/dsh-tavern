@@ -1081,6 +1081,18 @@ body.dsh-tavern-shell-active [data-dsh-panel-host] { overflow: clip; }
 .dsh-tavern-error-summary[hidden] { display: none; }
 .dsh-tavern-error-summary button { color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 5px; padding: 2px 8px; cursor: pointer; }
 .dsh-tavern-error-summary button:disabled { opacity: .55; cursor: default; }
+/* A failed round's work-step header folds into this line until the player asks for it.
+   The host restates these rows' inline display on every render, so the fold is an
+   attribute a !important rule holds. */
+[data-tavern-step-fold] { display: none !important; }
+.dsh-tavern-step-fold[hidden] { display: none; }
+.dsh-tavern-step-fold { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 2px 12px; font-size: 12px; color: var(--dsw-alias-label-tertiary, #8a8f98); opacity: .8; }
+.dsh-tavern-step-fold > span:empty { display: none; }
+.dsh-tavern-step-fold button { font: inherit; color: inherit; background: transparent; border: 0; border-radius: 5px; padding: 2px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.dsh-tavern-step-fold button:hover { color: var(--dsw-alias-label-secondary, #6b6f76); }
+/* Same control when it rides in the error panel's action row: a quiet link, not a button. */
+.dsh-tavern-error-controls button.dsh-tavern-step-fold-toggle { border-color: transparent; padding: 3px 4px; color: var(--dsw-alias-label-tertiary, #8a8f98); }
+.dsh-tavern-error-controls button.dsh-tavern-step-fold-toggle:hover { background: transparent; color: var(--dsw-alias-label-primary, #26282c); text-decoration: underline; text-underline-offset: 3px; }
 
 /* Conversation groups are a sidebar projection, not folders in stored chat data. */
 .dsh-tavern-history-group { flex-shrink: 0; min-width: 0; }
@@ -2146,7 +2158,10 @@ html.dsh-tavern-hide-process [data-chat-flow-kind="turn-trigger"],
 /* 宿主的「上下文已压缩」行：自动压缩与 /compact 两种形态都按行内的压缩标记认。 */
 html.dsh-tavern-hide-process [data-chat-flow-kind]:has([class*="_compactionRow"]),
 html.dsh-tavern-hide-process .dsh-tavern-assistant-reasoning,
-html.dsh-tavern-hide-process [data-chat-flow-kind="turn-process"]:has([data-turn-process-tool-calls="0"][data-turn-process-subagents="0"]) { display: none !important; }
+html.dsh-tavern-hide-process [data-chat-flow-kind="turn-process"]:has([data-turn-process-tool-calls="0"][data-turn-process-subagents="0"]),
+/* 已收起的回合整块是「已调用工具」这类步骤行；开关打开时它们也不该占行。
+   正在跑的那一轮还没有分页锚点，进度照常可见。 */
+html.dsh-tavern-hide-process [data-chat-flow-kind="turn-process"]:has([data-chat-paging-anchor]) { display: none !important; }
 
 .dsh-tavern-display-preferences .dsh-tavern-settings-desc { margin: 6px 0 0; }
 .dsh-tavern-display-preferences > [role="status"] { margin: 0; padding: 0 20px 18px; }

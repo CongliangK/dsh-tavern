@@ -94,6 +94,7 @@
 		}
 
 		// @include turn-error-controls.js
+		// @include step-fold.js
 
 		function createSupersededErrorProjection(root) {
 			const owned = new Map();

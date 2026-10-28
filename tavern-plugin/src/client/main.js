@@ -1180,6 +1180,7 @@ cardLibraryFeature.register({ ctx: ctx, appendMention: appendMention });
         exports.apply = apply;
 		exports.createTurnHistoryProjection = createTurnHistoryProjection;
 		exports.createTurnErrorControls = createTurnErrorControls;
+		exports.createStepFoldControls = createStepFoldControls;
 		exports.createSupersededErrorProjection = createSupersededErrorProjection;
 		exports.inject = inject;
 		exports.buildOpeningPreviewDocument = buildOpeningPreviewDocument;
