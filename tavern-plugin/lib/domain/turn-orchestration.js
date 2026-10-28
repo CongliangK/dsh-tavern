@@ -919,10 +919,10 @@ export function createTurnOrchestrator(options) {
     if (mode === 'card') return [...CARD_MEMORY_TOOLS, 'web_search', 'web_fetch', 'tavern_research', shellToolName, ...dshFileToolNames, 'skill', 'tavern_read_skill_reference', 'tavern_save_skill', ...cordisToolNames, 'tavern_user_profile_read', 'tavern_user_profile_save', 'tavern_read_card', 'tavern_read_card_raw', 'tavern_search_card', 'tavern_replace_card_text', 'tavern_mvu_overview', 'tavern_apply_mvu', 'tavern_read_play_chat', 'tavern_read_runtime_health', 'tavern_read_worldbook', 'tavern_update_worldbook', 'tavern_read_preset', 'tavern_update_preset', 'tavern_read_regex_library', 'tavern_copy_card', 'tavern_set_card_cover', 'tavern_export_card_png', 'tavern_update_card', 'tavern_restore_card', 'tavern_validate_card', 'tavern_test_response']
     // Native virtual resources use the existing read protocol; the host restricts
     // this gameplay read to the calling game's virtual worldbook namespace.
-    const worldbookTool = chat.worldbookStrategy === 'native-skills' ? 'read' : 'worldbook_search'
+    const worldbookTools = chat.worldbookStrategy === 'native-skills' ? ['read'] : []
     const names = mode === 'script'
-      ? ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_read_script', 'tavern_recall_history', worldbookTool, ...webTools, ...storyTools]
-      : ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_recall_history', worldbookTool, ...webTools, ...storyTools]
+      ? ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_read_script', 'tavern_recall_history', ...worldbookTools, ...webTools, ...storyTools]
+      : ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_recall_history', ...worldbookTools, ...webTools, ...storyTools]
     const disabled = new Set(normalizeDisabledForegroundTools(chat.disabledForegroundTools))
     return names.filter(name => !disabled.has(name))
   }

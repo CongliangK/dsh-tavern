@@ -26,7 +26,7 @@ test('注册的本局设置保存玩家称呼、预设、后台模型与前台�
         backgroundModel: model, worldbookStrategy: strategy, worldbookStrategies: [{ id: 'legacy', label: '当前注入策略（默认）' }, { id: 'native-skills', label: '本局原生 Skill 库' }], backgroundTasks: { variables: true, posture: true, worldbookScreening: screening },
         disabledForegroundTools: disabledTools,
         foregroundTools: [
-          { name: 'worldbook_search', label: '搜索世界书', description: '按关键词检索本局世界书。' },
+          { name: 'tavern_recall_history', label: '召回历史', description: '查阅历史正文。' },
           { name: 'submit_story', label: '正文提交', description: '用 submit_story 提交正文。' },
           { name: 'plugin_lookup', label: '插件查询', description: '插件注册的工具。', source: 'plugin' }
         ],
@@ -49,15 +49,15 @@ test('注册的本局设置保存玩家称呼、预设、后台模型与前台�
   assert.deepEqual(model, { provider: 'p', model: 'm' })
 
   await page.locator('details.dsh-local-advanced > summary').click()
-  const worldbook = page.getByLabel('搜索世界书', { exact: true })
+  const worldbook = page.getByLabel('召回历史', { exact: true })
   await worldbook.waitFor()
   assert.equal(await worldbook.isChecked(), true)
   await worldbook.click()
-  await page.waitForFunction(() => document.querySelector('input[aria-label="搜索世界书"]')?.checked === false)
-  assert.deepEqual(disabledTools, ['worldbook_search'])
+  await page.waitForFunction(() => document.querySelector('input[aria-label="召回历史"]')?.checked === false)
+  assert.deepEqual(disabledTools, ['tavern_recall_history'])
   await page.getByRole('button', { name: '全部关闭' }).click()
   await page.waitForFunction(() => document.querySelector('input[aria-label="正文提交"]')?.checked === false)
-  assert.deepEqual([...disabledTools].sort(), ['plugin_lookup', 'submit_story', 'worldbook_search'])
+  assert.deepEqual([...disabledTools].sort(), ['plugin_lookup', 'submit_story', 'tavern_recall_history'])
   await page.getByRole('button', { name: '全部开启' }).click()
   await page.waitForFunction(() => document.querySelector('input[aria-label="正文提交"]')?.checked === true)
   assert.deepEqual(disabledTools, [])

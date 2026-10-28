@@ -259,7 +259,6 @@ import { resourceWorkspaceContext } from './domain/workspace-resources.js'
 import { createWorldBookLibrary } from './domain/worldbook-library.js'
 import { createWorldbookRecallLog, compactRecallDiagnostics } from './domain/worldbook-recall-log.js'
 import { foregroundWorldbookReads } from './domain/worldbook-read-handoff.js'
-import { createWorldbookSearch, sharedWorldbookSearch } from './domain/worldbook-search.js'
 import { createForegroundWorldbook } from './domain/foreground-worldbook.js'
 import { createWorldbookStrategies } from './domain/worldbook-strategies.js'
 import { createWorldbookSkillProvider } from './domain/worldbook-skill-provider.js'
@@ -1952,23 +1951,6 @@ export async function apply(ctx) {
     }
     return next()
   }, { prepend: true })
-  const searchWorldbook = createWorldbookSearch({
-    load: async sessionId => {
-      const chat = await chatForSession(sessionId)
-      if (!chat || !['story', 'script'].includes(chat.mode || 'story')) throw new Error('世界书查询仅用于当前游玩对话')
-      const card = await readChatCard(chat)
-      return { chat, card, worldBook: await playWorldBook(chat, card) }
-    },
-    render: async ({ chat, card, worldBook }, selected) => {
-      const runtime = await promptTemplateRuntime(chat.sessionId)
-      const globalVariables = await readPromptTemplateGlobalVariables()
-      worldBook = await prepareTemplateWorldbook(worldBook, runtime, chat, globalVariables)
-      const refs = new Set(selected.map(entry => entry.ref))
-      return projectWorldBookTemplates({ worldBook, runtime, globalVariables, chat, card, includeConstants: true,
-        selectedEntries: worldBook.view.entries.filter(entry => entry.constant || refs.has(entry.ref)),
-        randomSeed: chat.worldBookRandomState?.seed, randomOutputs: chat.worldBookRandomState?.outputs })
-    }
-  })
   const chatHistoryImporter = createChatHistoryImportService({
     projectWorldBookTemplates: nativeWorldBookTemplateContext,
     projectForegroundWorldbook,
@@ -2134,7 +2116,7 @@ export async function apply(ctx) {
     // Set up after the runner: plugin tools are read when a background Session is set up.
     settlementItems: () => settlementItems,
     pluginCandidate: () => pluginApi.candidate,
-    sharedTools: [sharedWorldbookSearch(searchWorldbook), {
+    sharedTools: [{
       tool: HISTORY_RECALL_TOOL,
       async execute({ input, args }) {
         return renderHistoryRecall(await recallHistoryForSession(input.sessionId, args, input, 'background'))
@@ -3881,7 +3863,6 @@ export async function apply(ctx) {
       cardResponseTest,
       foregroundRecallScopes,
       recallHistoryForSession,
-      searchWorldbook,
       tools,
     })
     registerUserProfileTools({

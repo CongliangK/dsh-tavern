@@ -349,7 +349,7 @@ test('漏写的一轮可以按它自己的请求号补记进存档（#196 自愈
 test('本局前台工具可逐项关闭，卡片模式不受影响', async () => {
   const all = harness('story', { storyToolCall: true, webSearchEnabled: true })
   const names = await all.orchestrator.visibleTools('session-1')
-  assert.equal(names.includes('worldbook_search'), true)
+  assert.equal(names.includes('worldbook_search'), false)
   assert.equal(names.includes('submit_story'), true)
 
   const one = harness('story', { storyToolCall: true, webSearchEnabled: true, chatFields: { disabledForegroundTools: ['worldbook_search'] } })
@@ -408,7 +408,7 @@ test('native gameplay advertises scoped read instead of legacy worldbook search;
     assert.equal(names.includes('worldbook_search'), false)
     const legacy = harness(mode)
     const oldNames = await legacy.orchestrator.visibleTools('session-1')
-    assert.ok(oldNames.includes('worldbook_search'))
+    assert.ok(!oldNames.includes('worldbook_search'))
     assert.equal(oldNames.includes('read'), false)
   }
   assert.deepEqual(await harness('card', { chatFields: { worldbookStrategy: 'native-skills' } }).orchestrator.visibleTools('session-1'),
