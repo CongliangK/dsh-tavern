@@ -179,6 +179,7 @@ export function createBackgroundAgentSessions(options, task) {
     const parent = agents.get(input.sessionId)
     if (parent === undefined || parent.session === undefined) throw new Error('无法创建后台 Agent：前台会话不可用')
     const runtimeInput = Object.assign({}, input)
+    runtimeInput.worldbookSkillsEnabled = !['phone', 'stage-director'].includes(input.task) && Boolean(await options.resolveWorldbookSkills?.(input))
     // The game's web search setting, unless the task rules it out (style reference, worldbook
     // filter: paid, slow, and what they look for is not on the open web).
     if (options.resolveWebSearch && input.task !== 'phone' && input.webSearchEnabled !== false) {
@@ -446,5 +447,5 @@ export function createBackgroundAgentSessions(options, task) {
       if (requestContexts.get(id)?.parentSessionId === parent || JSON.parse(resident.key)[0] === parent) await releaseResident(id, resident)
     }
   }
-  return Object.freeze({ progress, runs: gameId => runs.list(gameId), run, owns, requestContext, requestSession, compact, cancel, reapIdle, dispose, releaseFor })
+  return Object.freeze({ progress, runs: gameId => runs.list(gameId), run, owns, requestContext, activeRequestContext: id => activeSessions.has(str(id)) ? requestContext(id) : null, requestSession, compact, cancel, reapIdle, dispose, releaseFor })
 }

@@ -88,7 +88,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     if (!lookup?.scope?.session?.id) return null
     const state = await load(lookup.scope)
     if (state) { sourceEntries.delete(state); sourceKeys.delete(state) }
-    const allowed = state?.chat?.sessionId === lookup.scope.session.id && state.chat.worldbookStrategy === 'native-skills' && resourcesAvailable(lookup.scope)
+    const allowed = (state?.authorizedSessionId || state?.chat?.sessionId) === lookup.scope.session.id && state.chat.worldbookStrategy === 'native-skills' && resourcesAvailable(lookup.scope)
     track(lookup.scope, allowed ? scopeKey(state) : null)
     return allowed ? state : null
   }

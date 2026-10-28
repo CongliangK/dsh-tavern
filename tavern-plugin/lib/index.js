@@ -1,3 +1,4 @@
+import { resolveWorldbookSkillChat } from './domain/worldbook-skill-scope.js'
 import { appendWorldbookSkillChanges } from './domain/worldbook-skill-changes.js'
 // Must stay first: it has to run before anything loads jsdom.
 import { createSessionViewProjection } from './domain/session-view-projection.js'
@@ -1916,13 +1917,12 @@ export async function apply(ctx) {
       directory: path.join(dataRoot, 'worldbook-skills'),
       resourcesAvailable: scope => nativeWorldbookReadAvailable(ctx.get('tools'), scope),
       async load(agent) {
-        const sessionId = agent?.session?.id
-        if (!sessionId || backgroundAgentRunner.owns(sessionId)) return null
-        const chat = await chatForSession(sessionId)
-        if (!chat || !['story', 'script'].includes(chat.mode || 'story') || chat.worldbookStrategy !== 'native-skills') return null
+        const binding = await resolveWorldbookSkillChat(agent, { background: backgroundAgentRunner, readChat: chatForSession })
+        if (!binding) return null
+        const { chat } = binding
         try {
           const card = await readChatCard(chat)
-          return { chat, card, worldBook: await playWorldBook(chat, card) }
+          return { ...binding, card, worldBook: await playWorldBook(chat, card) }
         } catch (error) {
           // A removed/unreadable source revokes the virtual library, never keeps
           // a cached body and never prevents unrelated core skills from loading.
@@ -1936,8 +1936,9 @@ export async function apply(ctx) {
   })
   installWorldbookSkillRead(ctx, worldbookSkillProvider, {
     async virtualOnly(agent) {
-      const chat = agent?.session?.id && await chatHeaderForSession(agent.session.id, ['mode', 'worldbookStrategy'])
-      return chat?.worldbookStrategy === 'native-skills' && ['story', 'script'].includes(chat.mode || 'story')
+      // Background read is never a general filesystem capability, even when its lease ends.
+      if (backgroundAgentRunner.owns(agent?.session?.id)) return true
+      return Boolean(await resolveWorldbookSkillChat(agent, { background: backgroundAgentRunner, readChat: chatForSession }))
     }
   })
   // The native registry caches by agent scope. Refresh before its catalog hook on
@@ -2128,6 +2129,7 @@ export async function apply(ctx) {
     systemAppend: () => runtimePrompt('system-append'),
     resolveModelSelection: async input => input.task === 'stage-director' ? input.selection : backgroundModelSelection(await backgroundConfigForSession(input.sessionId)) || input.selection,
     resolveWebSearch: async input => input.task !== 'stage-director' && (await backgroundConfigForSession(input.sessionId))?.webSearchEnabled === true,
+    resolveWorldbookSkills: async input => (await backgroundConfigForSession(input.sessionId))?.worldbookStrategy === 'native-skills',
     backgroundTools: BACKGROUND_TOOLS,
     // Set up after the runner: plugin tools are read when a background Session is set up.
     settlementItems: () => settlementItems,

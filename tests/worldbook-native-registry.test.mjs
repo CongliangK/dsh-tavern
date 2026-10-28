@@ -121,6 +121,15 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   failure(await read(a, ra.entry, { offset: 0 }))
   failure(await read(a, ra.entry, { offset: '1' }))
   assert.equal(filesystemReads, 2)
+  // A leased background task shares its parent's physical files, never another game's.
+  states.set(background, { ...states.get(a), authorizedSessionId: background.session.id })
+  assert.equal((await discover(background)).base, ra.base)
+  assert.match(output(await read(background, ra.entry)), /SECRET BODY A/)
+  failure(await read(background, rb.entry))
+  states.delete(background)
+  failure(await read(background, ra.entry))
+
+
 
   states.get(a).worldBook.view.entries[0].content = 'EDITED BODY A\nsecond'
   const edited = await discover(a)
