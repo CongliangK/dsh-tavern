@@ -1801,6 +1801,8 @@ export async function apply(ctx) {
   // Results of story operations: the same bounded window the browser keeps in
   // sync, never a complete-history view. Short and old saves keep view().
   async function presentStory(chat) {
+    // Workbench retries may still be blank, or have just created/bound a card.
+    if (chat?.mode === 'card') return sessionProjection.project.full(chat)
     const window = chat?.sessionId ? await readOpeningWindow(chat.sessionId, templateHistoryFrom.get(chat.sessionId)) : null
     if (window) return projectOpeningWindow(window)
     const full = Array.isArray(chat?.messages) && !isScopedMessages(chat.messages) ? chat : await readChat(chat.id)
