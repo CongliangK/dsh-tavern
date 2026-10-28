@@ -31,7 +31,7 @@ test('strategy registry defaults to legacy, registers and unloads without mutati
   assert.equal(chat.worldbookStrategy, 'plugin-demo')
   assert.throws(() => registry.register({ id: 'legacy', label: 'collision', project() {} }), /已注册/)
 })
-test('native strategy does not inject or model-screen optional static bodies and preserves legacy reads', async () => {
+test('native strategy never injects optional bodies or invokes screening and preserves legacy reads', async () => {
   const { project, screened } = setup()
   const reads = { 'entry:7': { turn: 1, fingerprint: 'old', kind: 'screened' } }
   const chat = { worldbookStrategy: 'native-skills', worldBookReads: reads, messages: [], backgroundTasks: { worldbookScreening: true } }

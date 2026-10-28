@@ -12,7 +12,7 @@ export function createWorldbookStrategies({ legacy, nativeSkills }) {
     return () => { if (strategies.get(id) === entry) strategies.delete(id) }
   }
   register({ id: 'legacy', label: '当前召回（关键词注入）', description: '保留现有世界书召回、冷却和可选筛选行为', project: legacy })
-  register({ id: 'native-skills', label: '本局原生 Skill 库', description: '仅非常驻静态资料转为 Skill；常驻、动态条目与程序规则保留原处理流程', project: nativeSkills })
+  register({ id: 'native-skills', label: '本局原生 Skill 库', description: '仅非常驻静态资料转为 Skill；常驻保留固定前缀，动态条目缓存快照并仅注入变化', project: nativeSkills })
   return {
     register,
     has: id => strategies.has(id),
