@@ -109,7 +109,8 @@ function environment(options = {}) {
     regexManager,
     readTavernSettings,
     fileSize: async path => Buffer.byteLength(state.cards.get(path) ?? state.worldbooks.get(path) ?? state.presets.get(path) ?? ''),
-    tavernVersion: '3.1.0'
+    tavernVersion: '3.1.0',
+    assets: options.assets
   })
 
   const importer = createTransferImport({
@@ -131,6 +132,7 @@ function environment(options = {}) {
       state.presets.set('presets/' + payload.name, payload.text)
       return { path: 'presets/' + payload.name }
     },
+    assets: options.assets,
     backup: async (name, text) => { state.backups.push({ name, text }); return 'backups/transfer/20261027-160000/' + name },
     removeCreated: async (kind, path) => {
       const map = { cards: state.cards, worldbooks: state.worldbooks, presets: state.presets }[kind]
@@ -158,8 +160,9 @@ test('目录列出可导出板块与条目，未支持的板块也保留位置',
   assert.equal(byKind.regex.items[0].title, '去掉思维链')
   assert.equal(byKind.chats.supported, true, '对话与存档已加入')
   assert.equal(byKind.plugins.supported, true, '插件已加入')
-  assert.equal(byKind.scene.supported, false, '配图仍留给下一版')
+  assert.equal(byKind.scene.supported, false, '配图不单独成项')
   assert.equal(byKind.scene.items.length, 0)
+  assert.match(byKind.scene.note, /含对话配图/)
 })
 
 test('收集所选条目：清单条目带哈希，文件内容与清单一致', async () => {
@@ -267,4 +270,29 @@ test('长期偏好与正则：内容相同就跳过，不再重复', async () =>
   assert.equal(regex.skipped, 1)
   assert.equal(to.state.profiles.length, 1, '本机画像没有变多')
   assert.equal(to.state.imported.regex, 0)
+})
+
+test('素材包：预览认得这个板块，应用时按标题建新包、重名加序号', async () => {
+  const calls = []
+  const assets = {
+    async list() { return [{ key: 'pack-a', title: '秋日教室', meta: '背景 1', bytes: 12 }] },
+    async collect(ids) { return ids.map(id => ({ key: id, title: '秋日教室', fileName: id + '.zip', content: Buffer.from('pack-zip-bytes') })) },
+    async importOne({ key, name, content }) { calls.push({ key, name, bytes: content.length }); return { id: 'pack-new', name } }
+  }
+  const to = environment({ assets })
+  const bundle = await bundleFrom(to, { assets: ['pack-a'] })
+  assert.deepEqual(bundle.manifest.parts.map(part => part.kind), ['assets'])
+
+  const preview = await to.importer.preview(bundle.manifest, bundle.files)
+  const part = preview.parts.find(row => row.kind === 'assets')
+  assert.equal(part.importable, true)
+  assert.equal(part.selectable, 1)
+  assert.equal(part.conflicts, 1)
+  assert.match(part.items[0].reason, /同名素材包已存在/)
+
+  const result = await to.importer.apply({ manifest: bundle.manifest, files: bundle.files, selection: { assets: ['pack-a'] } })
+  const row = result.results.find(item => item.kind === 'assets')
+  assert.equal(row.added, 1)
+  assert.deepEqual(row.failed, [])
+  assert.deepEqual(calls, [{ key: 'pack-a', name: '秋日教室 (2)', bytes: 14 }])
 })

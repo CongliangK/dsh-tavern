@@ -9,7 +9,7 @@ function stemOf(value) {
   return path.posix.basename(str(value), path.posix.extname(str(value))) || '未命名'
 }
 
-const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins', 'scripts', 'fonts', 'plugin-data', 'skills'])
+const IMPORTABLE = Object.freeze(['cards', 'worldbooks', 'presets', 'prompts', 'profile', 'regex', 'settings', 'chats', 'plugins', 'scripts', 'fonts', 'plugin-data', 'skills', 'assets'])
 const SETTINGS_PART = 'settings'
 
 /** A name that does not collide: 名字, 名字 (2), 名字 (3), … */
@@ -35,7 +35,7 @@ function errorText(error) {
 export function createTransferImport(deps) {
   const { fileResources, worldBooks, presetLibrary, promptDocuments, userPreferenceProfile, regexManager,
     readTavernSettings, updateTavernSettings, importCard, importPreset, backup, chats, plugins, materials, fonts, pluginData, skills,
-    removeCreated, readSettingsDocument } = deps
+    removeCreated, readSettingsDocument, assets } = deps
 
   async function cardIndex() {
     const names = new Set(), stems = new Set()
@@ -173,6 +173,8 @@ export function createTransferImport(deps) {
     if (pluginData) for (const row of await pluginData.list().catch(() => [])) pluginDataNames.add(str(row.key).toLowerCase())
     const skillNames = new Set()
     if (skills) for (const row of await skills.list().catch(() => [])) skillNames.add(str(row.key).toLowerCase())
+    const assetNames = new Set()
+    if (assets) for (const row of await assets.list().catch(() => [])) assetNames.add(str(row.title).toLowerCase())
     return {
       cardNames: new Set([...cards.names].map(value => value.toLowerCase())),
       cardStems: new Set([...cards.stems].map(value => value.toLowerCase())),
@@ -187,7 +189,8 @@ export function createTransferImport(deps) {
       materialNames,
       fontIds,
       pluginDataNames,
-      skillNames
+      skillNames,
+      assetNames
     }
   }
 
@@ -206,6 +209,7 @@ export function createTransferImport(deps) {
     if (kind === 'fonts') return index.fontIds.has(str(item.key).toLowerCase()) ? '同 id 的字体已存在，会加序号' : ''
     if (kind === 'plugin-data') return index.pluginDataNames.has(str(item.key).toLowerCase()) ? '同名插件数据会被覆盖（凭据字段已移除）' : ''
     if (kind === 'skills') return index.skillNames.has(title) ? '同名 Skill 已存在，会加序号' : ''
+    if (kind === 'assets') return index.assetNames.has(title) ? '同名素材包已存在，会以新编号导入' : ''
     if (kind === 'settings') return '按白名单字段合并；写入前备份当前设置'
     return ''
   }
@@ -265,7 +269,8 @@ export function createTransferImport(deps) {
       cardStems: new Set(index.cardStems), worldStems: new Set(index.worldStems), presetStems: new Set(index.presetStems),
       promptNames: new Set(index.promptNames), profileNames: new Set(index.profileNames),
       pluginFolders: new Set(index.pluginFolders), materialNames: new Set(index.materialNames), fontIds: new Set(index.fontIds),
-      pluginDataNames: new Set(index.pluginDataNames), skillNames: new Set(index.skillNames)
+      pluginDataNames: new Set(index.pluginDataNames), skillNames: new Set(index.skillNames),
+      assetNames: new Set(index.assetNames)
     }
     async function dropDuplicate(kind, result, title, path) {
       if (typeof removeCreated !== 'function' || !contents.has(kind) || !path) return false
@@ -402,6 +407,14 @@ export function createTransferImport(deps) {
             const imported = await pluginData.importOne({ key: item.key, title: item.title, content })
             used.pluginDataNames.add(str(imported.plugin).toLowerCase())
             result.overwritten += 1
+            continue
+          }
+          if (part.kind === 'assets') {
+            if (!assets) throw new Error('素材包导入不可用')
+            const name = uniqueName(used.assetNames, str(item.title) || '导入的素材包')
+            const imported = await assets.importOne({ key: item.key, name, content })
+            used.assetNames.add(str(imported.name).toLowerCase())
+            result.added += 1
             continue
           }
           if (part.kind === 'skills') {
