@@ -136,3 +136,14 @@ test('invalid algorithm bounds fail instead of looping or creating unbounded den
   assert.throws(() => compileWorldbookSkillClusters([], {maxEntries:Infinity}), /finite/)
   assert.throws(() => createWorldbookSkillCatalog({debounceMs:NaN}), /debounce/)
 })
+
+test('original repeated categories stay whole despite body size; unrelated uncategorized entries stay separate', () => {
+  const input = Array.from({ length: 60 }, (_, i) => entry(`skill-${i}`, `原文${i}`.repeat(200), { title: `功法·招式${i}` }))
+  input.push(entry('medicine-a', '草药甲', { title: '药·甲' }), entry('medicine-b', '草药乙', { title: '药·乙' }), entry('space', 'ZXQ星际飞船'), entry('sea', '海底珊瑚'))
+  const result = compileWorldbookSkillClusters(input)
+  assert.ok(result.clusters.some(c => c.refs.length === 60))
+  assert.ok(result.clusters.some(c => c.refs.length === 2 && c.refs.includes('medicine-a')))
+  assert.ok(!result.clusters.some(c => c.refs.includes('space') && c.refs.includes('sea')))
+  assert.deepEqual(result.clusters.flatMap(c => c.refs).sort(), input.map(e => e.ref).sort())
+  assert.deepEqual(compileWorldbookSkillClusters([...input].reverse()).clusters, result.clusters)
+})

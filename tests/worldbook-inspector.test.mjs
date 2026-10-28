@@ -52,3 +52,11 @@ test('inline delivery counts actual source text, not old directory-only Skill lo
   assert.equal((await rpc.readWorldbookSkillSource({sessionId:'one',ref:'ref'})).content,'original')
   await assert.rejects(rpc.readWorldbookSkillSource({sessionId:'one',ref:'other-game'}),/不属于本局/)
 })
+
+test('reference directory reads are navigation rather than original-entry reads', () => {
+  const root='/profile/worldbook-skills'
+  const records=worldbookReadHistory([call('directory','read',{file_path:root+'/江湖/功法/references/资料目录.md'}),result('directory')],root)
+  assert.equal(records.length,1)
+  assert.equal(records[0].reference,false)
+  assert.equal(records[0].status,'success')
+})

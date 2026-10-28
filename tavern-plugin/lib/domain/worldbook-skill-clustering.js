@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { worldbookEntryTitle } from './worldbook-skill-labels.js'
 
 const hash = value => createHash('sha256').update(String(value)).digest('hex').slice(0, 20)
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0
@@ -176,7 +177,7 @@ export function buildWorldbookSimilarityGraph(entries, { neighbors = 12, minSimi
 export function worldbookEntryHash(entry) { return hash(JSON.stringify(entry)) }
 export function worldbookClusterInputHash(entries) { return hash(JSON.stringify(entries.map(entry => [entry.ref, worldbookEntryHash(entry)]).sort((a, b) => compare(a[0], b[0])))) }
 
-export function compileWorldbookSkillClusters(input, { previousClusters = [], maxEntries = 40, maxCharacters = 24000, resolution = 0.08, ...graphOptions } = {}) {
+export function compileWorldbookSkillClusters(input, { previousClusters = [], maxEntries = Number.MAX_SAFE_INTEGER, maxCharacters = Number.MAX_SAFE_INTEGER, resolution = 0.02, respectSourceCategories = true, ...graphOptions } = {}) {
   const started = performance.now()
   const entries = [...input].sort((a, b) => compare(String(a.ref), String(b.ref)))
   if (new Set(entries.map(e => e.ref)).size !== entries.length) throw new Error('Worldbook entry refs must be unique')
@@ -200,11 +201,28 @@ export function compileWorldbookSkillClusters(input, { previousClusters = [], ma
       return partition(indicesInGroup, gamma * 2)
     })
   }
-  const sets = partition(entries.map((_, i) => i), resolution)
+  // Original title hierarchy is stronger evidence than body-level n-gram
+  // similarity. Keep a repeated parent category as one discovery entry.
+  // File size belongs to progressive reading, not Skill discovery granularity.
+  const categories = new Map()
+  if (respectSourceCategories) entries.forEach((entry, i) => {
+    const parts = worldbookEntryTitle(entry).split(/[·｜|]/).map(s => s.trim()).filter(Boolean)
+    if (parts.length < 2) return
+    if (!categories.has(parts[0])) categories.set(parts[0], [])
+    categories.get(parts[0]).push(i)
+  })
+  const structured = [...categories.values()].filter(indices => indices.length > 1)
+  const assigned = new Set(structured.flat())
+  const fallback = entries.map((_, i) => i).filter(i => !assigned.has(i))
+  const sets = [...structured, ...partition(fallback, resolution)]
   const clusters = sets.map(set => {
     const scores = new Map()
     for (const i of set) for (const [term, weight] of vectors[i]) if (/^[\p{L}\p{N}]+$/u.test(term)) scores.set(term, (scores.get(term) || 0) + weight)
-    const keywords = [...scores].sort((a, b) => b[1] - a[1] || compare(a[0], b[0])).map(([term]) => term).filter((term, i, all) => !all.slice(0, i).some(prior => prior.includes(term))).slice(0, 6)
+    const keywords = []
+    for (const [term] of [...scores].sort((a, b) => b[1] - a[1] || compare(a[0], b[0]))) {
+      if (!keywords.some(prior => prior.includes(term))) keywords.push(term)
+      if (keywords.length === 6) break
+    }
     const refs = set.map(i => entries[i].ref)
     const title = keywords.slice(0, 3).join(' · ') || String(entries[set[0]]?.title || '世界书资料').slice(0, 60)
     return { id: '', refs, keywords, title, description: `世界书主题：${title}。包含 ${refs.length} 条原始资料；按需读取 references/ 下原文。` }
@@ -222,5 +240,5 @@ export function compileWorldbookSkillClusters(input, { previousClusters = [], ma
     while (used.has(id)) id = `topic-${hash(JSON.stringify(cluster.refs))}-${++suffix}`
     cluster.id = id; used.add(id)
   }
-  return { clusters, entryHashes: Object.fromEntries(entries.map(entry => [entry.ref, worldbookEntryHash(entry)])), inputHash: worldbookClusterInputHash(entries), metrics: { entries: entries.length, vocabularySize, edges: adjacency.reduce((sum, neighbors) => sum + neighbors.size, 0) / 2, clusters: clusters.length, refinements, refinedSplits, aggregations, elapsedMs: performance.now() - started } }
+  return { clusters, entryHashes: Object.fromEntries(entries.map(entry => [entry.ref, worldbookEntryHash(entry)])), inputHash: worldbookClusterInputHash(entries), metrics: { entries: entries.length, vocabularySize, edges: adjacency.reduce((sum, neighbors) => sum + neighbors.size, 0) / 2, clusters: clusters.length, sourceCategories: structured.length, fallbackEntries: fallback.length, refinements, refinedSplits, aggregations, elapsedMs: performance.now() - started } }
 }

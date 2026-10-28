@@ -10,7 +10,7 @@ export function worldbookReadHistory(events, directory, skillNames = [], inlineE
       const normalized = typeof target === 'string' ? target.replaceAll('\\', '/') : ''
       const physical = directory && normalized.startsWith(directory.replaceAll('\\', '/') + '/')
       if (typeof target !== 'string' || !(d.name === 'skill' ? true : target.startsWith('/__tavern_worldbook__/') || physical)) continue
-      calls.set(d.callId, { id: d.callId, seq: event.seq, turn: d.turn, step: d.step, kind: d.name, target, reference: /\/(?:entries|references)\//.test(normalized), offset: args.offset, limit: args.limit, status: 'pending' })
+      calls.set(d.callId, { id: d.callId, seq: event.seq, turn: d.turn, step: d.step, kind: d.name, target, reference: /\/(?:entries|references)\//.test(normalized) && !normalized.endsWith('/references/资料目录.md'), offset: args.offset, limit: args.limit, status: 'pending' })
     } else if (event.type === 'tool/result' && calls.has(d.message?.toolCallId)) {
       const item = calls.get(d.message.toolCallId)
       item.status = d.message.isError ? 'error' : 'success'
