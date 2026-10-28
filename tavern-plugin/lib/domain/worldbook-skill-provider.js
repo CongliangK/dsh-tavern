@@ -139,7 +139,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     const entries = members(state, cluster)
     const label = value => text(value).replace(/[\[\]\\]/g, '\\$&')
     return `---\nname: ${item.name}\ndescription: ${JSON.stringify(item.description)}\n---\n\n# ${cluster.title}\n\n` + (cluster.inline
-      ? entries.map(entry => `## ${worldbookEntryTitle(entry)}\n\n<!-- worldbook-entry:${digest(entry.ref)} -->\n${String(entry.content ?? '')}\n`).join('\n')
+      ? entries.map(entry => `## ${worldbookEntryTitle(entry)}\n\n${String(entry.content ?? '')}\n`).join('\n')
       : entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${referenceFile(entry, entries)})`).join('\n') + '\n')
   }
   function documents(state, compiled) {
@@ -192,7 +192,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
           const item = candidate(result.state, cluster)
           return { name: item.name, legacyName: `wb-${scopeKey(result.state)}-${cluster.id}`, title: cluster.title, inline: cluster.inline, estimatedTokens: cluster.estimatedTokens, keywords: cluster.keywords, guide: guide(result.state, cluster), directory: item.resourceBase.path,
             entries: entries.filter(entry => cluster.refs.includes(entry.ref)).map(entry => ({
-              ref: entry.ref, inline: cluster.inline, inlineKey: digest(entry.ref), title: worldbookEntryTitle(entry),
+              ref: entry.ref, inline: cluster.inline, inlineText: cluster.inline ? `## ${worldbookEntryTitle(entry)}\n\n${String(entry.content ?? '')}\n` : undefined, title: worldbookEntryTitle(entry),
               source: entry.sourcePath, uid: entry.sourceUid,
               path: path.join(item.resourceBase.path, cluster.inline ? 'SKILL.md' : referenceFile(entry, members(result.state, cluster))),
               referencePath: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),

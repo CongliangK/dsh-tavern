@@ -39,11 +39,11 @@ test('unprefixed Skill calls are identified by current names or their historical
   assert.deepEqual(records.map(r=>r.id),['old','pending'])
 })
 
-test('inline delivery counts actual result markers, not old directory-only Skill loads', async () => {
-  const key='a'.repeat(20), root='/profile/worldbook-skills'
-  const inline=result('inline');inline.data.message.content=[{type:'text',text:`<!-- worldbook-entry:${key} -->\noriginal`}]
+test('inline delivery counts actual source text, not old directory-only Skill loads', async () => {
+  const root='/profile/worldbook-skills'
+  const inline=result('inline');inline.data.message.content=[{type:'text',text:'## 标题\n\noriginal\n'}]
   const events=[call('old','skill',{name:'ke-ju'}),result('old'),call('inline','skill',{name:'ke-ju'}),inline]
-  const rpc=createWorldbookInspectorHandlers({agentRegistry:{get:()=>({session:{id:'one'}})},chatForSession:async()=>({sessionId:'one'}),sessionDebugEvidence:()=>({loaded:true,events}),worldbookSkillProvider:{directory:root,inspect:async()=>({clusters:[{name:'ke-ju',entries:[{ref:'ref',inline:true,inlineKey:key,path:root+'/one/SKILL.md',referencePath:root+'/one/references/a.md'}]}]}),readEntry:async ref=>ref==='ref'?'original':undefined}})
+  const rpc=createWorldbookInspectorHandlers({agentRegistry:{get:()=>({session:{id:'one'}})},chatForSession:async()=>({sessionId:'one'}),sessionDebugEvidence:()=>({loaded:true,events}),worldbookSkillProvider:{directory:root,inspect:async()=>({clusters:[{name:'ke-ju',entries:[{ref:'ref',inline:true,inlineText:'## 标题\n\noriginal\n',path:root+'/one/SKILL.md',referencePath:root+'/one/references/a.md'}]}]}),readEntry:async ref=>ref==='ref'?'original':undefined}})
   const view=await rpc.inspectWorldbookSkills({sessionId:'one'})
   assert.equal(view.counts.skills,2)
   assert.equal(view.counts.entries,0)

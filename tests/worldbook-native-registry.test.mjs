@@ -220,7 +220,7 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   const inlined = success(await execute(b, 'skill', { name: inlineCandidate.name }))
   assert.match(inlined.content, /SECRET BODY B/)
   assert.doesNotMatch(inlined.content, /references\//)
-  assert.match(output(await execute(b, 'skill', { name: inlineCandidate.name })), /<!-- worldbook-entry:/)
+  assert.doesNotMatch(output(await execute(b, 'skill', { name: inlineCandidate.name })), /<!-- worldbook-entry:/)
   await assert.rejects(fs.access(path.join(inlined.resourceBase.path, 'references')))
 
 })

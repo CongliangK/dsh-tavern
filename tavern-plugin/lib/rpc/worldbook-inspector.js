@@ -1,5 +1,5 @@
 // Only native tool events are evidence of loading/reading, never prose adoption.
-export function worldbookReadHistory(events, directory, skillNames = []) {
+export function worldbookReadHistory(events, directory, skillNames = [], inlineEntries = []) {
   const calls = new Map()
   for (const event of events || []) {
     const d = event.data || {}
@@ -16,7 +16,7 @@ export function worldbookReadHistory(events, directory, skillNames = []) {
       item.status = d.message.isError ? 'error' : 'success'
       item.result = (d.message.content || []).filter(p => p.type === 'text').map(p => p.text).join('\n')
       if (!item.result && d.meta?.lines) item.result += '\n' + d.meta.lines.map(l => `${l.number}: ${l.text}`).join('\n')
-      item.inlineRefs = item.kind === 'skill' ? [...new Set([...item.result.matchAll(/<!-- worldbook-entry:([a-f0-9]{20}) -->/g)].map(m => m[1]))] : []
+      item.inlineRefs = item.kind === 'skill' ? inlineEntries.filter(entry => entry.inlineText && item.result.includes(entry.inlineText)).map(entry => entry.ref) : []
       if (item.result.length > 60000) item.result = item.result.slice(0, 60000) + '\n[排查面板显示已截断]'
       item.totalLines = d.meta?.totalLines
     }
@@ -38,7 +38,7 @@ export function createWorldbookInspectorHandlers({ agentRegistry, chatForSession
       const agent = await scope(args)
       const catalog = await worldbookSkillProvider.inspect({ scope: agent })
       const evidence = sessionDebugEvidence(agent.session.id)
-      const records = worldbookReadHistory(evidence.events, worldbookSkillProvider.directory, (catalog?.clusters || []).map(c => c.name))
+      const records = worldbookReadHistory(evidence.events, worldbookSkillProvider.directory, (catalog?.clusters || []).map(c => c.name), (catalog?.clusters || []).flatMap(c => c.entries))
       const labels = new Map()
       for (const cluster of catalog?.clusters || []) {
         cluster.readCount = records.filter(r => [cluster.name, cluster.legacyName].includes(r.target) && r.status === 'success').length
@@ -46,7 +46,8 @@ export function createWorldbookInspectorHandlers({ agentRegistry, chatForSession
         if (cluster.legacyName) labels.set(cluster.legacyName, cluster.title)
         for (const entry of cluster.entries) {
           entry.readCount = records.filter(r => [entry.referencePath || entry.path, entry.previousPath, entry.previousShortPath, entry.legacyPath].includes(r.target) && r.status === 'success').length
-          entry.inlineReadCount = records.filter(r => r.status === 'success' && r.inlineRefs?.includes(entry.inlineKey)).length
+          entry.inlineReadCount = records.filter(r => r.status === 'success' && r.inlineRefs?.includes(entry.ref)).length
+          delete entry.inlineText
           if (!entry.inline) labels.set(entry.path, entry.title)
           if (entry.previousShortPath) labels.set(entry.previousShortPath, entry.title)
           if (entry.previousPath) labels.set(entry.previousPath, entry.title)
