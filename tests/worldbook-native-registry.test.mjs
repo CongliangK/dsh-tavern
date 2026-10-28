@@ -159,6 +159,10 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   assert.deepEqual((await step(cold))[0].source.entries.map(item => item.name), ['core-skill'])
   const concurrent = Array.from({ length: 6 }, (_, i) => agent(`parallel-${i}`))
   concurrent.forEach((caller, i) => states.set(caller, state(caller.session.id, `Port ${i}`, `SECRET BODY ${i}`)))
+  // Publish all catalogs before invalidating the shared native registry; an
+  // unrelated scope must not invalidate another in-flight discovery.
+  await Promise.all(concurrent.map(caller => provider.refresh(caller)))
+  invalidate()
   const resources = await Promise.all(concurrent.map(discover))
   assert.equal(new Set(resources.map(item => item.name)).size, concurrent.length)
   const reads = await Promise.all(concurrent.map((caller, i) => read(caller, resources[i].entry)))

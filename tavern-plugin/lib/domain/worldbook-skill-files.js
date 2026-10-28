@@ -17,12 +17,13 @@ export function referenceFile(entry, entries) {
  */
 export function createWorldbookSkillFiles(root) {
   root = path.resolve(root)
-  const queues = new Map(), versions = new Map()
+  const queues = new Map(), versions = new Map(), names = new Map()
   const directory = key => {
     if (!/^[a-f0-9]{20}$/.test(key)) throw Error('Invalid generated Skill scope')
-    return path.join(root, key)
+    return path.join(root, names.get(key) || key)
   }
   function serial(key, operation) {
+    key = root // Allocation and publication share a lock: rename briefly removes the target.
     const job = (queues.get(key) || Promise.resolve()).catch(() => {}).then(operation)
     queues.set(key, job)
     job.finally(() => { if (queues.get(key) === job) queues.delete(key) }).catch(() => {})
@@ -34,6 +35,30 @@ export function createWorldbookSkillFiles(root) {
   }
   return {
     root, directory,
+    assign(key, label) {
+      return serial(key, async () => {
+        if (names.has(key)) return
+        directory(key) // Validate the internal identity before any filesystem work.
+        await ordinaryDirectory(root)
+        for (const entry of await fs.readdir(root, { withFileTypes: true })) {
+          if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+          try {
+            if ((await fs.readFile(path.join(root, entry.name, '.scope-id'), 'utf8')) === key) {
+              names.set(key, entry.name); return
+            }
+          } catch (e) { if (e.code !== 'ENOENT') throw e }
+        }
+        const base = skillFileLabel(label)
+        for (let number = 1; ; number++) {
+          const name = number === 1 ? base : `${base}--${number}`
+          try { await fs.mkdir(path.join(root, name)) }
+          catch (e) { if (e.code === 'EEXIST') continue; throw e }
+          await fs.writeFile(path.join(root, name, '.scope-id'), key, { flag: 'wx' })
+          names.set(key, name)
+          return
+        }
+      })
+    },
     sync(key, files) {
       return serial(key, async () => {
         const version = skillDigest(JSON.stringify([...files]))
@@ -46,6 +71,7 @@ export function createWorldbookSkillFiles(root) {
         const old = path.join(root, `.retired-${key}-${randomUUID()}`)
         await fs.mkdir(stage)
         try {
+          if (names.has(key)) await fs.writeFile(path.join(stage, '.scope-id'), key)
           for (const [relative, content] of files) {
             const file = path.resolve(stage, relative)
             if (!file.startsWith(stage + path.sep)) throw Error('Invalid generated Skill filename')
@@ -58,12 +84,21 @@ export function createWorldbookSkillFiles(root) {
           catch (e) { if (moved) await fs.rename(old, target); throw e }
           versions.set(key, version)
           if (moved) await fs.rm(old, { recursive: true, force: true })
+          if (names.has(key)) await fs.rm(path.join(root, key), { recursive: true, force: true })
           return target
         } finally { await fs.rm(stage, { recursive: true, force: true }) }
       })
     },
     remove(key) {
-      return serial(key, async () => { versions.delete(key); await fs.rm(directory(key), { recursive: true, force: true }) })
+      return serial(key, async () => {
+        if (!names.has(key)) {
+          for (const entry of await fs.readdir(root, { withFileTypes: true }).catch(e => { if (e.code === 'ENOENT') return []; throw e })) {
+            if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+            try { if (await fs.readFile(path.join(root, entry.name, '.scope-id'), 'utf8') === key) { names.set(key, entry.name); break } }
+            catch (e) { if (e.code !== 'ENOENT') throw e }
+          }
+        }
+        versions.delete(key); await fs.rm(directory(key), { recursive: true, force: true }); names.delete(key) })
     },
     async verify(file, expected) {
       // Refuse symlink aliases; repair edits to the derived copy from authority.

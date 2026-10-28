@@ -115,6 +115,8 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       if (!latest) return null
       if (scopeKey(latest) !== key || versionOf(latest) !== version) continue
       compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters.map(cluster => ({ ...cluster, previousTitle: cluster.title, ...describeWorldbookCluster(members(latest, cluster)), ...layout(members(latest, cluster)) }))) }
+      const cardName = latest.chat.cardPath ? path.parse(latest.chat.cardPath).name : latest.worldBook.view.displayName
+      await files.assign(key, cardName || '世界书')
       const prepared = documents(latest, compiled)
       await files.sync(key, prepared)
       const verified = await stateFor(lookup)
@@ -196,8 +198,9 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
               source: entry.sourcePath, uid: entry.sourceUid,
               path: path.join(item.resourceBase.path, cluster.inline ? 'SKILL.md' : referenceFile(entry, members(result.state, cluster))),
               referencePath: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),
-              previousPath: path.join(files.directory(scopeKey(result.state)), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
-              previousShortPath: path.join(files.directory(scopeKey(result.state)), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), referenceFile(entry, members(result.state, cluster))),
+              previousRootPath: path.join(files.root, scopeKey(result.state), clusterDirectory(cluster), referenceFile(entry, members(result.state, cluster))),
+              previousPath: path.join(files.root, scopeKey(result.state), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
+              previousShortPath: path.join(files.root, scopeKey(result.state), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), referenceFile(entry, members(result.state, cluster))),
               legacyPath: `${WORLDBOOK_SKILL_RESOURCE_ROOT}${scopeKey(result.state)}/${cluster.id}/entries/${digest(entry.ref)}.md`
             })) }
         }) }
