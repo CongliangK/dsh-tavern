@@ -15,7 +15,7 @@
 
 [![观看 3 分钟实机演示：兼容酒馆生态，更快、更稳、更鲜活](docs/images/readme/promo-video.jpg)](https://www.bilibili.com/video/BV1MHaU6NE7S/)
 
-[下载安装](#快速开始) · [使用文档](https://flizzywine.github.io/dsh-tavern/) · [宣传视频](https://www.bilibili.com/video/BV1MHaU6NE7S/) · [Discord 交流群](https://discord.gg/hYAEjKnpra)
+[下载安装](#快速开始) · [使用文档](https://flizzywine.github.io/dsh-tavern/) · [贡献指南](https://flizzywine.github.io/dsh-tavern/#contributing) · [宣传视频](https://www.bilibili.com/video/BV1MHaU6NE7S/) · [Discord 交流群](https://discord.gg/hYAEjKnpra)
 
 - **兼容 SillyTavern 生态**：人物卡、世界书、预设、正则美化、MVU、酒馆助手脚本，导入就能用。
 - **更快**：一轮约 10 秒，缓存命中率 95% 以上。
