@@ -39,7 +39,7 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   const states = new Map([[a, state(a.session.id, 'A 港口', 'SECRET BODY A')], [b, state(b.session.id, 'B 港口', 'SECRET BODY B')]])
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'native-worldbook-'))
   t.after(() => fs.rm(directory, { recursive: true, force: true }))
-  const provider = createWorldbookSkillProvider({ directory, load: async scope => states.get(scope) || null })
+  const provider = createWorldbookSkillProvider({ inlineTokenBudget: 0, directory, load: async scope => states.get(scope) || null })
   let resourceReads = 0
   const authorizeRead = provider.authorizeRead
   provider.authorizeRead = (...args) => { resourceReads++; return authorizeRead(...args) }
@@ -213,4 +213,14 @@ test('native skill and read pipeline isolates real per-game files and refreshes 
   failure(await read(background, nextControlled.entry))
   unregister()
   assert.deepEqual((await ctx.skills.list({ scope: b })).map(item => item.name), ['core-skill'])
+  const inlineProvider = createWorldbookSkillProvider({ directory: path.join(directory, 'inline'), load: async scope => states.get(scope) || null })
+  t.after(() => inlineProvider.dispose())
+  t.after(ctx.skills.registerProvider(() => inlineProvider))
+  const inlineCandidate = (await ctx.skills.list({ scope: b })).find(item => item.name !== 'core-skill')
+  const inlined = success(await execute(b, 'skill', { name: inlineCandidate.name }))
+  assert.match(inlined.content, /SECRET BODY B/)
+  assert.doesNotMatch(inlined.content, /references\//)
+  assert.match(output(await execute(b, 'skill', { name: inlineCandidate.name })), /<!-- worldbook-entry:/)
+  await assert.rejects(fs.access(path.join(inlined.resourceBase.path, 'references')))
+
 })

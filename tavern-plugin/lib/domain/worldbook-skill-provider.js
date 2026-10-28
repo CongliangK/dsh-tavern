@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import { estimateWorldBookTokens } from './worldbook-activation.js'
 import { describeWorldbookCluster, worldbookEntryTitle, worldbookSkillSlug } from './worldbook-skill-labels.js'
 import path from 'node:path'
 import { createWorldbookSkillFiles, skillDigest, skillFileLabel, referenceFile } from './worldbook-skill-files.js'
@@ -47,7 +48,8 @@ function abortable(promise, signal) {
 
 /** Per-game discovery with real, derived Skill bundles. JSON is authoritative;
  * the host's native read tool reads the synchronized files. */
-export function createWorldbookSkillProvider({ load, directory, catalog = createWorldbookSkillCatalog(), resourcesAvailable = () => true }) {
+export function createWorldbookSkillProvider({ load, directory, catalog = createWorldbookSkillCatalog(), resourcesAvailable = () => true, inlineTokenBudget = 2000 }) {
+  if (!Number.isSafeInteger(inlineTokenBudget) || inlineTokenBudget < 0) throw new Error('Invalid inline Skill token budget')
   if (!directory) throw new Error('Worldbook Skill output directory is required')
   const files = createWorldbookSkillFiles(directory)
   const sessionKeys = new Map()
@@ -82,11 +84,11 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     const directory = path.join(files.directory(key), clusterDirectory(cluster))
     return {
       name: cluster.skillName,
-      description: cluster.description,
+      description: cluster.inline ? cluster.description.replace('按资料链接查阅原文。', '') : cluster.description,
       invocation: { modelInvocable: true, userInvocable: false }, source: provider, provider, rank: 600,
       locator: { sessionId: state.chat.sessionId, scopeKey: key, clusterId: cluster.id },
       resourceBase: { kind: 'directory', path: directory },
-      metadata: { worldbook: { refs: cluster.refs, keywords: cluster.keywords, book: state.worldBook.view.displayName } }
+      metadata: { worldbook: { inline: cluster.inline, estimatedTokens: cluster.estimatedTokens, refs: cluster.refs, keywords: cluster.keywords, book: state.worldBook.view.displayName } }
     }
   }
   const operations = new Map()
@@ -112,7 +114,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       const latest = await stateFor(lookup)
       if (!latest) return null
       if (scopeKey(latest) !== key || versionOf(latest) !== version) continue
-      compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters.map(cluster => ({ ...cluster, previousTitle: cluster.title, ...describeWorldbookCluster(members(latest, cluster)) }))) }
+      compiled = { ...compiled, clusters: nameWorldbookSkillDirectories(compiled.clusters.map(cluster => ({ ...cluster, previousTitle: cluster.title, ...describeWorldbookCluster(members(latest, cluster)), ...layout(members(latest, cluster)) }))) }
       const prepared = documents(latest, compiled)
       await files.sync(key, prepared)
       const verified = await stateFor(lookup)
@@ -128,11 +130,17 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
     }
   }
   const versions = new WeakMap()
+  function layout(entries) {
+    const estimatedTokens = entries.reduce((n, entry) => n + estimateWorldBookTokens(entry.content), 0)
+    return { estimatedTokens, inline: inlineTokenBudget > 0 && estimatedTokens <= inlineTokenBudget }
+  }
   function guide(state, cluster) {
     const item = candidate(state, cluster)
     const entries = members(state, cluster)
     const label = value => text(value).replace(/[\[\]\\]/g, '\\$&')
-    return `---\nname: ${item.name}\ndescription: ${JSON.stringify(item.description)}\n---\n\n# ${cluster.title}\n\n` + entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${referenceFile(entry, entries)})`).join('\n') + '\n'
+    return `---\nname: ${item.name}\ndescription: ${JSON.stringify(item.description)}\n---\n\n# ${cluster.title}\n\n` + (cluster.inline
+      ? entries.map(entry => `## ${worldbookEntryTitle(entry)}\n\n<!-- worldbook-entry:${digest(entry.ref)} -->\n${String(entry.content ?? '')}\n`).join('\n')
+      : entries.map(entry => `- [${label(worldbookEntryTitle(entry))}](${referenceFile(entry, entries)})`).join('\n') + '\n')
   }
   function documents(state, compiled) {
     const output = new Map()
@@ -140,7 +148,7 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       const base = clusterDirectory(cluster)
       output.set(`${base}/SKILL.md`, guide(state, cluster))
       const entries = members(state, cluster)
-      for (const entry of entries) output.set(`${base}/${referenceFile(entry, entries)}`, String(entry.content ?? ''))
+      if (!cluster.inline) for (const entry of entries) output.set(`${base}/${referenceFile(entry, entries)}`, String(entry.content ?? ''))
     }
     return output
   }
@@ -179,14 +187,15 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       const result = await current(lookup)
       if (!result) return null
       const entries = entriesOf(result.state)
-      return { directory: files.directory(scopeKey(result.state)), book: result.state.worldBook.view.displayName, metrics: result.compiled.metrics,
+      return { directory: files.directory(scopeKey(result.state)), book: result.state.worldBook.view.displayName, metrics: result.compiled.metrics, inlineTokenBudget,
         clusters: result.compiled.clusters.map(cluster => {
           const item = candidate(result.state, cluster)
-          return { name: item.name, legacyName: `wb-${scopeKey(result.state)}-${cluster.id}`, title: cluster.title, keywords: cluster.keywords, guide: guide(result.state, cluster), directory: item.resourceBase.path,
+          return { name: item.name, legacyName: `wb-${scopeKey(result.state)}-${cluster.id}`, title: cluster.title, inline: cluster.inline, estimatedTokens: cluster.estimatedTokens, keywords: cluster.keywords, guide: guide(result.state, cluster), directory: item.resourceBase.path,
             entries: entries.filter(entry => cluster.refs.includes(entry.ref)).map(entry => ({
-              ref: entry.ref, title: worldbookEntryTitle(entry),
+              ref: entry.ref, inline: cluster.inline, inlineKey: digest(entry.ref), title: worldbookEntryTitle(entry),
               source: entry.sourcePath, uid: entry.sourceUid,
-              path: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),
+              path: path.join(item.resourceBase.path, cluster.inline ? 'SKILL.md' : referenceFile(entry, members(result.state, cluster))),
+              referencePath: path.join(item.resourceBase.path, referenceFile(entry, members(result.state, cluster))),
               previousPath: path.join(files.directory(scopeKey(result.state)), `${skillFileLabel(cluster.previousTitle)}--${cluster.id}`, referenceFile(entry, members(result.state, cluster))),
               previousShortPath: path.join(files.directory(scopeKey(result.state)), skillFileLabel(cluster.previousTitle.replace(/[\s·]+/g, '、')), referenceFile(entry, members(result.state, cluster))),
               legacyPath: `${WORLDBOOK_SKILL_RESOURCE_ROOT}${scopeKey(result.state)}/${cluster.id}/entries/${digest(entry.ref)}.md`
@@ -206,7 +215,12 @@ export function createWorldbookSkillProvider({ load, directory, catalog = create
       if (fresh.name !== previous.name) return undefined
       const file = path.join(fresh.resourceBase.path, 'SKILL.md')
       await files.verify(file, guide(result.state, cluster))
-      return { ...fresh, content: (await fs.readFile(file, 'utf8')).replace(/^---\n[\s\S]*?\n---\n/, '').trim() }
+      return { ...fresh, content: (await fs.readFile(file, 'utf8')).replace(/^---\n[\s\S]*?\n---\n/, '') }
+    },
+    async readEntry(ref, lookup) {
+      const result = await current(lookup)
+      const entry = result && entriesOf(result.state).find(entry => entry.ref === ref)
+      return entry ? String(entry.content ?? '') : undefined
     },
     async readResource(resourcePath, lookup) {
       const file = await resource(resourcePath, lookup)

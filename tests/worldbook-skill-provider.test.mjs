@@ -15,7 +15,7 @@ function fixture(t, extra = {}) {
   const scopes = new Map([...states.keys()].map(id => [id, { session: { id } }]))
   const results = new Map()
   const catalog = { async update(key, entries) { const next = compileWorldbookSkillClusters(entries, { previousClusters: results.get(key)?.clusters }); results.set(key, next); return next }, dispose(key) { if (key) results.delete(key); else results.clear() } }
-  const provider = createWorldbookSkillProvider({ directory: outputDirectory(t), load: async scope => scope.background ? null : states.get(scope.session.id), catalog, ...extra })
+  const provider = createWorldbookSkillProvider({ inlineTokenBudget: 0, directory: outputDirectory(t), load: async scope => scope.background ? null : states.get(scope.session.id), catalog, ...extra })
   t.after(() => provider.dispose())
   const lookup = id => ({ scope: scopes.get(id) || { session: { id } } })
   const candidate = async id => (await provider.list(lookup(id))).candidates[0]
@@ -68,7 +68,7 @@ test('edit during asynchronous compilation cannot publish stale content or stale
   const f = fixture(t)
   let first = true, started, resume
   const entered = new Promise(resolve => { started = resolve }), blocked = new Promise(resolve => { resume = resolve })
-  const provider = createWorldbookSkillProvider({ directory: outputDirectory(t), load: async () => f.states.get('one'), catalog: { async update(_key, entries) { const output = compileWorldbookSkillClusters(entries); if (first) { first = false; started(); await blocked } return output }, dispose() {} } })
+  const provider = createWorldbookSkillProvider({ inlineTokenBudget: 0, directory: outputDirectory(t), load: async () => f.states.get('one'), catalog: { async update(_key, entries) { const output = compileWorldbookSkillClusters(entries); if (first) { first = false; started(); await blocked } return output }, dispose() {} } })
   t.after(() => provider.dispose())
   const pending = provider.list(f.lookup('one')); await entered
   f.states.get('one').worldBook.view.entries[0].constant = true; resume()
@@ -133,7 +133,7 @@ test('pre-step refresh rejects promptly when its caller aborts pending compilati
   const f = fixture(t)
   let complete
   const pending = new Promise(resolve => { complete = resolve })
-  const provider = createWorldbookSkillProvider({ directory: outputDirectory(t), load: async () => f.states.get('one'), catalog: { update: () => pending, dispose() {} } })
+  const provider = createWorldbookSkillProvider({ inlineTokenBudget: 0, directory: outputDirectory(t), load: async () => f.states.get('one'), catalog: { update: () => pending, dispose() {} } })
   t.after(() => provider.dispose())
   const abort = new AbortController()
   const refreshing = provider.refresh(f.scopes.get('one'), { signal: abort.signal })
@@ -212,4 +212,48 @@ test('folder names omit internal IDs and resolve case-insensitive collisions det
   assert.deepEqual(named.map(c => c.directoryName), ['武市、拓本--2', '武市、拓本', '武市、拓本--2--2', '独立分类'])
   assert.deepEqual(nameWorldbookSkillDirectories([...input].reverse()).reverse(), named)
   assert.ok(named.every(c => !c.directoryName.includes('topic-')))
+})
+
+
+test('short groups inline exact originals; crossing 2000 estimated tokens switches files in both directions', async t => {
+  const f = fixture(t, { inlineTokenBudget: 2000 })
+  const state = f.states.get('one'), entry = state.worldBook.view.entries[0]
+  const first = (await f.provider.inspect(f.lookup('one'))).clusters[0]
+  assert.equal(first.inline, true)
+  assert.equal(first.entries[0].path, path.join(first.directory, 'SKILL.md'))
+  assert.ok(first.guide.includes(entry.content))
+  assert.equal(await f.provider.readEntry(entry.ref, f.lookup('one')), entry.content)
+  assert.equal(await f.provider.readEntry('missing', f.lookup('one')), undefined)
+  const loaded = await f.provider.get(await f.candidate('one'), f.lookup('one'))
+  assert.ok(loaded.content.includes(entry.content))
+  await assert.rejects(fs.access(path.join(first.directory, 'references')))
+  entry.content = 'x'.repeat(8000)
+  let view = (await f.provider.inspect(f.lookup('one'))).clusters[0]
+  assert.equal(view.estimatedTokens, 2000); assert.equal(view.inline, true)
+  entry.content += 'x'
+  view = (await f.provider.inspect(f.lookup('one'))).clusters[0]
+  assert.equal(view.inline, false); assert.equal(view.estimatedTokens, 2001)
+  assert.doesNotMatch(view.guide, /xxxx/)
+  const oldReference = view.entries[0].path
+  assert.equal(await fs.readFile(oldReference, 'utf8'), entry.content)
+  entry.content = '  短原文\n\n末尾空格  '
+  view = (await f.provider.inspect(f.lookup('one'))).clusters[0]
+  assert.equal(view.inline, true); assert.ok(view.guide.includes(entry.content))
+  await assert.rejects(fs.access(oldReference))
+  assert.equal(await f.provider.readResource(oldReference, f.lookup('one')), undefined)
+})
+
+test('inline admission counts the whole group rather than each short member', async t => {
+  const catalog = { async update(_key, entries) { return { clusters: entries.length ? [{ id: 'topic-group', title: 'group', keywords: [], refs: entries.map(e=>e.ref) }] : [] } }, dispose() {} }
+  const f = fixture(t, { inlineTokenBudget: 2000, catalog })
+  const entries = f.states.get('one').worldBook.view.entries
+  entries[0].content = 'x'.repeat(4000)
+  entries.push({...entries[0],ref:'second',sourceUid:8,content:'y'.repeat(4000)})
+  let view=(await f.provider.inspect(f.lookup('one'))).clusters[0]
+  assert.equal(view.inline,true)
+  assert.ok(view.guide.includes(entries[0].content) && view.guide.includes(entries[1].content))
+  entries[1].content += 'y'
+  view=(await f.provider.inspect(f.lookup('one'))).clusters[0]
+  assert.equal(view.inline,false)
+  for(const entry of view.entries) assert.match(entry.path,/references/)
 })
