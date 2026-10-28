@@ -2144,7 +2144,8 @@ try { /* 这段归我说话 */ } finally { lease.release() }</code></pre></div>
 <p>背景音乐由 Tavern 播放：同一时间一首、循环；传入同一个地址时接着放，换地址时淡入新曲，传空字符串或调 <code>stopMusic()</code> 时淡出。玩家在全屏舞台控制栏的「♪ 音乐」开关决定听不听得到（记在这个浏览器里），所有卡的音乐都受这一个开关管。离开这一局（切换、删除对话）或这一局不再显示舞台时，Tavern 会停掉音乐；插件换局后要重新调 <code>playMusic</code>。<code>volume</code> 为 0–1，默认 0.45。</p><footer class="article-footer"><span>DSH Tavern 使用文档</span><a class="" href="#help">需要帮助？</a></footer></article><article class="doc-page" id="contributing" data-group="help" data-title="贡献指南"><div class="breadcrumb">使用文档 <span>/</span> <a class="" href="#help">帮助与维护</a> <span>/</span> 功能说明</div><h1 tabindex="-1">贡献指南</h1><p class="lead"></p><p>欢迎给 DSH Tavern 提 PR！文档网站和酒馆程序都在同一个仓库里。不需要先成为开发者，也不需要做一个大功能：你使用时觉得哪里难懂、难找、麻烦，都可以从那里开始改。</p>
 <h2 id="contributing--section-1">哪些贡献都欢迎</h2>
 <ul><li>改错字、补漏掉的步骤、修失效链接，把看不懂的说明改成人话。</li><li>写小白教程：从安装、配置模型到导入人物卡、开始第一局，告诉读者点哪里、填什么、成功后会看到什么。</li><li>给配置项、按钮或菜单改名，让人不用猜就知道它有什么用；补一句说明或一个例子也很好。</li><li>把不常用、复杂的配置放进默认折叠的“高级设置”，减少第一次使用时需要面对的选项。</li><li>调整界面布局、默认值和操作流程，改善手机体验、键盘操作或可读性。</li><li>修复 Bug、完善兼容性、补充示例、开发插件，或者提出新的功能。</li></ul>
-<p>这些只是例子。任何能让酒馆更好用、更容易理解的改动，都欢迎提出。小改动可以直接提 PR；涉及较大功能或行为调整时，可以先开 Issue 聊聊，也可以先提交草稿 PR 讨论。</p>
+<p>这些只是例子。任何能让酒馆更好用、更容易理解的改动，都欢迎提出。小改动可以直接提 PR；涉及较大功能或行为调整，请先到 <a href="https://discord.gg/hYAEjKnpra">Discord 交流群</a> 讨论，确定方案后再提交 PR。<strong>GitHub Issue 只用于 Bug 反馈</strong>，功能建议请在 Discord 群讨论。</p>
+<p><strong>特别欢迎功能精简的意见。</strong> 当前功能繁多，非常需要简化和删除一部分。如果你觉得某些功能很少用、彼此重复，或者让界面和操作变得复杂，欢迎在 Discord 群提出合并、简化或删除的建议。让用户少学几个概念、少面对几个选项，同样是有价值的贡献。</p>
 <h2 id="contributing--section-2">上传一个 Markdown 文件，就能增加页面</h2>
 <p>把 <code>.md</code> 文件放进 <code>docs/pages/</code>，构建时就会自动生成网页、加入侧栏和搜索，不需要修改 JavaScript，也不需要写配置头。</p>
 <p>例如新建 <code>docs/pages/first-game.md</code>：</p>
