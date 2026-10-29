@@ -179,7 +179,7 @@ export function createForegroundWorldbook({ bound, runtime, globalVariables, sca
   return project
 }
 
-/** Native strategy: static optional content is discoverable only as a skill;
+/** Native strategy: static optional content is available only through file search/read;
  * dynamic optional entries retain native conditions. Each controller executes at
  * most once per request, including activation convergence and empty outputs. */
 async function projectMandatoryWorldbook({ worldBook, sourceEntries, chat, card, templateRuntime, globals, preparedActivations, randomState, turn, requestKey, userText, userTextInHistory, scanText }) {
@@ -224,7 +224,7 @@ async function projectMandatoryWorldbook({ worldBook, sourceEntries, chat, card,
     const toRender = selectedEntries.filter(entry => {
       const type = classify(entry), source = original.get(entry.ref) || entry
       if (type.kind === 'static-constant') return false // always prefix, never a history frame
-      if (!type.dynamic) return false // static optional bodies are skill resources only, even for force requests
+      if (!type.dynamic) return false // static optional bodies are file resources only, even for force requests
       const previous = virtualState.entries[entry.ref]
       const dependencyHash = virtualDependencyHash(type, chat, card, globals)
       return !previous || previous.version !== virtualEntryVersion(source) || hasNativeController ||

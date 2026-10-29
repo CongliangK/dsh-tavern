@@ -403,13 +403,13 @@ test('native gameplay advertises scoped read instead of legacy worldbook search;
   for (const mode of ['story', 'script']) {
     const native = harness(mode, { chatFields: { worldbookStrategy: 'native-skills' } })
     const names = await native.orchestrator.visibleTools('session-1')
-    assert.ok(names.includes('read'))
+    for (const tool of ['read', 'worldbook_list', 'worldbook_grep']) assert.ok(names.includes(tool))
     assert.ok(names.includes('skill'))
     assert.equal(names.includes('worldbook_search'), false)
     const legacy = harness(mode)
     const oldNames = await legacy.orchestrator.visibleTools('session-1')
     assert.ok(!oldNames.includes('worldbook_search'))
-    assert.equal(oldNames.includes('read'), false)
+    for (const tool of ['read', 'worldbook_list', 'worldbook_grep']) assert.equal(oldNames.includes(tool), false)
   }
   assert.deepEqual(await harness('card', { chatFields: { worldbookStrategy: 'native-skills' } }).orchestrator.visibleTools('session-1'),
     await harness('card').orchestrator.visibleTools('session-1'))
@@ -423,6 +423,6 @@ test('tool visibility reads worldbook strategy from bounded header', async () =>
   } } })
   const names = await orchestrator.visibleTools('game')
   assert.ok(fields.includes('worldbookStrategy'))
-  assert.ok(names.includes('read'))
+  for (const tool of ['read', 'worldbook_list', 'worldbook_grep']) assert.ok(names.includes(tool))
   assert.equal(names.includes('worldbook_search'), false)
 })

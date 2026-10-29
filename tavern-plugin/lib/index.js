@@ -261,7 +261,8 @@ import { createWorldbookRecallLog, compactRecallDiagnostics } from './domain/wor
 import { foregroundWorldbookReads } from './domain/worldbook-read-handoff.js'
 import { createForegroundWorldbook } from './domain/foreground-worldbook.js'
 import { createWorldbookStrategies } from './domain/worldbook-strategies.js'
-import { createWorldbookSkillProvider } from './domain/worldbook-skill-provider.js'
+import { createWorldbookFiles } from './domain/worldbook-files.js'
+import { registerWorldbookFileTools } from './tools/worldbook-files.js'
 import { projectVirtualWorldbookPrefix } from './domain/worldbook-virtual-state.js'
 import { installWorldbookSkillRead, nativeWorldbookReadAvailable } from './domain/worldbook-skill-read.js'
 import { prepareTemplateWorldbook, prepareWorldBookRecall, projectWorldBookTemplates } from './domain/worldbook-recall.js'
@@ -1903,36 +1904,25 @@ export async function apply(ctx) {
   })
   const projectForegroundWorldbook = async input => {
     const projected = await worldbookStrategies.project(input)
-    // Native preprocessing may revoke visibility without changing source JSON.
-    // Its runtime result must invalidate an earlier pre-step discovery snapshot.
-    if (input.chat?.worldbookStrategy === 'native-skills') invalidateWorldbookSkills()
     return projected
   }
-  let invalidateWorldbookSkills = () => {}
-  let worldbookSkillProvider
-  skillRegistry.registerProvider(control => {
-    invalidateWorldbookSkills = () => control.invalidate()
-    worldbookSkillProvider = createWorldbookSkillProvider({
-      directory: path.join(dataRoot, 'worldbook-skills'),
-      resourcesAvailable: scope => nativeWorldbookReadAvailable(ctx.get('tools'), scope),
-      async load(agent) {
-        const binding = await resolveWorldbookSkillChat(agent, { background: backgroundAgentRunner, readChat: chatForSession })
-        if (!binding) return null
-        const { chat } = binding
-        try {
-          const card = await readChatCard(chat)
-          return { ...binding, card, worldBook: await playWorldBook(chat, card) }
-        } catch (error) {
-          // A removed/unreadable source revokes the virtual library, never keeps
-          // a cached body and never prevents unrelated core skills from loading.
-          console.warn('dsh-tavern: 本局世界书 Skill 库不可用:', str(error?.message || error))
-          return null
-        }
+  const worldbookSkillProvider = createWorldbookFiles({
+    directory: path.join(dataRoot, 'worldbook-files'),
+    resourcesAvailable: scope => nativeWorldbookReadAvailable(ctx.get('tools'), scope),
+    async load(agent) {
+      const binding = await resolveWorldbookSkillChat(agent, { background: backgroundAgentRunner, readChat: chatForSession })
+      if (!binding) return null
+      const { chat } = binding
+      try {
+        const card = await readChatCard(chat)
+        return { ...binding, card, worldBook: await playWorldBook(chat, card) }
+      } catch (error) {
+        console.warn('dsh-tavern: 本局世界书文件不可用:', str(error?.message || error))
+        return null
       }
-    })
-    control.signal.addEventListener('abort', () => worldbookSkillProvider.dispose(), { once: true })
-    return worldbookSkillProvider
+    }
   })
+  registerWorldbookFileTools(ctx.get('tools'), worldbookSkillProvider)
   installWorldbookSkillRead(ctx, worldbookSkillProvider, {
     async virtualOnly(agent) {
       // Background read is never a general filesystem capability, even when its lease ends.
@@ -1940,11 +1930,9 @@ export async function apply(ctx) {
       return Boolean(await resolveWorldbookSkillChat(agent, { background: backgroundAgentRunner, readChat: chatForSession }))
     }
   })
-  // The native registry caches by agent scope. Refresh before its catalog hook on
-  // EVERY step: this includes cold loads, plugin entries, external edits and switches.
-  // Provider.get still revalidates, so an old catalog never authorizes a stale read.
+  // Observe source changes before each step; tools also revalidate every access.
   ctx.on('agent/pre-step', async (payload, next) => {
-    if (await worldbookSkillProvider.refresh(payload.agent, { signal: payload.signal })) invalidateWorldbookSkills()
+    await worldbookSkillProvider.refresh(payload.agent, { signal: payload.signal })
     const snapshot = worldbookSkillProvider.changeSnapshot(payload.agent)
     if (snapshot && (snapshot.entries.length || sessionEvents(payload.agent.session).some(event => event.data?.source?.worldbookSkills))) {
       if (appendWorldbookSkillChanges(payload, snapshot)) await sessionStore.flush(payload.agent.session)
@@ -3728,7 +3716,7 @@ export async function apply(ctx) {
   }
 
   const skillGatedTools = createSkillGatedTools()
-  const controlledToolNames = new Set([STORY_SUBMIT_TOOL_NAME, 'tavern_read_variables', ...CARD_MEMORY_TOOLS, 'bash', 'pwsh', ...dshFileToolNames, 'skill', 'tavern_read_skill_reference', 'web_search', 'web_fetch', 'tavern_research', 'tavern_save_skill', ...cordisToolNames, 'tavern_user_profile_read', 'tavern_user_profile_save', 'tavern_user_profile_confirm', 'tavern_read_card', 'tavern_read_card_raw', 'tavern_search_card', 'tavern_replace_card_text', 'tavern_mvu_overview', 'tavern_apply_mvu', 'tavern_read_play_chat', 'tavern_read_script', 'tavern_recall_history', 'worldbook_search', 'tavern_read_worldbook', 'tavern_update_worldbook', 'tavern_read_preset', 'tavern_update_preset', 'tavern_read_regex_library', 'tavern_copy_card', 'tavern_set_card_cover', 'tavern_export_card_png', 'tavern_update_card', 'tavern_restore_card', 'tavern_validate_card', 'tavern_test_response'])
+  const controlledToolNames = new Set([STORY_SUBMIT_TOOL_NAME, 'tavern_read_variables', 'worldbook_list', 'worldbook_grep', ...CARD_MEMORY_TOOLS, 'bash', 'pwsh', ...dshFileToolNames, 'skill', 'tavern_read_skill_reference', 'web_search', 'web_fetch', 'tavern_research', 'tavern_save_skill', ...cordisToolNames, 'tavern_user_profile_read', 'tavern_user_profile_save', 'tavern_user_profile_confirm', 'tavern_read_card', 'tavern_read_card_raw', 'tavern_search_card', 'tavern_replace_card_text', 'tavern_mvu_overview', 'tavern_apply_mvu', 'tavern_read_play_chat', 'tavern_read_script', 'tavern_recall_history', 'worldbook_search', 'tavern_read_worldbook', 'tavern_update_worldbook', 'tavern_read_preset', 'tavern_update_preset', 'tavern_read_regex_library', 'tavern_copy_card', 'tavern_set_card_cover', 'tavern_export_card_png', 'tavern_update_card', 'tavern_restore_card', 'tavern_validate_card', 'tavern_test_response'])
   const foregroundStrategies = createForegroundOrchestrationStrategies({
     nativePlay: {
       // Input side: replay past bodies as calls of the submission tool.

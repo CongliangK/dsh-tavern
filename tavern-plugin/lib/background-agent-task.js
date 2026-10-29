@@ -1,3 +1,4 @@
+import { withWorldbookFileInstructions } from './domain/worldbook-virtual-surface.js'
 import { createBackgroundProgress } from './domain/background-progress.js'
 import { worldbookSnapshot } from './domain/worldbook-snapshot.js'
 import { CARD_SYSTEM_PROMPT_SECTION, cardSystemPromptSnapshot, cardSystemPromptSource } from './domain/card-system-prompt.js'
@@ -176,13 +177,15 @@ export function createBackgroundAgentTask(options) {
             if (state.input.task === 'phone') return []
             return [{ ...section, text: '以下人物卡系统提示仅用于候选文本的写作；结算、筛选、人物设计等后台任务遵循各自任务协议。\n' + section.text }]
           })
-          const sections = state.currentWorldbook === undefined ? fixed : withCurrentWorldbook(fixed, state.currentWorldbook)
+          let sections = state.currentWorldbook === undefined ? fixed : withCurrentWorldbook(fixed, state.currentWorldbook)
+          if (state.input.worldbookSkillsEnabled) sections = withWorldbookFileInstructions(sections)
+          else sections = sections.filter(section => section.name !== 'tavern:worldbook-skills')
           const assembly = { sections: [...sections, { name: 'deployment:persona', text: backgroundPersona }] }
           return prependSystemInstruction(assembly, options.systemAppend?.()).sections.map(section => section.text).join('\n\n')
         }
       })
       childCtx.systemPrompt.suppressRuntimeContext()
-      childCtx.tools.restrict({ allow: isolated ? [] : state.input.task === 'phone' ? [] : ['skill', 'read', 'tavern_read_skill_reference', 'web_search', ...(childCtx.tools.get?.('web_fetch') ? ['web_fetch'] : [])] })
+      childCtx.tools.restrict({ allow: isolated ? [] : state.input.task === 'phone' ? [] : ['skill', 'read', 'worldbook_list', 'worldbook_grep', 'tavern_read_skill_reference', 'web_search', ...(childCtx.tools.get?.('web_fetch') ? ['web_fetch'] : [])] })
       childCtx.on('system-prompt/assemble', async function (_assembly, _context, next) {
         const assembly = await next()
         if (state.input.task === 'polish') {
@@ -202,8 +205,8 @@ export function createBackgroundAgentTask(options) {
           return assembly
         }
         if (!state.input.worldbookSkillsEnabled) {
-          assembly.sections = (assembly.sections || []).filter(section => section?.name !== 'tool:read')
-          assembly.tools = (assembly.tools || []).filter(tool => tool?.name !== 'read')
+          assembly.sections = (assembly.sections || []).filter(section => !['tool:read', 'tool:worldbook_list', 'tool:worldbook_grep'].includes(section?.name))
+          assembly.tools = (assembly.tools || []).filter(tool => !['read', 'worldbook_list', 'worldbook_grep'].includes(tool?.name))
         }
         if (state.input.webSearchEnabled === true) return assembly
         assembly.sections = (assembly.sections || []).filter(function (section) { return section && !['tool:web_search', 'tool:web_fetch'].includes(section.name) })
