@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "7b10d9f25edc755ed891aac9e07c15afa8a602ed",
-  "releaseSequence": 966,
+  "revision": "6ff90a10000425134cbe75d8c86c7f727a9bda8a",
+  "releaseSequence": 967,
   "version": "3.1.0",
   "files": [
     {
@@ -1136,8 +1136,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/chat-reads.js",
-      "sha256": "6677ca140c4bc03df4ee3cdae4d00bec6dd0f517024f3c8258462c6c4693c27d",
-      "size": 3191
+      "sha256": "5448de31f28e8757c3667bc9f3b2fd6136a0824257c074a8790784371c5ffa3d",
+      "size": 3421
     },
     {
       "path": "tavern-plugin/lib/domain/chat-session-state.js",
@@ -1876,8 +1876,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/polish-agent.js",
-      "sha256": "d3988d903fe79caa9c69999b926c0e183a1ce366904f0c8a2adc57e71e10acd6",
-      "size": 9864
+      "sha256": "3ee401b5c135bb8873b5ac505b1b27504acd0264c7e6065ea2e292c3cde9100b",
+      "size": 10390
     },
     {
       "path": "tavern-plugin/lib/domain/polish-records.js",
@@ -2991,8 +2991,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "cda4e6ecca672d25ae756c17fa08df2157a5390472adb7e1d52340fa7191e8e9",
-      "size": 251482
+      "sha256": "3afc7e744040c4a014681942b1b6b8a0c435933222cf9ff9f869fbf08d8a17c0",
+      "size": 251509
     },
     {
       "path": "tavern-plugin/lib/plugin-api.js",
@@ -5096,13 +5096,13 @@
     },
     {
       "path": "tavern-plugin/prompts/polish-guidance.md",
-      "sha256": "ae73ed917d3f27b4e543fb14ca93e8933ac39061be02671519dbe1119510b167",
-      "size": 1571
+      "sha256": "ed5722c05119a26ec56d0292b2e7f787b7754ac331126941b69cde9505363d89",
+      "size": 1371
     },
     {
       "path": "tavern-plugin/prompts/polish.md",
-      "sha256": "31503deca9f85e4a7180bb583cc52774e64b6a7df35792edaf5fa4cb27251214",
-      "size": 3964
+      "sha256": "7c3c9eb7f1c05f2b648029355116ef9b95baa19b2906a06931c442207d4192d0",
+      "size": 3819
     },
     {
       "path": "tavern-plugin/prompts/posture-settlement.md",
@@ -5151,9 +5151,9 @@
     }
   ],
   "archive": {
-    "commit": "000f89dc925056416f95469a80b874a5cbcd42e4",
+    "commit": "b7b27edd0deb79fa4462e4fd5f4a1b3b278cd9aa",
     "path": "runtime.zip",
-    "sha256": "3cecf1124dbb5bb483face344c00b8f0b21792b0b2768c9318afb12beda34713",
-    "size": 10558223
+    "sha256": "6e55e81547b3f68613a5196bc452011b25e3226809c510504fd2459e1c5b5775",
+    "size": 10558355
   }
 }
