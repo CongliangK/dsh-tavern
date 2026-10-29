@@ -61,6 +61,11 @@ test('跨轮与重启复用精修历史，system/tools 稳定，每轮只追加�
   assert.match(f.calls[1].text, /未应用精修草稿/)
   assert.match(f.calls[1].text, /丙。丁。/)
   assert.equal(f.saved.complete, true)
+  for (const call of f.calls) {
+    assert.match(call.text, /【本轮执行提醒】.*\n按固定前缀中的完整精修原则/)
+    assert.match(call.text, /保留剧情事实、力量等级、人物意图和有效信息/)
+    assert.ok(call.text.indexOf('【本轮执行提醒】') < call.text.indexOf('【本轮正文】'))
+  }
 })
 
 test('真实存储的密集尾窗保留绝对楼层，跨轮不误判成同轮重生成', async () => {
@@ -90,6 +95,7 @@ test('意见修改复用同一 Agent，草稿与实际正文区别明确', async
   assert.equal(f.calls[1].system, f.calls[0].system)
   assert.match(f.calls[1].text, /精修草稿.*本次原文/)
   assert.match(f.calls[1].text, /只按意见修改.*\n改得短一点/)
+  assert.match(f.calls[1].text, /本轮只按玩家意见修改，不额外扩展原则精修/)
 })
 
 test('回退、重生成、前文变化和固定设定变化不复用错误历史', async () => {

@@ -91,6 +91,8 @@ export function createPolishReviewer({ latestFloors, readCard, prompt, runAgent,
             if (continued && floor === previous.floor + 2) sections.push('上一轮实际采用' + (hash(context.previous) === previous.original ? '此前输入的原文（未应用精修草稿）' : '此前的精修草稿') + '。')
             else if (context.previous) sections.push('【补充前文（上一轮实际正文）】\n' + context.previous.slice(-3000))
           }
+          sections.push('【本轮执行提醒】\n' + (guidance ? '本轮只按玩家意见修改，不额外扩展原则精修。' : '按固定前缀中的完整精修原则审读本轮正文，只改明确的问题。') +
+            '保留剧情事实、力量等级、人物意图和有效信息；不要把正常比喻当作错误，不为改而改，不补造情节。每处修改调用 polish_edit；没有必要修改就直接调用 polish_finish。')
           // Always give the current target verbatim, including guided passes after compaction.
           sections.push('【本轮正文】\n' + body)
           if (context.input) sections.push('【本轮玩家输入】\n' + context.input.slice(0, 2000))
