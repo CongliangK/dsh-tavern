@@ -36,3 +36,15 @@ export function classifyWorldbookEntry(entry = {}) {
 export function isStaticWorldbookSkillEntry(entry = {}) {
   return entry.enabled !== false && String(entry.content || '').trim() !== '' && classifyWorldbookEntry(entry).kind === 'static-skill'
 }
+
+/** Display-only templates can be read on demand. Unknown/effectful code and
+ * variable settlement rules retain the original runtime delivery path. */
+export function isWorldbookRuntimeEntry(entry = {}) {
+  const body = String(entry.content ?? '')
+  const name = String(entry.comment || entry.title || '')
+  return isMvuUpdateEntry(entry) || hasWorldbookPreprocessingSyntax(entry) ||
+    /\[(?:initvar|initialvariables|mvu[_ -])/i.test(name) ||
+    /<script\b|```\s*(?:javascript|js|typescript|ts|ejs)\b/i.test(body) ||
+    /<%(?![=-])/.test(body) ||
+    /\{\{/.test(body.replace(/\{\{\s*(?:(?:getvar|getglobalvar|hasvar|hasglobalvar)\s*::[^{}]+|char|user)\s*\}\}/gi, ''))
+}

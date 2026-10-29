@@ -150,7 +150,7 @@ for (const embedded of [false, true]) test(`脚本增删改 → 静态文件 →
   const notice=appendWorldbookSkillChanges(payload,provider.changeSnapshot(scope))
   assert.match(notice.content[0].text,/新增（1 条）/)
   assert.match(notice.content[0].text,/改写（1 条）/)
-  assert.match(notice.content[0].text,/移出静态资料（2 条）/)
+  assert.match(notice.content[0].text,/撤回资料（2 条）/)
   const second=await provider.inspect(lookup)
   assert.deepEqual(second.files.map(e=>e.title).sort(),['城市·旧城','城市·新港','银行·存款'].sort())
   const newBank=second.files.find(e=>e.title==='银行·存款')

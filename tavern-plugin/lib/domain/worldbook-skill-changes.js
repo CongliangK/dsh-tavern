@@ -13,10 +13,10 @@ export function appendWorldbookSkillChanges(payload, snapshot) {
   const old = new Map((previous?.entries || []).map(entry => [entry.ref, entry]))
   const current = new Map(snapshot.entries.map(entry => [entry.ref, entry]))
   const added = snapshot.entries.filter(entry => !old.has(entry.ref))
-  const changed = snapshot.entries.filter(entry => old.has(entry.ref) && old.get(entry.ref).hash !== entry.hash)
+  const changed = snapshot.entries.filter(entry => old.has(entry.ref) && (old.get(entry.ref).hash !== entry.hash || old.get(entry.ref).category !== entry.category))
   const removed = [...old.values()].filter(entry => !current.has(entry.ref))
   // Initial discovery needs only a durable baseline, not another prompt.
-  if (!previous) {
+  if (!previous && !snapshot.entries.some(entry => entry.category === '动态快照')) {
     const carrier = [...pending].reverse().find(message => message.role === 'user' && !message.source?.worldbookSkills)
     if (carrier) {
       // Native inbox/history messages may be frozen. Enrich a new envelope,
@@ -25,14 +25,19 @@ export function appendWorldbookSkillChanges(payload, snapshot) {
       return null
     }
   }
-  const lines = previous ? ['【世界书资料更新】'] : []
+  const initialDynamic = !previous ? snapshot.entries.filter(entry => entry.category === '动态快照') : []
+  const lines = previous || initialDynamic.length ? ['【世界书资料更新】'] : []
   const describe = (label, entries) => {
     if (!entries.length) return
     lines.push(`${label}（${entries.length} 条）：` + entries.slice(0, 12).map(entry => String(entry.title).replace(/\s+/g, ' ').slice(0, 70)).join('；') + (entries.length > 12 ? '；其余请查当前目录' : ''))
   }
+  if (initialDynamic.length) {
+    describe('动态快照已就绪', initialDynamic)
+    lines.push('需要时用 worldbook_grep 或 worldbook_list 查找，再用 read 读取；快照是最近一次运行时渲染结果，检索不会执行代码。')
+  }
   if (previous) {
-    describe('新增', added); describe('改写', changed); describe('移出静态资料', removed)
-    lines.push('上述改写条目的旧正文已失效；移出项可能已删除、停用或转为动态/常驻，不得继续把历史读取内容当作当前资料。需要这些信息时调用 worldbook_grep 或 worldbook_list 获取当前文件；动态和常驻内容以本轮运行时注入为准。')
+    describe('新增', added); describe('改写', changed); describe('撤回资料', removed)
+    lines.push('上述改写条目的旧正文已失效；撤回项可能已删除、停用或渲染为空，不得继续把历史读取内容当作当前资料。需要这些信息时调用 worldbook_grep 或 worldbook_list 获取当前文件；动态快照按需读取；常驻注入和结算规则仍由运行时处理。')
     if (previous.directory !== snapshot.directory) lines.push('资料目录已切换版本，旧绝对路径不再适用于本局；请调用 worldbook_list 或 worldbook_grep 重新定位，勿猜测新路径。')
   }
   const message = { id: `tavern-worldbook-skills:${snapshot.version}:${randomUUID()}`, role: 'user', content: lines.length ? [{ type: 'text', text: lines.join('\n') }] : [],

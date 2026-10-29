@@ -40,14 +40,17 @@ test('static constants preserve exact body and are refreshed outside message his
 })
 test('dependency refresh emits only changed renders and snapshots survive serialization', async () => {
   const f = fixture([entry('a', '{{getvar::weather}}')])
-  assert.equal((await f.run()).context, 'sun')
+  assert.equal((await f.run()).context, '')
+  assert.equal(f.chat.worldBookVirtualState.entries.a.text, 'sun')
   assert.equal((await f.run('request-2')).context, '')
   f.chat.macroState.local.weather = 'rain'
   const changed = await f.run('request-3')
-  assert.equal(changed.context, 'rain')
+  assert.equal(changed.context, '')
+  assert.doesNotMatch(changed.context, /rain/)
+  assert.equal(changed.virtualState.entries.a.text, 'rain')
   assert.deepEqual(changed.changedVirtualRefs, ['a'])
   const restarted = JSON.parse(JSON.stringify(f.chat))
-  assert.equal(projectVirtualWorldbookPrefix(f.worldBook, restarted).snapshots, 'rain')
+  assert.equal(projectVirtualWorldbookPrefix(f.worldBook, restarted).snapshots, '')
   assert.equal(projectVirtualWorldbookPrefix(f.worldBook, restarted, { restoreRefs: [] }).snapshots, '')
   restarted.sessionId = 'other'
   assert.equal(projectVirtualWorldbookPrefix(f.worldBook, restarted).snapshots, '')
@@ -62,7 +65,8 @@ test('native side-effect controller and random output execute once across conver
   const first = await f.run()
   assert.equal(calls, 1)
   assert.match(first.context, /sample-1/)
-  assert.match(first.context, /hero/)
+  assert.doesNotMatch(first.context, /hero/)
+  assert.equal(first.virtualState.entries.b.text, 'hero')
   await f.run()
   assert.equal(calls, 1)
   const next = await f.run('request-2')
@@ -77,7 +81,8 @@ test('dynamic entries retain native conditions while static keywords produce tit
   assert.equal((await f.run('one', 'nothing')).context, '')
   assert.equal(calls, 0)
   const second = await f.run('two', 'weather')
-  assert.match(second.context, /^weather output/)
+  assert.match(second.context, /可能相关的世界书条目/)
+  assert.doesNotMatch(second.context, /weather output/)
   assert.match(second.context, /条目 static/)
   assert.doesNotMatch(second.context, /secret/)
   assert.deepEqual(second.reads, {})
@@ -93,9 +98,11 @@ test('dynamic entries retain native conditions while static keywords produce tit
 
 test('native projection-local setters refresh read-only dependencies without repeated execution', async () => {
   const f = fixture([entry('setter', '{{setvar::weather::rain}}', true, { order: 10 }), entry('reader', '{{getvar::weather}}', true, { order: 20 })])
-  assert.equal((await f.run('one')).context, 'rain')
+  await f.run('one')
+  assert.equal(f.chat.worldBookVirtualState.entries.reader.text, 'rain')
   f.worldBook.view.entries[0].content = '{{setvar::weather::snow}}'
-  assert.equal((await f.run('two')).context, 'snow')
+  await f.run('two')
+  assert.equal(f.chat.worldBookVirtualState.entries.reader.text, 'snow')
   assert.equal((await f.run('three')).context, '')
 })
 test('empty native output is cached and a new execution request is a fresh random occasion', async () => {
@@ -129,7 +136,8 @@ test('activation passes reuse native side-effect scopes before newly activated t
   const project = createForegroundWorldbook({ bound: async () => worldBook, runtime: async () => runtime, globalVariables: async () => ({}) })
   const result = await project({ chat: { sessionId: 'scope', messages: [], worldbookStrategy: 'native-skills' }, card: {}, requestKey: 'one' })
   assert.equal(result.error, null)
-  assert.match(result.context, /value/)
+  assert.doesNotMatch(result.context, /value/)
+  assert.equal(result.virtualState.entries.dependent.text, 'value')
   assert.equal(batches, 1)
   assert.equal(calls, 1)
 })
@@ -137,11 +145,12 @@ test('activation passes reuse native side-effect scopes before newly activated t
 test('source edits re-render but deduplicate identical output by entry identity and render hash', async () => {
   let calls = 0
   const f = fixture([entry('a', '<%= first %>')], async () => { calls++; return { ok: true, text: 'same output', scopes: {} } })
-  assert.equal((await f.run('one')).context, 'same output')
+  assert.equal((await f.run('one')).context, '')
+  assert.equal(f.chat.worldBookVirtualState.entries.a.text, 'same output')
   f.worldBook.view.entries[0].content = '<%= second %>'
   assert.equal((await f.run('two')).context, '')
   assert.equal(calls, 2)
-  assert.equal(projectVirtualWorldbookPrefix(f.worldBook, f.chat).snapshots, 'same output')
+  assert.equal(projectVirtualWorldbookPrefix(f.worldBook, f.chat).snapshots, '')
 })
 test('persisted same-request native projection does not repeat side effects after executor restart', async () => {
   let calls = 0
@@ -182,9 +191,11 @@ test('editing one source in a request invalidates that entry but not other execu
 })
 test('hasvar dependency distinguishes absent keys from explicit null', async () => {
   const f = fixture([entry('a', '{{hasvar::present}}')])
-  assert.equal((await f.run('one')).context, 'false')
+  await f.run('one')
+  assert.equal(f.chat.worldBookVirtualState.entries.a.text, 'false')
   f.chat.macroState.local.present = null
-  assert.equal((await f.run('two')).context, 'true')
+  await f.run('two')
+  assert.equal(f.chat.worldBookVirtualState.entries.a.text, 'true')
 })
 test('new earlier setters survive cached controller replay and refresh pure readers', async () => {
   const entries = [entry('a', '<% controller %>', true, { order: 10 }), entry('b', '{{setvar::weather::snow}}', false, { order: 0 }), entry('c', '{{getvar::weather}}', true, { order: 20 })]
@@ -192,7 +203,8 @@ test('new earlier setters survive cached controller replay and refresh pure read
   const f = fixture(entries, async () => { calls++; return { ok: true, text: 'controller', scopes: {}, activationRequests: [{ ref: 'b', force: true }] } })
   const result = await f.run()
   assert.equal(result.error, null)
-  assert.match(result.context, /snow/)
+  assert.doesNotMatch(result.context, /snow/)
+  assert.equal(result.virtualState.entries.c.text, 'snow')
   assert.doesNotMatch(result.context, /sun/)
   assert.equal(result.macroState.local.weather, 'snow')
   assert.equal(calls, 1)
@@ -202,16 +214,16 @@ test('nonforce selection cannot bypass native dynamic keyword conditions', async
   const result = await f.project({ chat: f.chat, card: { name: 'hero' }, requestKey: 'one', selectedRefs: ['a'], userText: 'unrelated' })
   assert.equal(result.context, '')
 })
-test('nonempty to empty renders inject and restore a withdrawal, not stale facts', async () => {
+test('nonempty to empty data renders notify withdrawal without restoring a body', async () => {
   let output = 'old setting'
   const f = fixture([entry('a', '<%= output %>')], async () => ({ ok: true, text: output, scopes: {} }))
   await f.run('one')
   output = ''
   const changed = await f.run('two')
-  assert.match(changed.context, /已更新为空/)
+  assert.equal(changed.context, '', 'file notification hook owns withdrawal notices')
   assert.deepEqual(changed.changedVirtualRefs, ['a'])
   assert.equal(f.chat.worldBookVirtualState.entries.a.text, '')
-  assert.match(projectVirtualWorldbookPrefix(f.worldBook, f.chat).snapshots, /已更新为空/)
+  assert.equal(projectVirtualWorldbookPrefix(f.worldBook, f.chat).snapshots, '')
   assert.equal((await f.run('three')).context, '')
 })
 test('macro getter values with nested runtime syntax use the request occasion', async () => {
@@ -348,4 +360,15 @@ for (const scope of ['local', 'global']) test(`macro ${scope} dependency reads a
   assert.equal(second.virtualState.entries.exists.text, 'true')
   assert.equal(second.virtualState.entries.read.text, 'same value')
   assert.deepEqual(new Set(second.changedVirtualRefs), new Set(['exists', 'read']))
+})
+
+test('runtime controllers keep their injected and restored output while display templates do not', async () => {
+  const f = fixture([entry('controller', '<% executeRule() %>'), entry('data', '<%= state %>')], async text =>
+    ({ ok: true, text: text.includes('executeRule') ? 'CONTROLLER RULE' : 'PRIVATE DATA', scopes: {} }))
+  const result = await f.run('one')
+  assert.match(result.context, /CONTROLLER RULE/)
+  assert.doesNotMatch(result.context, /PRIVATE DATA/)
+  const prefix = projectVirtualWorldbookPrefix(f.worldBook, f.chat).prefixContext
+  assert.match(prefix, /CONTROLLER RULE/)
+  assert.doesNotMatch(prefix, /PRIVATE DATA/)
 })
