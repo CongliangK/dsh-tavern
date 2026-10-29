@@ -172,7 +172,7 @@ test('连续正文回合的实际 Frame 消息不重复基本信息和常驻世�
   const planner = createContextPlanner({ prompt: () => '正文写作规则' })
   const cardData = { name: '阿芙拉', description: '固定描述', personality: '固定性格', scenario: '固定场景', mes_example: '固定示例', system_prompt: '逐轮系统指令', post_history_instructions: '逐轮历史后指令' }
   for (const mode of ['story', 'script']) {
-    const run = harness(mode, { planner, cardData, preparedWorldBookContext: '本轮动态世界书' })
+    const run = harness(mode, { planner, cardData, preparedWorldBookContext: '旧后台召回缓存', projectWorldBookTemplates: async () => ({ context: '本轮动态世界书' }) })
     const prefix = await planner.plan({ purpose: 'play-card-snapshot', card: run.card(), chat: run.chat(), worldBookContext: '固定世界设定', worldBookLabel: '常驻世界书' })
     const adapter = createForegroundFrameSessionAdapter()
     let messages = []
@@ -184,6 +184,7 @@ test('连续正文回合的实际 Frame 消息不重复基本信息和常驻世�
       assert.doesNotMatch(text, /逐轮系统指令/)
       assert.match(text, /逐轮历史后指令/)
       assert.match(text, /本轮动态世界书/)
+      assert.doesNotMatch(text, /旧后台召回缓存/)
       // The production Session already owns the opening system snapshot.
       const session = { events: [{ type: 'user/message', data: { id: 'tavern-session-prefix:test', role: 'user', content: [],
         source: { kind: 'plugin', plugin: 'dsh-tavern', form: 'snapshot', sections: [{ name: 'tavern:session-context', text: prefix.text }] } } }] }

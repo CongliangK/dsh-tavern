@@ -29,7 +29,7 @@ test('本局模型保存保留并发更新的剧情，只修改所选游戏，�
   await assert.rejects(settings.save({ sessionId: 'missing', backgroundModel: null }), /游玩会话/)
 })
 
-test('configuration read stays narrow and enabling style recall runs only after a successful save', async () => {
+test('configuration read stays narrow and enabling foreground style never launches background work', async () => {
   let chat = { id: 'one', mode: 'story', mvu: { enabled: true, owner: 'official' }, backgroundTasks: { styleReference: false } }
   const calls = []
   let fail = false
@@ -49,7 +49,7 @@ test('configuration read stays narrow and enabling style recall runs only after 
   fail = false
   await settings.save({ sessionId: 'game', backgroundTasks: { styleReference: true } })
   await settings.save({ sessionId: 'game', backgroundTasks: { styleReference: true } })
-  assert.deepEqual(calls.filter(Array.isArray), [['style', 'game', 'one']])
+  assert.deepEqual(calls.filter(Array.isArray), [])
 })
 
 test('前台工具逐项保存，默认全开并合并插件工具', async () => {

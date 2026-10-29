@@ -1,7 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createForegroundWorldbook } from '../tavern-plugin/lib/domain/foreground-worldbook.js'
-import { createWorldbookFilter } from '../tavern-plugin/lib/domain/worldbook-filter.js'
 import { fingerprint } from '../tavern-plugin/lib/domain/worldbook-recall.js'
 import { UpstreamTemplateRuntime } from './fixtures/upstream-template-runtime.mjs'
 
@@ -9,20 +8,12 @@ const runtime = await UpstreamTemplateRuntime.create()
 const long = 'x'.repeat(4400)
 const entries = ['漕帮', '剑宗', '药王谷', '铁骨', '商会', '皇女'].map((name, i) => ({ ref: 'e' + i, enabled: true, primaryKeys: [name], content: name + '设定' + long }))
 
-// A store-backed task stub: commit applies the filter's verdict to the chat, like the real coordinator.
+// Old screening options must never invoke a model.
 function setup({ screening = true } = {}) {
   const worldBook = { view: { entries: structuredClone(entries) } }
   const screened = []
   const chat = { backgroundTasks: { worldbookScreening: screening }, messages: [{ role: 'assistant', turn: 1, text: '漕帮 剑宗 药王谷 铁骨 商会 皇女' }] }
-  const filterCandidates = createWorldbookFilter({ selection: () => ({}),
-    beginTask: async () => ({ participantRequest: {}, bindSession() {}, participant: () => ({}), fail: async () => {},
-      commit: async ({ apply }) => { apply?.(chat); return { status: 'committed' } } }),
-    runAgent: async input => {
-      const refs = JSON.parse(input.messages[0].content[0].text).candidates.map(item => item.ref)
-      screened.push(refs)
-      input.onToolCall({ name: 'worldbook_filter_submit', arguments: { selected: refs.slice(0, 1) } })
-      return {}
-    } })
+  const filterCandidates = async () => { screened.push('unexpected') }
   const project = createForegroundWorldbook({ bound: async () => worldBook, runtime: async () => runtime, globalVariables: async () => ({}), filterCandidates })
   // One round: send (never asks the model), reply, then the post-reply prefilter.
   async function round(userText) {

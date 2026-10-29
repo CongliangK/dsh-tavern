@@ -73,7 +73,6 @@ import { createCardSummaryCache } from './domain/card-summary-cache.js'
 import { openingPreviewPayload } from './domain/opening-transport.js'
 import { createLiveCardUpdate } from './domain/live-card-update.js'
 import { createSessionViewReader, createSessionChatReader } from './domain/session-view-reader.js'
-import { settlementTurn } from './domain/chat-session-state.js'
 import { createSettlementJobs } from './domain/settlement-jobs.js'
 import { createTurnSettledEvents } from './domain/turn-settled-events.js'
 import { createPluginSettlementProgress } from './domain/plugin-settlement-progress.js'
@@ -94,8 +93,6 @@ import { createManualCharacterDesign } from './domain/manual-character-design.js
 import { prepareTemplateHistory, synchronizeTemplateHistory } from './domain/template-history.js'
 import { createServerTemplateSync } from './domain/server-template-sync.js'
 import { createServerTemplateRuntime } from './domain/server-template-runtime.js'
-import { createWorldbookFilter, WORLD_BOOK_FILTER_TOOLS } from './domain/worldbook-filter.js'
-import { createWorldbookPrefilter } from './domain/worldbook-prefilter.js'
 import { createForegroundStyleReferenceTool, foregroundStyleReferencePrompt, rememberStyleReference } from './domain/style-reference.js'
 import { adoptConversationFeatures, adoptConversationBackground } from './domain/conversation-background.js'
 import { clearLegacyTavernDefault } from './domain/legacy-agent-default.js'
@@ -257,8 +254,7 @@ import { installTavernTokenMeter } from './domain/tavern-token-meter.js'
 import { cordisToolNames, createTurnOrchestrator, dshFileToolNames } from './domain/turn-orchestration.js'
 import { resourceWorkspaceContext } from './domain/workspace-resources.js'
 import { createWorldBookLibrary } from './domain/worldbook-library.js'
-import { createWorldbookRecallLog, compactRecallDiagnostics } from './domain/worldbook-recall-log.js'
-import { foregroundWorldbookReads } from './domain/worldbook-read-handoff.js'
+import { createWorldbookRecallLog } from './domain/worldbook-recall-log.js'
 import { createForegroundWorldbook } from './domain/foreground-worldbook.js'
 import { createWorldbookStrategies } from './domain/worldbook-strategies.js'
 import { createWorldbookFiles } from './domain/worldbook-files.js'
@@ -1894,8 +1890,7 @@ export async function apply(ctx) {
     bound: (cardPath, card, chat) => playWorldBook(chat, card),
     runtime: promptTemplateRuntime,
     globalVariables: readPromptTemplateGlobalVariables,
-    scanText: scriptPromptScanText,
-    filterCandidates: input => worldbookFilter(input)
+    scanText: scriptPromptScanText
   })
   ctx.effect(() => () => projectBuiltinWorldbook.dispose())
   const worldbookStrategies = createWorldbookStrategies({
@@ -2088,7 +2083,7 @@ export async function apply(ctx) {
   })
   void branchOrigin.sweep().catch(error => console.warn('dsh-tavern: 检查旧分支会话头部失败', error?.message || error))
   const runtimePresetSnapshots = new Map()
-  const BACKGROUND_TOOLS = [...WORLD_BOOK_FILTER_TOOLS, POSTURE_SUBMIT_TOOL, CHARACTER_DESIGN_READ_TOOL, CHARACTER_DESIGN_SAVE_TOOL, CHARACTER_DESIGN_REUSE_TOOL, MVU_SUBMIT_UPDATE_TOOL, CANDIDATE_SUBMIT_TOOL, SCRIPT_READ_TOOL, SCRIPT_POINT_TOOL, LEDGER_SUBMIT_TOOL]
+  const BACKGROUND_TOOLS = [POSTURE_SUBMIT_TOOL, CHARACTER_DESIGN_READ_TOOL, CHARACTER_DESIGN_SAVE_TOOL, CHARACTER_DESIGN_REUSE_TOOL, MVU_SUBMIT_UPDATE_TOOL, CANDIDATE_SUBMIT_TOOL, SCRIPT_READ_TOOL, SCRIPT_POINT_TOOL, LEDGER_SUBMIT_TOOL]
   const backgroundAgentRunner = createBackgroundAgentRunner({
     retirement: backgroundRetirement,
     // The browser's session list keeps a disposed subagent as an idle row until the list is
@@ -2116,13 +2111,6 @@ export async function apply(ctx) {
     needsNewBackgroundSession: async sessionId => {
       const chat = await backgroundConfigForSession(sessionId)
       return chat?.backgroundSessionStatus === 'needs-session'
-    },
-    resolveForegroundWorldbookReads: async input => {
-      if (!['settlement', 'candidate', 'character-design'].includes(input.task)) return ''
-      // The latest reply's turn and the regeneration map: the header and the latest floors.
-      const chat = await chatHeaderWithLatestFloors(input.sessionId, 3)
-      const session = agentRegistry.get(input.sessionId)?.session || sessionStore.get(input.sessionId)
-      return foregroundWorldbookReads(chat, session)
     },
     resolveCurrentWorldbook: async function (input) {
       if (input.preparedWorldbook !== undefined) return input.preparedWorldbook
@@ -2166,14 +2154,6 @@ export async function apply(ctx) {
       })
     }
   })
-  const worldbookFilter = createWorldbookFilter({
-    runAgent: input => backgroundAgentRunner.run(input), selection: backgroundModelSelection,
-    // The caller's bounded snapshot (header and recent floors) is reused, as settlement does.
-    beginTask: chat => backgroundTasks.begin(chat, 'worldbook-filter', { reuseSnapshot: true })
-  })
-  // Retrieval and style association belong to the active foreground turn.
-  // Retain the cancellation adapter for old pending preparation paths only.
-  const worldbookPrefilter = createWorldbookPrefilter({ run: async () => {} })
   // A regenerated reply (no foreground end of its own) or one the pre-review has not read yet.
   turnSettled.subscribe(({ latest }) => { if (latest) return polishPrereview.start(latest.sessionId) })
 
@@ -2182,9 +2162,7 @@ export async function apply(ctx) {
     if (event?.type !== 'user/message' || event.surfaceOp !== 'append' || event.data?.source?.kind !== 'user' || event.data.source.repair) return
     if (!session?.id || backgroundAgentRunner.owns(session.id)) return
     polishPrereview.cancel(session.id)
-    void readSessionMap().then(links => { const chatId = links[str(session.id)]; if (chatId) return worldbookPrefilter.cancel(chatId) }).catch(() => {})
   })
-  ctx.effect(() => () => worldbookPrefilter.dispose())
   // Store a preference; the foreground chooses its reference when it next writes.
   async function retryStyleReference(sessionId, { guidance = '' } = {}) {
     const chat = await chatForSession(str(sessionId))
@@ -2683,8 +2661,7 @@ export async function apply(ctx) {
   const backgroundTasks = createBackgroundTaskCoordinator({
     store: { readChat, writeChat, updateChat, patchChat, readState: chatPersistence.readSessionState, readRecoveryState: taskStateReader.read, readSlice: chatPersistence.readSlice, readSettlementCheckpoint: chatPersistence.readSettlementCheckpoint },
     timeline: storyTimeline,
-    blocked: function (chat) { return Boolean(autoCompaction?.blocked(chat)) },
-    preempt: async (chatId, role) => { if (role !== 'worldbook-filter' && role !== 'style-reference') await worldbookPrefilter.cancel(chatId) }
+    blocked: function (chat) { return Boolean(autoCompaction?.blocked(chat)) }
   })
   const configuredCompactionEngines = new WeakSet()
   const overflowingCompactions = new Set()
@@ -3037,55 +3014,11 @@ export async function apply(ctx) {
     if (selected && ['story', 'script'].includes(selected.chat.mode || 'story') && selected.chat.requestMode !== 'sillytavern') return normalizeChat(selected.chat)
     return chatId === undefined ? chatForSession(sessionId) : readChat(chatId)
   }
-  async function prepareNextWorldBookContext(snapshot, signal) {
-    const turn = settlementTurn(snapshot)
-    const inspected = storyTimeline.inspect({ chat: snapshot })
-    if (snapshot.preparedWorldBook && Number(snapshot.preparedWorldBook.revision) === Number(inspected.revision)) return snapshot
-    let prepared = null
-    let error = null
-    try {
-      const card = await readChatCard(snapshot)
-      const worldBook = await playWorldBook(snapshot, card)
-      prepared = prepareWorldBookRecall({ turn, chat: snapshot, card, worldBook, activationRequests: worldBook?.pluginActivationRequests })
-    } catch (caught) {
-      error = str(caught && caught.message || caught)
-      prepared = prepareWorldBookRecall({ turn, chat: snapshot, card: null, worldBook: null })
-    }
-    const context = error === null ? str(prepared.context).trim() : ''
-    const preparedWorldBook = {
-      schemaVersion: 2,
-      diagnostics: compactRecallDiagnostics(prepared.diagnostics),
-      ts: Date.now(),
-      turn,
-      branchId: inspected.branchId,
-      revision: inspected.revision,
-      mode: error === null ? str(prepared.kind) : 'error',
-      refs: error === null ? prepared.refs : [],
-      totalChars: Number(prepared.totalChars) || 0,
-      contextChars: Array.from(context).length,
-      empty: error !== null || context === '',
-      failed: error !== null
-    }
-    const fields = { preparedWorldBookContext: context, preparedWorldBook, worldBookError: error, lastWorldBookRecall: { ...preparedWorldBook } }
-    signal?.throwIfAborted()
-    // Unchanged since the snapshot: patch only these header fields instead of
-    // rewriting and diffing the complete history.
-    const saved = Number.isSafeInteger(snapshot._storageRevision) && await patchChat(snapshot.id, snapshot._storageRevision,
-      Object.entries(fields).map(([key, value]) => ({ op: 'set', path: [key], value })), { source: 'worldbook.projection' })
-    if (saved) return Object.assign(snapshot, fields, { _storageRevision: saved._storageRevision, updatedAt: saved.updatedAt })
-    const latest = await readChat(snapshot.id)
-    if (latest === undefined) return null
-    const current = storyTimeline.inspect({ chat: latest })
-    if (current.branchId !== inspected.branchId || Number(current.revision) !== Number(inspected.revision)) return latest
-    Object.assign(latest, structuredClone(fields))
-    await writeChat(latest, { source: 'worldbook.projection' })
-    return latest
-  }
   const mvuSettlementEngine = createMvuSettlementEngine({ mvuSettlement, mvuUpdateRules, backgroundModelSelection, postureItem, tavernScriptDispatch,
     pluginApi, readPendingTurn: gameId => pluginTurns.readPendingTurn(gameId) })
   const plainSettlementEngine = createPlainSettlementEngine({ pluginApi, pluginSettlementProgress, settlementItems, backgroundModelSelection, postureItem, backgroundAgentRunner, agentRegistry, sessionStore })
   const settlementRun = createSettlementRun({
-    backgroundTasks, chatPersistence, readChat, writeChat, readChatCard, taskStateReader, worldBookScanDepth, prepareNextWorldBookContext,
+    backgroundTasks, chatPersistence, readChat, writeChat, readChatCard, taskStateReader, worldBookScanDepth,
     mvuSettlementEngine, plainSettlementEngine, pluginApi, pluginSettlementProgress, agentRegistry, turnSettled
   })
   const { startPluginTask } = settlementRun
@@ -3100,7 +3033,7 @@ export async function apply(ctx) {
     settlementJobs.dispose()
   }, 'dsh-tavern: reconcile deferred MVU settlement')
   const { stopBackground, retrySettlement, pullBackgroundCycle } = createSettlementControls({
-    chatForSession, readOpeningWindow, projectOpeningWindow, view, readChatCard, backgroundTasks, worldbookPrefilter, storyTimeline,
+    chatForSession, readOpeningWindow, projectOpeningWindow, view, readChatCard, backgroundTasks, storyTimeline,
     patchChat, writeChat, queueSettlement, cancelSettlement, mvuSettlementEngine, pluginApi, backgroundAgentRunner
   })
   // ---------- 卡片工作台：剧本素材与新卡创建 ----------
@@ -3227,7 +3160,6 @@ export async function apply(ctx) {
   const { reconcileStory, reconcileWhenIdle, repairNativeStory } = storyReconciliation
   const foregroundHandoff = createForegroundHandoff({
     turns: turnOrchestrator,
-    prepareOpeningWorldBook: prepareNextWorldBookContext,
     store: { chatForSession, readChat, readState: taskStateReader.read, stateForSession: taskStateReader.forSession, openingStateForSession },
     tasks: backgroundTasks,
     queueBackground: queueSettlement,
@@ -3238,8 +3170,6 @@ export async function apply(ctx) {
       if (turn === undefined) return directorJobs.cancel(sessionId, { wait: false })
     },
     waitBackground: chatId => Promise.all([settlementJobs.pending(chatId), settlementRun.pluginTaskJob(chatId)]),
-    prefilterWorldbook: chatId => worldbookPrefilter.start(chatId),
-    cancelPrefilter: chatId => worldbookPrefilter.cancel(chatId),
     waitReconcile: storyReconciliation.waitReconcile,
     syncWorldBook: async function (chat) {
       if (!['story', 'script'].includes(chat.mode || 'story')) return
@@ -3363,7 +3293,6 @@ export async function apply(ctx) {
     sessions: { get: id => ctx.get('agents')?.get(id), flush: session => sessionStore.flush(session) },
     timeline: storyTimeline,
     activity: chat => backgroundTasks.activity(chat),
-    cancelPreparation: chatId => worldbookPrefilter.cancel(chatId),
     beforeReplyEdit: sessionId => castPresentation.beforeEdit(sessionId),
     project: async (text, chat) => {
       const extensions = await readCardExtensions(chat.cardPath, chat)
@@ -3455,8 +3384,6 @@ export async function apply(ctx) {
           .sort((left, right) => left.name.localeCompare(right.name))
       } catch { return [] }
     },
-    // Unloaded sessions recall after their next reply.
-    onStyleEnabled: (sessionId, chatId) => { if (agentRegistry.get(sessionId)?.session) void worldbookPrefilter.start(chatId) }
   })
 
   const fontLibrary = createFontLibrary({ dataRoot })
