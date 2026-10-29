@@ -2805,7 +2805,8 @@ export async function apply(ctx) {
     const id = payload.agent.session.id, background = backgroundAgentRunner.requestContext(id)
     // Every model step asks: the header's mode answers it.
     const chat = background ? null : await chatHeaderForSession(id, [])
-    if (chat && ['story', 'script'].includes(chat.mode)) await retireOldForegroundFrames(payload.agent, payload.turn)
+    // Keep historical turn frames byte-stable during normal generation. Retire
+    // scaffolding only at an explicit compaction boundary, never before each step.
     if (background && background.task === 'phone') return next()
     if (background || chat && ['story', 'script'].includes(chat.mode)) {
       const engine = await configureAgentCompaction(payload.agent)

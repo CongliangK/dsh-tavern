@@ -76,7 +76,10 @@ export function registerRequestHooks({
       chat,
       requestId: requestIdForMessages(payload.messages)
     })
-    const recovered = await appendWorldbookRecovery({ chat, payload, decision: prepared, project: projectWorldbookRecovery })
+    // prepareStep may render and persist a newer worldbook state. Restoring the
+    // pre-prepare header would append stale content after the fresh delta.
+    const recoveryChat = projectWorldbookRecovery ? await chatForSession(sessionId) : chat
+    const recovered = await appendWorldbookRecovery({ chat: recoveryChat, payload, decision: prepared, project: projectWorldbookRecovery })
     const withChanges = appendVariableChanges({ chat, payload, decision: recovered })
     try { return await cardMemory.appendRecall({ chat, payload, decision: withChanges }) }
     catch (error) { console.warn('[Tavern card memory] recall unavailable:', error.message); return withChanges }
