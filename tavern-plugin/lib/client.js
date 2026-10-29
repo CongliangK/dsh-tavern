@@ -23906,19 +23906,19 @@ function createUpdateStatusController({ call, confirm, errors, browser, initial 
 						})));
 				}));
 		}
-		// 顶部视图标签（对话 / 轨迹 / 完整上下文 / 画廊 / 精修对比）：设置决定
+		// 顶部视图标签（对话 / 轨迹 / 完整上下文 / 画廊 / 精修）：设置决定
 		// 显示哪些、按什么顺序。「对话」由宿主注册，始终保留在最前，不能移除。
 		// 标签行由宿主渲染，这里只给每个标签按钮设置 order / display。
 		const TAVERN_VIEW_TAB_RESIDENT = "chat";
 		const TAVERN_VIEW_TAB_ITEM_LIMIT = 24;
-		const TAVERN_VIEW_TABS_DEFAULT = Object.freeze({ items: Object.freeze(["chat", "trajectory", "dsh-tavern:full-context", "dsh-tavern:gallery", "dsh-tavern:polish"]) });
+		const TAVERN_VIEW_TABS_DEFAULT = Object.freeze({ items: Object.freeze(["chat", "trajectory", "dsh-tavern:gallery", "dsh-tavern:polish"]) });
 		// 槽位就绪前设置页也能列出这些标签；就绪后用槽位里的实际名称覆盖。
 		const TAVERN_VIEW_TAB_KNOWN = Object.freeze([
 			Object.freeze({ id: "chat", label: "对话", locked: true }),
 			Object.freeze({ id: "trajectory", label: "轨迹" }),
 			Object.freeze({ id: "dsh-tavern:full-context", label: "完整上下文" }),
 			Object.freeze({ id: "dsh-tavern:gallery", label: "画廊" }),
-			Object.freeze({ id: "dsh-tavern:polish", label: "精修对比" })
+			Object.freeze({ id: "dsh-tavern:polish", label: "精修" })
 		]);
 
 		// 读取统一的可见清单：「对话」缺失时补上，排在后面时挪回首位。
@@ -24183,11 +24183,11 @@ function createUpdateStatusController({ call, confirm, errors, browser, initial 
 			return h("section", { className: "dsh-tavern-view-tabs", "aria-label": "顶部标签" },
 				h("div", { className: "dsh-tavern-settings-copy" },
 					h("strong", { className: "dsh-tavern-settings-title" }, "顶部标签"),
-					h("p", { className: "dsh-tavern-settings-desc" }, "决定会话上方「对话 / 轨迹 / 完整上下文 / 画廊 / 精修对比」这排标签显示哪些、按什么顺序。「对话」始终显示并排在最前，不能移除。")),
+					h("p", { className: "dsh-tavern-settings-desc" }, "决定会话上方「对话 / 轨迹 / 完整上下文 / 画廊 / 精修」这排标签显示哪些、按什么顺序。「对话」始终显示并排在最前，不能移除。")),
 				h("ul", { className: "dsh-tavern-view-tab-list" }, items.map(row)),
 				h("div", { className: "dsh-tavern-view-tab-catalog" },
 					h("strong", { className: "dsh-tavern-settings-title" }, "可添加的标签"),
-					h("p", { className: "dsh-tavern-settings-desc" }, "移除的标签会到这里，点一下加回末尾；手机端默认显示全部 5 个，放不下时可左右滑动。"),
+					h("p", { className: "dsh-tavern-settings-desc" }, "移除的标签会到这里，点一下加回末尾；默认显示对话、轨迹、画廊和精修；完整上下文可按需添加。手机端放不下时可左右滑动。"),
 					h("div", { className: "dsh-tavern-view-tab-chips" },
 						addable.length
 							? addable.map(entry => h("button", { key: entry.id, type: "button", className: "dsh-tavern-view-tab-chip", disabled: busy, onClick: function () { void toggle(entry.id); } },
@@ -30523,7 +30523,7 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
                 return interactions.regenerateBody(panel, guidance, { restyle: styleEnabled && restyle, styleGuidance });
             }
             // 精修: like a regeneration, the panel waits and closes once the polished reply is in;
-            // the comparison and its undo live on the 精修对比 page.
+            // the comparison and its undo live on the 精修 page.
             async function runPolish() {
                 setReviewing(true); setReviewNote("");
                 try {
@@ -30543,7 +30543,7 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
             }
 			return h(RegenGuideForm, {
 				title: "重新生成正文",
-				hint: "不填意见是重新来一次；填了意见就在当前正文基础上改；精修：按原则直接改好，填了意见会在精修后再照意见改一次，对比和撤销在「精修对比」页",
+				hint: "不填意见是重新来一次；填了意见就在当前正文基础上改；精修：按原则直接改好，填了意见会在精修后再照意见改一次，对比和撤销在「精修」页",
 				loading: reviewing ? "正在精修正文… " + reviewSeconds + " 秒" + (reviewProgress?.edits?.length ? " · 已修 " + reviewProgress.edits.length + " 处" : "") : panel.phase === "loading" ? (panel.restyle ? "正在换文风联想并重新生成…" : panel.rewrite ? "正在按意见改写正文…" : "正在重新生成正文…") : "",
 				loadingExtra: reviewing && reviewProgress?.edits?.length ? h("div", { className: "dsh-tavern-settings-desc", role: "status" },
                     h("p", null, "逐处生成中，完成后统一保存："),
@@ -30559,7 +30559,7 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
 				placeholder: "指导意见（可选）",
 				examples: ["写得更长", "侧重心理描写", "加快节奏"],
 				submitLabel: "生成并替换正文",
-				secondary: { label: "精修", title: "按「正文精修原则」审读当前正文，直接改掉问题（一句到整段）；填了指导意见，精修后再只照意见改一次；不重新生成；前后对比、撤销和「后台预审」开关在顶部「精修对比」页", disabled: reviewing, onClick: runPolish },
+				secondary: { label: "精修", title: "按「正文精修原则」审读当前正文，直接改掉问题（一句到整段）；填了指导意见，精修后再只照意见改一次；不重新生成；前后对比、撤销和「后台预审」开关在顶部「精修」页", disabled: reviewing, onClick: runPolish },
 				onSubmit: generate,
 				onCancel: function () { setRegenPanel(null); }
 			});
@@ -32825,7 +32825,7 @@ function createTurnRailFilter(root, options) {
                 request ? h("p", { className: "dsh-context-footnote" }, "发送时的上下文快照 · 供应商协议转换前 · 消息顺序保持不变") : null
             );
 		}
-		// 精修对比: the latest 精修 of this game, original and polished text side by side, each change
+		// 精修: the latest 精修 of this game, original and polished text side by side, each change
 		// numbered and coloured with its reason. Shown while that turn still holds the polished text.
 		// Pointing at a change shows its reason and lights up the same change in the other column.
 		function tavernPolishParagraphs(segments, side, hover) {
@@ -32918,7 +32918,7 @@ function createTurnRailFilter(root, options) {
 						: "开启后，每轮正文写完就在后台审稿，点「精修」不用再等；每轮多一次模型调用。关闭时点「精修」才开始审稿，要等半分钟到一分钟。")),
 					h("input", { type: "checkbox", role: "switch", "aria-label": "后台预审", checked: prereview, disabled: !current || saving, onChange: function (event) { void togglePrereview(event.target.checked); } })),
 				h("header", { className: "dsh-context-header" },
-					h("div", null, h("h3", null, "精修对比"),
+					h("div", null, h("h3", null, "精修"),
 						h("p", null, !current ? "读取中…" : comparison
 							? "第 " + comparison.turn + " 轮 · 改了 " + comparison.count + " 处" + (comparison.seconds ? " · 用时 " + comparison.seconds + " 秒" : "") + " · " + new Date(comparison.at).toLocaleString()
 							: current.error ? "读取失败" : "最近一次精修")),
@@ -32961,9 +32961,9 @@ function createTurnRailFilter(root, options) {
             }, SceneImageGallery)), "dsh-tavern: picture gallery");
             ctx.effect(() => slots.inject("conversation.view", () => slots.register({
                 name: "conversation.view", id: "dsh-tavern:polish", order: 13,
-                label: "精修对比", inject: sessionId => ({ polishSessionId: sessionId })
+                label: "精修", inject: sessionId => ({ polishSessionId: sessionId })
             }, PolishComparisonView)), "dsh-tavern: polish comparison");
-            // 顶部标签（对话/轨迹/完整上下文/画廊/精修对比）的设置：设置页读这份
+            // 顶部标签（对话/轨迹/完整上下文/画廊/精修）的设置：设置页读这份
             // 目录，标签行由 installTavernViewTabLayout 按保存的顺序显示或隐藏。
             ctx.effect(function () {
                 const publish = function () { tavernViewTabCatalog.publish(tavernViewTabEntries(slots)); };
