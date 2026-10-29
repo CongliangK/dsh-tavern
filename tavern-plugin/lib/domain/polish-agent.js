@@ -51,7 +51,7 @@ export function createPolishReviewer({ latestFloors, readCard, prompt, runAgent,
     const chat = await latestFloors(sessionId, 4)
     const card = await readCard(chat.cardPath).catch(() => undefined) || chat.cardDefinitionSnapshot?.raw?.data || chat.cardDefinitionSnapshot?.raw
     const context = polishReviewContext(chat.messages)
-    const floor = chat.messages.length - 1
+    const floor = (Number.isSafeInteger(chat.messageCount) ? chat.messageCount : chat.messages.length) - 1
     const body = texts.join('\n\n')
     if (!body.trim()) throw new Error('这轮没有可精修的正文')
     const principles = text(prompt('polish')).trim(), instructions = text(prompt('polish-guidance')).trim()

@@ -4,6 +4,7 @@ import { createPolishDraft, createPolishReviewer, POLISH_TOOLS } from '../tavern
 import { applyPolishEdits } from '../tavern-plugin/lib/domain/polish-review.js'
 import { prompt } from '../tavern-plugin/lib/prompt-catalog.js'
 import { createPlayHandlers } from '../tavern-plugin/lib/rpc/play.js'
+import { createChatReads } from '../tavern-plugin/lib/domain/chat-reads.js'
 
 test('逐处修改校验、重试、去重和完成；按原文坐标应用，不误改替换结果', () => {
   const texts = ['甲。乙。', '重复。重复。']
@@ -60,6 +61,25 @@ test('跨轮与重启复用精修历史，system/tools 稳定，每轮只追加�
   assert.match(f.calls[1].text, /未应用精修草稿/)
   assert.match(f.calls[1].text, /丙。丁。/)
   assert.equal(f.saved.complete, true)
+})
+
+test('真实存储的密集尾窗保留绝对楼层，跨轮不误判成同轮重生成', async () => {
+  const f = fixture()
+  f.chat = { ...f.chat, sessionId: 'parent', messages: [{ role: 'user', text: '前一轮输入' }, ...f.chat.messages] }
+  let count = 120
+  const reads = createChatReads({ links: async () => ({ parent: 'game' }), whole: () => { throw Error('不应读取全量历史') },
+    persistence: { readSlice: async (_id, indices) => ({ chat: { ...f.chat, messages: indices.map(index => f.chat.messages[index - count + 4]) }, messageCount: count }) } })
+  f.options.latestFloors = (id, size) => reads.latestFloors(id, size, { includePosition: true })
+  const reviewer = createPolishReviewer(f.options)
+  await reviewer.review('parent', ['甲。乙。'])
+  assert.equal(f.saved.floor, 119)
+  f.chat.messages = [f.chat.messages[2], f.chat.messages[3], { role: 'user', text: '继续' }, { role: 'assistant', text: '丙。丁。' }]
+  count = 122
+  await reviewer.review('parent', ['丙。丁。'])
+  assert.equal(f.saved.floor, 121)
+  assert.equal(f.calls[1].id, f.calls[0].id)
+  assert.doesNotMatch(f.calls[1].text, /补充前文|甲。乙。/)
+  assert.match(f.calls[1].text, /上一轮实际采用/)
 })
 
 test('意见修改复用同一 Agent，草稿与实际正文区别明确', async () => {
