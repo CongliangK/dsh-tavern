@@ -41,7 +41,7 @@ test('removing whole book revokes old knowledge in one notice; titles cannot flo
   assert.equal(p.messages.length,1)
   assert.equal(input.content[0].text,'继续')
   assert.equal(p.agent.session.events.length,0)
-  p.agent.session.append('user/message',structuredClone(input)); p.messages=[]
+  p.agent.session.append('user/message',structuredClone(p.messages[0])); p.messages=[]
   assert.equal(appendWorldbookSkillChanges(p,a),null)
   const b=snapshot('b',[entry('1','new')])
   const notice=appendWorldbookSkillChanges(p,b)
@@ -52,4 +52,21 @@ test('removing whole book revokes old knowledge in one notice; titles cannot flo
   p.agent.session.append('user/message',notice)
   const restarted=payload(structuredClone(p.agent.session.events))
   assert.equal(appendWorldbookSkillChanges(restarted,b),null)
+})
+
+test('switching an existing session to retrieval accepts immutable host messages without mutating history', () => {
+  const original = Object.freeze({ id:'old-save-input', role:'user', content:Object.freeze([{type:'text',text:'继续'}]), source:Object.freeze({kind:'user',trace:'original'}) })
+  const p=payload();p.messages.push(original)
+  const a=snapshot('first-retrieval',[entry('1','body')])
+  assert.doesNotThrow(()=>appendWorldbookSkillChanges(p,a))
+  assert.equal(original.source.worldbookSkills,undefined)
+  assert.equal(p.messages.length,1)
+  assert.notEqual(p.messages[0],original)
+  assert.equal(p.messages[0].id,original.id)
+  assert.equal(p.messages[0].content,original.content)
+  assert.equal(p.messages[0].source.trace,'original')
+  assert.equal(p.messages[0].source.worldbookSkills,a)
+  p.agent.session.append('user/message',p.messages[0])
+  const resumed=payload(structuredClone(p.agent.session.events))
+  assert.equal(appendWorldbookSkillChanges(resumed,a),null)
 })

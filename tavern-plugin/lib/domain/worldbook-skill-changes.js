@@ -18,7 +18,12 @@ export function appendWorldbookSkillChanges(payload, snapshot) {
   // Initial discovery needs only a durable baseline, not another prompt.
   if (!previous) {
     const carrier = [...pending].reverse().find(message => message.role === 'user' && !message.source?.worldbookSkills)
-    if (carrier) { carrier.source = { ...carrier.source, worldbookSkills: snapshot }; return null }
+    if (carrier) {
+      // Native inbox/history messages may be frozen. Enrich a new envelope,
+      // preserving the original message identity and content for host persistence.
+      pending[pending.indexOf(carrier)] = { ...carrier, source: { ...carrier.source, worldbookSkills: snapshot } }
+      return null
+    }
   }
   const lines = previous ? ['【世界书资料更新】'] : []
   const describe = (label, entries) => {
