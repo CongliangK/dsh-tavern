@@ -1,3 +1,4 @@
+import { createSkillTextContext } from './domain/skill-text-context.js'
 import { resolveWorldbookSkillChat } from './domain/worldbook-skill-scope.js'
 import { appendWorldbookSkillChanges } from './domain/worldbook-skill-changes.js'
 // Must stay first: it has to run before anything loads jsdom.
@@ -530,6 +531,7 @@ export async function apply(ctx) {
     }
     return files
   }
+  const skillTextContext = createSkillTextContext(ctx)
   const tavernSkills = createTavernSkillModule({
     directory: dataRoot + '/skills',
     builtInDirectory: sourceRoot + '/presets/tavern/skills',
@@ -585,7 +587,7 @@ export async function apply(ctx) {
   skillRegistry.registerProvider(control => {
     invalidateTavernSkills = () => control.invalidate()
     const providers = [
-      new FileSystemSkillProvider(ctx, control, { providerName: 'tavern-interactive-files', includeDefaultRoots: false, customSkillDirs: [dataRoot + '/skills'], bundledSkillDir: sourceRoot + '/presets/tavern/skills' }),
+      new FileSystemSkillProvider(skillTextContext, control, { providerName: 'tavern-interactive-files', includeDefaultRoots: false, customSkillDirs: [dataRoot + '/skills'], bundledSkillDir: sourceRoot + '/presets/tavern/skills' }),
       new FileSystemSkillProvider(ctx, control, { providerName: 'tavern-background-files', includeDefaultRoots: false, bundledSkillDir: sourceRoot + '/presets/tavern-background/skills' })
     ]
     skillHost = { control, providers }
