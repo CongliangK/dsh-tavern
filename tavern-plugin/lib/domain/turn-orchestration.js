@@ -466,6 +466,7 @@ export function createTurnOrchestrator(options) {
     source.worldBook.templateRefs = Array.isArray(templateWorldBook && templateWorldBook.refs) ? clone(templateWorldBook.refs) : []
     if (foregroundWorldBook?.virtualState) source.worldBook.virtualWorldbook = {
       scope: foregroundWorldBook.virtualState.scope,
+      texts: Object.fromEntries((foregroundWorldBook.changedVirtualRefs || []).map(ref => [ref, foregroundWorldBook.virtualState.entries[ref]?.contextText ?? foregroundWorldBook.virtualState.entries[ref]?.text])),
       entries: Object.fromEntries((foregroundWorldBook.changedVirtualRefs || []).map(ref => [ref, foregroundWorldBook.virtualState.entries[ref]?.renderHash]))
     }
     source.worldBook.templateDiagnostics = Array.isArray(templateWorldBook && templateWorldBook.diagnostics) ? clone(templateWorldBook.diagnostics) : []

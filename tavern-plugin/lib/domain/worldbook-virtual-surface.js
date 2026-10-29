@@ -1,3 +1,4 @@
+import { visibleWorldbookEntries } from './worldbook-context-delta.js'
 import { sessionEvents } from './session-events.js'
 import { isProducerSource } from './message-source.js'
 
@@ -20,6 +21,10 @@ export function virtualWorldbookRestoreRefs(session, state) {
       const snapshot = state.entries[ref]
       if (marker.entries?.[ref] === snapshot.renderHash && text.includes(snapshot.contextText ?? snapshot.text)) missing.delete(ref)
     }
+  }
+  const live = visibleWorldbookEntries(session, state.scope)
+  for (const ref of missing) {
+    if (live.get(ref)?.text === (state.entries[ref]?.contextText ?? state.entries[ref]?.text)) missing.delete(ref)
   }
   return [...missing]
 }

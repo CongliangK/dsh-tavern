@@ -85,3 +85,70 @@ test('empty renders restore their withdrawal marker, not the formerly rendered f
   assert.deepEqual(virtualWorldbookRestoreRefs(session([message('first', '晴天', 'sun')]), current), ['first', 'second'])
   assert.deepEqual(virtualWorldbookRestoreRefs(session([message('first', '[first withdrawn]', 'empty')]), current), ['second'])
 })
+
+test('small entry edits append deltas while preserving base messages and restoration evidence', () => {
+  const adapter = createForegroundFrameSessionAdapter({ id: () => crypto.randomUUID() })
+  const scope = 'test-card', messages = []
+  const body = value => '# 通用规则\n' + '不变的世界规则。\n'.repeat(100) + '\n关系：' + value + '\n结尾规则。'
+  const append = value => {
+    const text = body(value), frame = { kind: 'foreground', frameId: 'frame-' + value, contributions: [{ slot: 'activeWorldbook', text }], source: { worldBook: { virtualWorldbook: { scope, entries: { a: value }, texts: { a: text } } } } }
+    const before = JSON.stringify(messages)
+    const result = adapter.append({ frame, step: 1, messages: [], session: session(messages) }).messages
+    assert.equal(JSON.stringify(messages), before, 'never mutate historical cache prefix')
+    messages.push(...result)
+    return result[0].content[0].text
+  }
+  assert.match(append('19'), /不变的世界规则/)
+  const delta = append('22')
+  assert.match(delta, /旧段落：\n关系：19\n新段落：\n关系：22/)
+  assert.doesNotMatch(delta, /不变的世界规则/)
+  append('25')
+  const current = { schemaVersion: 1, scope, entries: { a: { text: body('25'), renderHash: '25' } } }
+  assert.deepEqual(virtualWorldbookRestoreRefs(session(messages), current), [])
+  assert.deepEqual(virtualWorldbookRestoreRefs(session(messages.slice(1)), current), ['a'], 'missing base restores full body')
+  assert.deepEqual(virtualWorldbookRestoreRefs(session([messages[0], messages[2]]), current), ['a'], 'missing intermediate update restores full body')
+  messages.splice(1)
+  assert.match(append('26'), /关系：19/, 'rewind uses live base, not future state')
+})
+
+test('fixed platform rules persist once while current state and card tail instructions remain per turn', () => {
+  const adapter = createForegroundFrameSessionAdapter({ id: () => crypto.randomUUID() })
+  const frame = id => ({ kind: 'foreground', frameId: id, contributions: [
+    { slot: 'writingRules', text: '固定写作原则', source: { stage: 'context-plan', sectionKind: 'base' } },
+    { slot: 'currentStateProjection', text: '当前现场' },
+    { slot: 'writingRules', text: '卡片尾部指令', source: { stage: 'context-plan', sectionKind: 'card-instruction' } }
+  ] })
+  const first = adapter.append({ frame: frame('one'), step: 1, messages: [] }).messages
+  const second = adapter.append({ frame: frame('two'), step: 1, messages: [], session: session(first) }).messages
+  const text = JSON.stringify(second.map(m => m.content))
+  assert.doesNotMatch(text, /固定写作原则/)
+  assert.match(text, /当前现场/)
+  assert.match(text, /卡片尾部指令/)
+  const restored = adapter.append({ frame: frame('three'), step: 1, messages: [], session: session(first.slice(1)) }).messages
+  assert.match(JSON.stringify(restored.map(m => m.content)), /固定写作原则/)
+})
+
+test('delta falls back for ambiguous edits, insertions and markup; isolated cards never borrow a base', async () => {
+  const { worldbookContextDelta } = await import('../tavern-plugin/lib/domain/worldbook-context-delta.js')
+  const base = '# 规则\n' + '稳定内容\n'.repeat(100) + '重复行\n重复行\n<state>旧</state>'
+  const marker = { scope: 'one', texts: { a: base } }
+  const first = worldbookContextDelta(null, marker, base)
+  const history = [{ content: [{ type: 'text', text: first.text }], source: { kind: 'plugin:dsh-tavern', virtualWorldbook: marker, worldbookEntrySnapshots: first.records } }]
+  for (const next of [base.replace('重复行', '新行'), base + '\n新增', base.replace('<state>旧</state>', '<state>新</state>')]) {
+    assert.equal(worldbookContextDelta(null, { scope: 'one', texts: { a: next } }, next, history).text, next)
+  }
+  const next = base.replace('# 规则', '# 新规则')
+  assert.equal(worldbookContextDelta(null, { scope: 'other', texts: { a: next } }, next, history).text, next)
+})
+
+test('fixed rule changes append a replacement and retries preserve existing messages byte for byte', () => {
+  const adapter = createForegroundFrameSessionAdapter({ id: () => crypto.randomUUID() })
+  const frame = (id, text) => ({ kind: 'foreground', frameId: id, contributions: [{ slot: 'writingRules', text, source: { stage: 'context-plan', sectionKind: 'base' } }] })
+  const one = adapter.append({ frame: frame('one', '旧原则'), step: 1, messages: [] }).messages
+  const before = JSON.stringify(one)
+  const two = adapter.append({ frame: frame('two', '新原则'), step: 1, messages: one }).messages
+  assert.equal(JSON.stringify(one), before)
+  assert.equal(two.length, 2)
+  assert.match(two[1].content[0].text, /新原则/)
+  assert.deepEqual(adapter.append({ frame: frame('two', '新原则'), step: 1, messages: two }).messages, two)
+})
