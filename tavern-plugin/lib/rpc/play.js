@@ -1,6 +1,6 @@
 import { setAllFailedErrorVisibility, setFailedErrorVisibility } from '../domain/failed-error-visibility.js'
 import { sessionEvents } from '../domain/session-events.js'
-import { applyPolishEdits } from '../domain/polish-review.js'
+import { applyPolishEdits, composePolishEdits } from '../domain/polish-review.js'
 import { randomUUID } from 'node:crypto'
 
 // In-game play, turn editing, compaction and background settlement requests.
@@ -152,26 +152,33 @@ export function createPlayHandlers(deps) {
     async retryStyleReference(args) {
       return { styleReference: await retryStyleReference(args?.sessionId, { target: 'next', guidance: args?.guidance }) }
     },
-    // One model call, with either principles or explicit guidance; save once for comparison/undo.
+    // 精修: apply the review of the latest reply (the background pre-review when it read this
+    // text, a review now otherwise); with guidance, a second edit then follows only the guidance.
+    // Both land as one body edit; the record keeps the original for the comparison and its undo.
     async polishBody(args) {
       const sessionId = str(args?.sessionId), guidance = str(args?.guidance).trim(), started = Date.now()
       await reconcileStory(sessionId)
       const edit = await bodyEditor.read(sessionId)
       const texts = edit.parts.filter(part => part.kind === 'text').map(part => part.text)
       polishPrereview.settle(sessionId, texts)
-      if (guidance) polishPrereview.cancel(sessionId)
-      const review = guidance ? await polishReviewer.guide(sessionId, texts, guidance)
-        : await polishPrereview.take(sessionId, texts) || await polishReviewer.review(sessionId, texts)
+      const review = await polishPrereview.take(sessionId, texts) || await polishReviewer.review(sessionId, texts)
       const chosen = review.edits.filter(item => item.status === 'ok')
       if (review.fallback) return { edits: review.edits, guidance: review.fallback, view: null }
-      const edits = review.edits
-      if (!chosen.length) return { edits, guidance: '', view: null }
-      const polished = applyPolishEdits(texts, chosen)
+      const reviewed = chosen.length ? applyPolishEdits(texts, chosen) : texts
+      let guided = [], polished = reviewed, edits = review.edits
+      if (guidance) {
+        const followed = await polishReviewer.guide(sessionId, reviewed, guidance)
+        if (followed.fallback && !chosen.length) return { edits: [], guidance: followed.fallback, view: null }
+        guided = followed.edits.filter(item => item.status === 'ok')
+        if (guided.length) polished = applyPolishEdits(reviewed, guided)
+        edits = [...review.edits, ...followed.edits]
+      }
+      if (!chosen.length && !guided.length) return { edits, guidance: '', view: null }
       const view = await bodyEditor.save(sessionId, { token: edit.token, texts: polished })
       polishPrereview.settle(sessionId, polished)
       notifyPluginTimeline(sessionId, 'edit', { settled: true })
       // The record backs the 精修对比 page and its undo; one that cannot be kept never fails the 精修.
-      const recorded = chosen
+      const recorded = guided.length ? composePolishEdits(texts.join('\n\n'), chosen, guided) : chosen
       await polishRecords.save(sessionId, edit.turn, { original: texts, edits: recorded, seconds: Math.round((Date.now() - started) / 1000) })
         .catch(error => console.warn('dsh-tavern: 精修记录保存失败', error))
       return { edits, view }
