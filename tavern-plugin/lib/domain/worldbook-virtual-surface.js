@@ -1,5 +1,4 @@
-import { visibleWorldbookEntries } from './worldbook-context-delta.js'
-import { sessionEvents } from './session-events.js'
+import { visibleWorldbookEntries, visibleContextMessages } from './worldbook-context-delta.js'
 import { isProducerSource } from './message-source.js'
 
 /** Compare each latest snapshot with evidence still present on the native surface.
@@ -7,14 +6,11 @@ import { isProducerSource } from './message-source.js'
  * all derive the same answer from the model-visible messages. Metadata alone is
  * insufficient: the snapshot body must still be present, not only a summary.
  */
-export function virtualWorldbookRestoreRefs(session, state) {
+export function virtualWorldbookRestoreRefs(session, state, pending = []) {
   if (state?.schemaVersion !== 1 || !state.entries) return []
   const missing = new Set(Object.keys(state.entries).filter(ref => (state.entries[ref]?.contextText ?? state.entries[ref]?.text)))
-  const events = new Map(sessionEvents(session).map(event => [event.seq, event]))
-  for (const seq of session?.surface?.nodes || []) {
-    const event = events.get(seq)
-    if (event?.type !== 'user/message') continue
-    const message = event.data, source = message?.source, marker = source?.virtualWorldbook
+  for (const message of visibleContextMessages(session, pending)) {
+    const source = message?.source, marker = source?.virtualWorldbook
     if (!isProducerSource(source, 'dsh-tavern') || marker?.scope !== state.scope) continue
     const text = (message.content || []).filter(block => block.type === 'text').map(block => block.text).join('')
     for (const ref of missing) {
@@ -22,7 +18,7 @@ export function virtualWorldbookRestoreRefs(session, state) {
       if (marker.entries?.[ref] === snapshot.renderHash && text.includes(snapshot.contextText ?? snapshot.text)) missing.delete(ref)
     }
   }
-  const live = visibleWorldbookEntries(session, state.scope)
+  const live = visibleWorldbookEntries(session, state.scope, pending)
   for (const ref of missing) {
     if (live.get(ref)?.text === (state.entries[ref]?.contextText ?? state.entries[ref]?.text)) missing.delete(ref)
   }

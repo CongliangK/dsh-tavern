@@ -3626,6 +3626,7 @@ export async function apply(ctx) {
   })
 
   registerRequestHooks({
+    projectWorldbookRecovery: async (chat, options) => nativeWorldBookTemplateContext(chat, await readChatCard(chat), options),
     backgroundAgentRunner,
     cardMemory,
     chatForSession: hookChatForSession,

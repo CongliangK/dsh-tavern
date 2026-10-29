@@ -48,7 +48,7 @@ test('native request prefix preserves original whitespace without modifying pers
   assert.equal(fixed[0].text, 'stale')
 })
 
-test('actual system assembly hook passes missing snapshots, leaves history untouched, and excludes background', async () => {
+test('system assembly excludes dynamic recovery and stays byte-identical across dynamic updates', async () => {
   const { registerTurnLifecycleHooks } = await import('../tavern-plugin/lib/hooks/turn-lifecycle.js')
   const hooks = new Map(), calls = []
   const nativeSession = { id: 'game', ...session([message('first', '晴天', 'sun')]) }
@@ -63,17 +63,19 @@ test('actual system assembly hook passes missing snapshots, leaves history untou
     foregroundStrategies: { assembleSystemPrompt: async (assembly, options) => ({ ...assembly, sections: options.fixedSystemSections }) },
     nativeWorldBookTemplateContext: async (_chat, _card, options) => {
       calls.push(options)
-      return { prefixContext: '  STATIC EXACT\n\n港口开放' }
+      return { prefixContext: '  STATIC EXACT\n\n' }
     }
   })
   const initial = structuredClone(nativeSession)
   const assemble = hooks.get('system-prompt/assemble')
   const result = await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
-  assert.deepEqual(calls[0], { restoreRefs: ['second'] })
-  assert.match(result.sections[0].text, /  STATIC EXACT\n\n港口开放/)
+  assert.deepEqual(calls[0], { restore: false })
+  assert.match(result.sections[0].text, /  STATIC EXACT\n\n/)
   assert.deepEqual(nativeSession, initial)
-  await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
-  assert.deepEqual(calls[1], { restoreRefs: ['second'] }, 'request-only recovery survives subsequent requests')
+  chat.worldBookVirtualState.entries.second = { text: '港口关闭', renderHash: 'closed' }
+  const changed = await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
+  assert.deepEqual(changed.sections, result.sections, 'dynamic state cannot rewrite the provider system prefix')
+  assert.deepEqual(calls[1], { restore: false }, 'dynamic recovery never enters the system prefix')
   background = true
   await assemble({}, { agent: { session: nativeSession } }, async () => ({ sections: [] }))
   assert.equal(calls.length, 2)
@@ -151,4 +153,28 @@ test('fixed rule changes append a replacement and retries preserve existing mess
   assert.equal(two.length, 2)
   assert.match(two[1].content[0].text, /新原则/)
   assert.deepEqual(adapter.append({ frame: frame('two', '新原则'), step: 1, messages: two }).messages, two)
+})
+
+test('missing dynamic context restores at the message tail and retries use pending evidence', async () => {
+  const { appendWorldbookRecovery } = await import('../tavern-plugin/lib/hooks/request.js')
+  const current = state(), native = session([])
+  const chat = { worldbookStrategy: 'native-skills', worldBookVirtualState: current }
+  const input = { role: 'user', content: [{ type: 'text', text: '继续' }] }
+  const decision = { kind: 'enter', messages: [input] }
+  const before = JSON.stringify(native)
+  const project = async (_chat, options) => {
+    assert.deepEqual(options.restoreRefs, ['first', 'second'])
+    return { snapshots: '晴天\n\n港口开放' }
+  }
+  const payload = { agent: { session: native } }
+  const result = await appendWorldbookRecovery({ chat, payload, decision, project })
+  assert.equal(JSON.stringify(native), before)
+  assert.equal(result.messages[0], input)
+  assert.equal(result.messages[1].source.form, 'worldbook-recovery')
+  assert.match(result.messages[1].content[0].text, /港口开放/)
+  assert.equal(await appendWorldbookRecovery({ chat, payload, decision: result, project: () => assert.fail('already pending') }), result)
+  const persisted = session(result.messages)
+  assert.deepEqual(virtualWorldbookRestoreRefs(persisted, current), [])
+  persisted.surface.nodes = [0]
+  assert.deepEqual(virtualWorldbookRestoreRefs(persisted, current), ['first', 'second'])
 })
