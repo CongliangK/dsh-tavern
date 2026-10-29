@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "b27d0db6a0d4bf5c640bf937c76072235e2d8d43",
-  "releaseSequence": 965,
+  "revision": "7b10d9f25edc755ed891aac9e07c15afa8a602ed",
+  "releaseSequence": 966,
   "version": "3.1.0",
   "files": [
     {
@@ -2866,8 +2866,8 @@
     },
     {
       "path": "tavern-plugin/lib/domain/worldbook-skill-changes.js",
-      "sha256": "1669cdc55a73efb0f819308ee68187f47e258d3b59013aa48d945269233b4fcf",
-      "size": 3112
+      "sha256": "f95b4a523d6c0eca869e00973ef11ba100e6cbfbf92c57eb6d431be3d8609590",
+      "size": 3331
     },
     {
       "path": "tavern-plugin/lib/domain/worldbook-skill-cluster-worker.js",
@@ -5151,9 +5151,9 @@
     }
   ],
   "archive": {
-    "commit": "3ac565c7d066ed87e10ba7277da9f28a474f33f4",
+    "commit": "000f89dc925056416f95469a80b874a5cbcd42e4",
     "path": "runtime.zip",
-    "sha256": "4ab75223e4ff9a7de048629c87ef44443064b4f3c1d6171c938a6b22dd67dfb4",
-    "size": 10558129
+    "sha256": "3cecf1124dbb5bb483face344c00b8f0b21792b0b2768c9318afb12beda34713",
+    "size": 10558223
   }
 }
