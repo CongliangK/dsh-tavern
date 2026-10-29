@@ -1,3 +1,4 @@
+import { worldbookTitleHints } from './worldbook-title-hints.js'
 import { classifyWorldbookEntry, hasWorldbookPreprocessingSyntax } from './worldbook-entry-classification.js'
 import { currentVirtualState, virtualEntryVersion, virtualDependencyHash, virtualHash, virtualScope, virtualDependencyHasDynamicValue } from './worldbook-virtual-state.js'
 import { promptOrder } from './worldbook-activation.js'
@@ -249,7 +250,8 @@ async function projectMandatoryWorldbook({ worldBook, sourceEntries, chat, card,
         if (contextText && previous?.renderHash !== renderHash) changed.push({ ...output, ref: entry.ref, text: contextText, renderHash })
       }
       const refs = changed.filter(output => !original.get(output.ref)?.constant).map(output => output.ref)
-      const context = changed.map(output => output.text).join('\n\n')
+      const hints = worldbookTitleHints({ worldBook: { ...worldBook, view: { ...worldBook?.view, entries: (worldBook?.view?.entries || []).filter(entry => classify(entry).kind === 'static-skill') } }, chat, turn, userText, userTextInHistory, scanText, random: entryRandom(virtualHash([executionSeed, requestKey]), 'title-hints') })
+      const context = [changed.map(output => output.text).join('\n\n'), hints].filter(Boolean).join('\n\n')
       return { ...projected, context, foregroundContext: context, prefixContext: staticPrefix, staticPrefix, virtualState, changedVirtualRefs: changed.filter(output => classify(original.get(output.ref) || {}).dynamic).map(output => output.ref), renderedEntries: changed, refs, reads: { ...chat.worldBookReads },
         randomState: { ...randomState, seed: executionSeed, outputs: { ...randomState.outputs, ...Object.fromEntries(projected.renderedEntries
           .filter(output => hasWorldbookRandom(original.get(output.ref)?.content)).map(output => [output.ref, output.text])) } },

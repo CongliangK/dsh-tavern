@@ -32,7 +32,8 @@ test('static constants preserve exact body and are refreshed outside message his
   const f = fixture([entry('a', '  exact\r\nbody  '), entry('b', 'secret', false, { primaryKeys: ['secret'] })])
   const first = await f.run('one', 'secret')
   assert.equal(first.staticPrefix, '  exact\r\nbody  ')
-  assert.equal(first.context, '')
+  assert.match(first.context, /可能相关的世界书条目/)
+  assert.doesNotMatch(first.context, /secret/)
   assert.deepEqual(f.chat.messages, [])
   f.worldBook.view.entries[0].content = 'edited'
   assert.equal(projectVirtualWorldbookPrefix(f.worldBook, f.chat).staticPrefix, 'edited')
@@ -68,16 +69,23 @@ test('native side-effect controller and random output execute once across conver
   assert.equal(calls, 2)
   assert.match(next.context, /sample-2/)
 })
-test('dynamic optional entries retain native conditions while static entries do not keyword trigger', async () => {
+test('dynamic entries retain native conditions while static keywords produce title-only hints every round', async () => {
   let calls = 0
   const f = fixture([entry('dynamic', '<%= weather %>', false, { primaryKeys: ['weather'] }), entry('static', 'secret', false, { primaryKeys: ['weather'] })], async () => {
     calls++; return { ok: true, text: 'weather output', scopes: {} }
   })
   assert.equal((await f.run('one', 'nothing')).context, '')
   assert.equal(calls, 0)
-  assert.equal((await f.run('two', 'weather')).context, 'weather output')
+  const second = await f.run('two', 'weather')
+  assert.match(second.context, /^weather output/)
+  assert.match(second.context, /条目 static/)
+  assert.doesNotMatch(second.context, /secret/)
+  assert.deepEqual(second.reads, {})
   assert.equal(calls, 1)
-  assert.equal((await f.run('three', 'weather')).context, '')
+  const third = await f.run('three', 'weather')
+  assert.match(third.context, /可能相关的世界书条目/)
+  assert.doesNotMatch(third.context, /weather output|secret/)
+  assert.deepEqual(third.changedVirtualRefs, [])
   assert.equal(calls, 2)
   f.worldBook.view.entries[0].enabled = false
   assert.equal(projectVirtualWorldbookPrefix(f.worldBook, f.chat).snapshots, '')
