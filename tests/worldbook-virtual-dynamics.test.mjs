@@ -372,3 +372,15 @@ test('runtime controllers keep their injected and restored output while display 
   assert.match(prefix, /CONTROLLER RULE/)
   assert.doesNotMatch(prefix, /PRIVATE DATA/)
 })
+
+test('mvu_plot is an audience label, not evidence of executable code', async () => {
+  const { isWorldbookRuntimeEntry } = await import('../tavern-plugin/lib/domain/worldbook-entry-classification.js')
+  const plain = { enabled: true, constant: false, comment: '[mvu_plot]地方志', content: '# 地方志\n河口有渡船。' }
+  assert.equal(classifyWorldbookEntry(plain).kind, 'static-skill')
+  assert.equal(isWorldbookRuntimeEntry(plain), false)
+  assert.equal(classifyWorldbookEntry({ ...plain, constant: true }).kind, 'dynamic-constant', 'preserve constant delivery and existing system prefix')
+  for (const extra of [{ content: '<% setvar("a", 1) %>' }, { comment: '[mvu_update]结算' }, { comment: '[mvu_other]未知规则' }]) {
+    assert.equal(classifyWorldbookEntry({ ...plain, ...extra }).dynamic, true)
+    assert.equal(isWorldbookRuntimeEntry({ ...plain, ...extra }), true)
+  }
+})

@@ -33,12 +33,12 @@ export function appendWorldbookSkillChanges(payload, snapshot) {
   }
   if (initialDynamic.length) {
     describe('动态快照已就绪', initialDynamic)
-    lines.push('需要时用 worldbook_grep 或 worldbook_list 查找，再用 read 读取；快照是最近一次运行时渲染结果，检索不会执行代码。')
+    lines.push('动态快照已可检索，读取不会执行代码。')
   }
   if (previous) {
     describe('新增', added); describe('改写', changed); describe('撤回资料', removed)
-    lines.push('上述改写条目的旧正文已失效；撤回项可能已删除、停用或渲染为空，不得继续把历史读取内容当作当前资料。需要这些信息时调用 worldbook_grep 或 worldbook_list 获取当前文件；动态快照按需读取；常驻注入和结算规则仍由运行时处理。')
-    if (previous.directory !== snapshot.directory) lines.push('资料目录已切换版本，旧绝对路径不再适用于本局；请调用 worldbook_list 或 worldbook_grep 重新定位，勿猜测新路径。')
+    lines.push('改写、撤回项的旧资料失效；需要时重新检索。')
+    if (previous.directory !== snapshot.directory) lines.push('目录已变，旧绝对路径不再适用；用 worldbook_grep 或 worldbook_list 重新定位。')
   }
   const message = { id: `tavern-worldbook-skills:${snapshot.version}:${randomUUID()}`, role: 'user', content: lines.length ? [{ type: 'text', text: lines.join('\n') }] : [],
     source: { kind: 'plugin:dsh-tavern', worldbookSkills: snapshot } }

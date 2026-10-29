@@ -12,5 +12,5 @@ export function worldbookTitleHints(input) {
   if (!titles.length) return ''
   const shown = titles.slice(0, 12).map(title => title.slice(0, 80))
   return '【可能相关的世界书条目】\n' + shown.join('；') + (titles.length > shown.length ? `（另有 ${titles.length - shown.length} 个匹配条目未列出）` : '') +
-    '\n以上仅为关键词匹配的查阅提醒，不是已读取的设定，也不是搜索范围限制。按需用 worldbook_grep 搜索、read 读取；可继续搜索其他条目。'
+    '\n仅为标题提醒，尚未读取；不是搜索范围限制。'
 }
