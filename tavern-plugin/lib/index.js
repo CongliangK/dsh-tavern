@@ -96,7 +96,7 @@ import { createServerTemplateSync } from './domain/server-template-sync.js'
 import { createServerTemplateRuntime } from './domain/server-template-runtime.js'
 import { createWorldbookFilter, WORLD_BOOK_FILTER_TOOLS } from './domain/worldbook-filter.js'
 import { createWorldbookPrefilter } from './domain/worldbook-prefilter.js'
-import { createStyleReferenceRecall, STYLE_REFERENCE_SUBMIT_TOOL } from './domain/style-reference.js'
+import { createForegroundStyleReferenceTool, foregroundStyleReferencePrompt, rememberStyleReference } from './domain/style-reference.js'
 import { adoptConversationFeatures, adoptConversationBackground } from './domain/conversation-background.js'
 import { clearLegacyTavernDefault } from './domain/legacy-agent-default.js'
 import { conversationStateAtTurn, conversationForkBoundary } from './domain/conversation-fork-point.js'
@@ -2088,7 +2088,7 @@ export async function apply(ctx) {
   })
   void branchOrigin.sweep().catch(error => console.warn('dsh-tavern: 检查旧分支会话头部失败', error?.message || error))
   const runtimePresetSnapshots = new Map()
-  const BACKGROUND_TOOLS = [...WORLD_BOOK_FILTER_TOOLS, POSTURE_SUBMIT_TOOL, CHARACTER_DESIGN_READ_TOOL, CHARACTER_DESIGN_SAVE_TOOL, CHARACTER_DESIGN_REUSE_TOOL, MVU_SUBMIT_UPDATE_TOOL, CANDIDATE_SUBMIT_TOOL, SCRIPT_READ_TOOL, SCRIPT_POINT_TOOL, LEDGER_SUBMIT_TOOL, STYLE_REFERENCE_SUBMIT_TOOL]
+  const BACKGROUND_TOOLS = [...WORLD_BOOK_FILTER_TOOLS, POSTURE_SUBMIT_TOOL, CHARACTER_DESIGN_READ_TOOL, CHARACTER_DESIGN_SAVE_TOOL, CHARACTER_DESIGN_REUSE_TOOL, MVU_SUBMIT_UPDATE_TOOL, CANDIDATE_SUBMIT_TOOL, SCRIPT_READ_TOOL, SCRIPT_POINT_TOOL, LEDGER_SUBMIT_TOOL]
   const backgroundAgentRunner = createBackgroundAgentRunner({
     retirement: backgroundRetirement,
     // The browser's session list keeps a disposed subagent as an idle row until the list is
@@ -2171,46 +2171,13 @@ export async function apply(ctx) {
     // The caller's bounded snapshot (header and recent floors) is reused, as settlement does.
     beginTask: chat => backgroundTasks.begin(chat, 'worldbook-filter', { reuseSnapshot: true })
   })
-  const styleReferenceRecall = createStyleReferenceRecall({
-    runAgent: input => backgroundAgentRunner.run(input), selection: backgroundModelSelection,
-    beginTask: chat => backgroundTasks.begin(chat, 'style-reference', { reuseSnapshot: true }),
-    systemPrompt: () => runtimePrompt('style-reference-recall')
-  })
-  // After each reply, prepare what that reply brings into the next turn, so sending never
-  // waits for a model: the worldbook pool (usually below the threshold, no request at all),
-  // then the experimental style reference. A new send cancels both.
-  const worldbookPrefilter = createWorldbookPrefilter({
-    run: (chatId, signal) => wholeReads.scope('回复后预备', () => prepareAfterReply(chatId, signal))
-  })
-  turnSettled.subscribe(({ chatId, latest }) => { if (latest) return worldbookPrefilter.start(chatId) })
+  // Retrieval and style association belong to the active foreground turn.
+  // Retain the cancellation adapter for old pending preparation paths only.
+  const worldbookPrefilter = createWorldbookPrefilter({ run: async () => {} })
   // A regenerated reply (no foreground end of its own) or one the pre-review has not read yet.
   turnSettled.subscribe(({ latest }) => { if (latest) return polishPrereview.start(latest.sessionId) })
 
-  // The replies each game prepared for (round and version, the latest few). Tavern's own
-  // turns — a rollback, a body edit, a repair — end like replies but bring no new one:
-  // preparing again would only rewrite the save (and void the rollback's undo point).
-  const preparedReplies = new Map()
-  async function prepareAfterReply(chatId, signal) {
-    const chat = await storyContext({ chatId })
-    if (!chat || !['story', 'script'].includes(chat.mode || 'story') || chat.requestMode === 'sillytavern' || chat.regenInProgress) return
-    const latest = chat.messages?.at(-1)
-    if (latest?.role !== 'assistant' || latest.greeting === true || backgroundTasks.activity(chat).busy) return
-    if (backgroundModelSelection(chat) === null) return
-    const reply = latest.turn + ':' + (Number(latest.swipeId) || 0), prepared = preparedReplies.get(chatId) || []
-    if (prepared.includes(reply)) return
-    preparedReplies.set(chatId, [...prepared, reply].slice(-16))
-    const card = await readChatCard(chat)
-    signal.throwIfAborted()
-    await projectForegroundWorldbook({ chat, card, userText: '', purpose: 'prefilter', signal })
-      .catch(error => { if (signal.aborted) throw error; console.warn('dsh-tavern: 世界书预筛失败，下一轮按关键词与预算注入:', str(error?.message || error)) })
-    if ((chat.mode || 'story') !== 'story' || chat.backgroundTasks?.styleReference !== true) return
-    signal.throwIfAborted()
-    await styleReferenceRecall({ chat: await storyContext({ chatId }), signal })
-      .catch(error => { if (signal.aborted) throw error; console.warn('dsh-tavern: 文风联想失败，下一轮不带参考:', str(error?.message || error)) })
-  }
-  // What the prefilter prepares (worldbook pool, style reference) serves the reply the player
-  // has just answered: abort it the moment their message lands, not when the new turn's
-  // preparation reaches its cancel. Tavern's own edit turns carry no player message.
+  // A new player input still cancels any optional independent polish pre-review.
   ctx.on('session/event', function (session, event) {
     if (event?.type !== 'user/message' || event.surfaceOp !== 'append' || event.data?.source?.kind !== 'user' || event.data.source.repair) return
     if (!session?.id || backgroundAgentRunner.owns(session.id)) return
@@ -2218,24 +2185,13 @@ export async function apply(ctx) {
     void readSessionMap().then(links => { const chatId = links[str(session.id)]; if (chatId) return worldbookPrefilter.cancel(chatId) }).catch(() => {})
   })
   ctx.effect(() => () => worldbookPrefilter.dispose())
-  // A player asking for another passage, optionally saying what they want. 'next' replaces the
-  // reference waiting for the next turn; 'regenerate' re-recalls the one the latest turn used,
-  // just before that turn is regenerated.
-  async function retryStyleReference(sessionId, { target = 'next', guidance = '' } = {}) {
-    const header = await chatForSession(str(sessionId))
-    if (!header || (header.mode || 'story') !== 'story') throw new Error('文风联想只用于自由模式')
-    if (header.backgroundTasks?.styleReference !== true) throw new Error('请先在本局设置里开启文风联想')
-    if (agentRegistry.get(header.sessionId)?.phase?.kind === 'running' || header.regenInProgress) throw new Error('前台正在生成，请完成后再换参考')
-    await worldbookPrefilter.cancel(header.id)
-    if (target === 'regenerate') await cancelSettlement(header.id)
-    else if (backgroundTasks.activity(header).busy) throw new Error('后台结算中，请稍后再换参考')
-    const base = target === 'regenerate' ? 'previous' : 'latest'
-    // The background agent runs off the foreground session: load it when the page has not yet.
-    if (!agentRegistry.get(header.sessionId)?.session) await agentRegistry.resume({ resumeSessionId: header.sessionId })
-    let chat = await storyContext({ chatId: header.id })
-    // The bounded read may stop short of the reply before the latest one.
-    if (base === 'previous' && (chat.messages || []).filter(message => message?.role === 'assistant').length < 2) chat = await readChat(header.id)
-    return await styleReferenceRecall({ chat, signal: new AbortController().signal, base, guidance: str(guidance).slice(0, 500), retry: true })
+  // Store a preference; the foreground chooses its reference when it next writes.
+  async function retryStyleReference(sessionId, { guidance = '' } = {}) {
+    const chat = await chatForSession(str(sessionId))
+    if (!chat || (chat.mode || 'story') !== 'story' || chat.backgroundTasks?.styleReference !== true) throw Error('请先开启本局文风联想')
+    if (agentRegistry.get(chat.sessionId)?.phase?.kind === 'running' || chat.regenInProgress) throw Error('前台正在生成，请完成后再修改文风要求')
+    await updateChatHeader(chat.id, ['styleReferenceGuidance'], current => ({ ...current, styleReferenceGuidance: str(guidance).slice(0, 500) || '请换一种贴合当前场景的笔调参考。' }), { source: 'foreground.style-guidance' })
+    return null
   }
   const publishCharacterDesign = createCharacterDesignPublisher({ worldBooks, readCard })
   const characterDesignDocuments = createCharacterDesignDocumentTools({
@@ -2610,7 +2566,7 @@ export async function apply(ctx) {
     settingsChanged: (gameId, plugin) => sessionSignals.publish(gameId, { kind: 'plugin-settings', version: plugin + ':' + Date.now() + ':' + Math.random().toString(36).slice(2) }),
     // A plugin published new state for its page side (tavernUi.watchState re-reads it).
     publishState: (gameId, plugin, name) => sessionSignals.publish(gameId, { kind: 'plugin-state:' + plugin + ':' + name, version: Date.now() + ':' + Math.random().toString(36).slice(2) }),
-    reservedToolNames: [...BACKGROUND_TOOLS, HISTORY_RECALL_TOOL].map(tool => tool?.name).concat([STORY_SUBMIT_TOOL_NAME, STAGE_UPDATE_TOOL.name, 'character_design_finish', 'worldbook_search', 'web_search', 'web_fetch', 'tavern_research', 'skill']).filter(Boolean),
+    reservedToolNames: [...BACKGROUND_TOOLS, HISTORY_RECALL_TOOL].map(tool => tool?.name).concat(['style_reference_submit', STORY_SUBMIT_TOOL_NAME, STAGE_UPDATE_TOOL.name, 'character_design_finish', 'worldbook_search', 'web_search', 'web_fetch', 'tavern_research', 'skill']).filter(Boolean),
     media: pluginMedia,
     data: pluginData,
     pluginData: pluginDataStore,
@@ -3716,10 +3672,11 @@ export async function apply(ctx) {
   }
 
   const skillGatedTools = createSkillGatedTools()
-  const controlledToolNames = new Set([STORY_SUBMIT_TOOL_NAME, 'tavern_read_variables', 'worldbook_list', 'worldbook_grep', ...CARD_MEMORY_TOOLS, 'bash', 'pwsh', ...dshFileToolNames, 'skill', 'tavern_read_skill_reference', 'web_search', 'web_fetch', 'tavern_research', 'tavern_save_skill', ...cordisToolNames, 'tavern_user_profile_read', 'tavern_user_profile_save', 'tavern_user_profile_confirm', 'tavern_read_card', 'tavern_read_card_raw', 'tavern_search_card', 'tavern_replace_card_text', 'tavern_mvu_overview', 'tavern_apply_mvu', 'tavern_read_play_chat', 'tavern_read_script', 'tavern_recall_history', 'worldbook_search', 'tavern_read_worldbook', 'tavern_update_worldbook', 'tavern_read_preset', 'tavern_update_preset', 'tavern_read_regex_library', 'tavern_copy_card', 'tavern_set_card_cover', 'tavern_export_card_png', 'tavern_update_card', 'tavern_restore_card', 'tavern_validate_card', 'tavern_test_response'])
+  const controlledToolNames = new Set(['style_reference_submit', STORY_SUBMIT_TOOL_NAME, 'tavern_read_variables', 'worldbook_list', 'worldbook_grep', ...CARD_MEMORY_TOOLS, 'bash', 'pwsh', ...dshFileToolNames, 'skill', 'tavern_read_skill_reference', 'web_search', 'web_fetch', 'tavern_research', 'tavern_save_skill', ...cordisToolNames, 'tavern_user_profile_read', 'tavern_user_profile_save', 'tavern_user_profile_confirm', 'tavern_read_card', 'tavern_read_card_raw', 'tavern_search_card', 'tavern_replace_card_text', 'tavern_mvu_overview', 'tavern_apply_mvu', 'tavern_read_play_chat', 'tavern_read_script', 'tavern_recall_history', 'worldbook_search', 'tavern_read_worldbook', 'tavern_update_worldbook', 'tavern_read_preset', 'tavern_update_preset', 'tavern_read_regex_library', 'tavern_copy_card', 'tavern_set_card_cover', 'tavern_export_card_png', 'tavern_update_card', 'tavern_restore_card', 'tavern_validate_card', 'tavern_test_response'])
   const foregroundStrategies = createForegroundOrchestrationStrategies({
     nativePlay: {
       // Input side: replay past bodies as calls of the submission tool.
+      styleReferencePrompt: chat => foregroundStyleReferencePrompt(chat, runtimePrompt('style-reference-recall'), runtimePrompt('style-reference')),
       historyToolCall: async () => (await readTavernSettings()).storyInputToolCall,
       // Output side: whether a new body must be submitted through the tool.
       storyOutputToolCall: async () => (await readTavernSettings()).storyOutputToolCall,
@@ -3850,6 +3807,11 @@ export async function apply(ctx) {
         return settings.storyInputToolCall === true || settings.storyOutputToolCall === true
       },
       isBackground: function (sessionId) { return backgroundAgentRunner.owns(sessionId) }
+    })))
+    tools.register(defineTool(createForegroundStyleReferenceTool({
+      chatForSession,
+      isBackground: sessionId => backgroundAgentRunner.owns(sessionId),
+      save: (chat, reference, turn) => updateChatHeader(chat.id, ['styleReferences'], current => ({ ...current, styleReferences: rememberStyleReference(current.styleReferences, reference, turn) }), { source: 'foreground.style-reference' })
     })))
     registerGameplayTools({
       activeTurnOf,

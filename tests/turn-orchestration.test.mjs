@@ -426,3 +426,13 @@ test('tool visibility reads worldbook strategy from bounded header', async () =>
   for (const tool of ['read', 'worldbook_list', 'worldbook_grep']) assert.ok(names.includes(tool))
   assert.equal(names.includes('worldbook_search'), false)
 })
+
+
+test('style association is a switchable foreground tool without draft or polish tools', async () => {
+  const on = harness('story', { chatFields: { backgroundTasks: { styleReference: true }, worldbookStrategy: 'native-skills' } })
+  const names = await on.orchestrator.visibleTools('session-1')
+  for (const name of ['style_reference_submit', 'worldbook_grep', 'worldbook_list', 'read', 'tavern_recall_history']) assert.ok(names.includes(name), name)
+  assert.ok(!names.some(name => /polish|draft/.test(name)))
+  assert.ok(!(await harness('story').orchestrator.visibleTools('session-1')).includes('style_reference_submit'))
+  assert.ok(!(await harness('script', { chatFields: { backgroundTasks: { styleReference: true } } }).orchestrator.visibleTools('session-1')).includes('style_reference_submit'))
+})

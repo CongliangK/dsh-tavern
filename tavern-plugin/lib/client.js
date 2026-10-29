@@ -24773,7 +24773,7 @@ function createUpdateStatusController({ call, confirm, errors, browser, initial 
                     // Same names and order as 功能 in 本局设置, where each game changes them later.
                     h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                         toggle("variables", "变量结算", "MVU 卡建议开启；普通卡不执行此任务。", true), toggle("posture", "人物姿势", "总结本轮结束时人物的位置、动作和姿势。", true),
-                        toggle("styleReference", "文风联想", "仅自由模式。每轮后台凭记忆摘一段风格相近的小说原文，供下一轮正文借鉴笔调。多一次后台请求。", true),
+                        toggle("styleReference", "文风联想", "仅自由模式。前台写正文前，结合本轮场景联想一段笔调参考；与写作共享上下文，不另开后台任务。", true),
                         toggle("webSearchEnabled", "联网搜索", "允许新游戏的前台和后台按需搜索。")),
                     message ? h("p", { role: "status" }, message) : null);
             }
@@ -30051,7 +30051,7 @@ function createConversationSettingsModule({
             h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,
                 toggle("posture", "人物姿势", "每轮总结人物的位置、动作和姿势，供前台保持一致。", tasks.posture, checked => ({ backgroundTasks: { posture: checked } })),
-                toggle("styleReference", "文风联想", "仅自由模式。每轮后台凭记忆摘一段风格相近的小说原文，供下一轮正文借鉴笔调。多一次后台请求。", tasks.styleReference === true, checked => ({ backgroundTasks: { styleReference: checked } })),
+                toggle("styleReference", "文风联想", "仅自由模式。前台写正文前，结合本轮场景联想一段笔调参考；与写作共享上下文，不另开后台任务。", tasks.styleReference === true, checked => ({ backgroundTasks: { styleReference: checked } })),
                 toggle("webSearchEnabled", "联网搜索", "前台和后台可按需搜索。", features.webSearchEnabled, checked => ({ webSearchEnabled: checked }))),
             error || key && reasoning.key === key && reasoning.error ? h("p", { role: "alert", className: "dsh-tavern-prompt-error" }, error || reasoning.error) : null,
             notice ? h("p", { role: "status" }, notice) : null,
@@ -31714,15 +31714,15 @@ function createTurnRailFilter(root, options) {
                     view.styleReferenceEnabled && view.styleReference ? h("section", { className: "dsh-tavern-status-section dsh-tavern-style-section" },
                         // Only the source and the passage's opening show; the passage opens on click, the retry input on demand.
                         h("div", { className: "dsh-tavern-style-head" },
-                            h("div", { className: "dsh-tavern-status-label" }, "下一轮文风联想"),
+                            h("div", { className: "dsh-tavern-status-label" }, "最近一次文风联想"),
                             view.styleReference.book ? h("span", { className: "dsh-tavern-style-source", title: "《" + view.styleReference.book + "》" + (view.styleReference.author || "") }, "《" + view.styleReference.book + "》" + (view.styleReference.author || "")) : null,
-                            styleEditing ? null : h("button", { type: "button", className: "dsh-tavern-style-retry", disabled: styleBusy || running || view.regenInProgress, onClick: () => setStyleEditing(true) }, styleBusy ? "正在换…" : "换一段")),
+                            styleEditing ? null : h("button", { type: "button", className: "dsh-tavern-style-retry", disabled: styleBusy || running || view.regenInProgress, onClick: () => setStyleEditing(true) }, styleBusy ? "保存中…" : "设置下轮偏好")),
                         h("blockquote", { className: "dsh-tavern-style-reference" + (styleExpanded ? " is-expanded" : ""), title: styleExpanded ? "点击收起" : "点击展开全文", onClick: () => setStyleExpanded(value => !value) }, view.styleReference.quote),
                         styleEditing ? h("div", { className: "dsh-tavern-guide-add" },
-                            h("textarea", { className: "dsh-tavern-regen-input", rows: 2, maxLength: 500, autoFocus: true, value: styleDraft, "aria-label": "换参考的要求", placeholder: "要求（可选），例如：要金庸的打斗描写；不要鲁迅", onChange: event => setStyleDraft(event.target.value) }),
+                            h("textarea", { className: "dsh-tavern-regen-input", rows: 2, maxLength: 500, autoFocus: true, value: styleDraft, "aria-label": "下轮文风偏好", placeholder: "要求（可选），例如：要金庸的打斗描写；不要鲁迅", onChange: event => setStyleDraft(event.target.value) }),
                             h("div", { className: "dsh-tavern-style-actions" },
                                 h("button", { type: "button", className: "dsh-tavern-style-retry", disabled: styleBusy, onClick: () => { setStyleEditing(false); setStyleDraft(""); } }, "取消"),
-                                h("button", { className: "dsh-card-primary", disabled: styleBusy || running || view.regenInProgress, onClick: retryStyleReference }, styleBusy ? "正在换…" : "换一段"))) : null,
+                                h("button", { className: "dsh-card-primary", disabled: styleBusy || running || view.regenInProgress, onClick: retryStyleReference }, styleBusy ? "保存中…" : "设置下轮偏好"))) : null,
                         styleError ? h("div", { className: "dsh-card-error", role: "alert" }, styleError) : null) : null,
 					h("section", { className: "dsh-tavern-status-section dsh-tavern-guide-section" },
 						h("div", { className: "dsh-tavern-status-label" }, "Guide", h("span", { className: "dsh-tavern-guide-caption" }, (view.guides || []).length + " 条")),

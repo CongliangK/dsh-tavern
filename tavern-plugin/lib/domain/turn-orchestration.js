@@ -13,7 +13,6 @@ import { diffJson } from './json-mutation.js'
 import { hasTavernCredit, withTavernCredit } from './card-credit.js'
 import { STORY_SUBMIT_TOOL_NAME, storyToolCallEnabled } from './story-tool-submission.js'
 import { normalizeDisabledForegroundTools } from './foreground-tools.js'
-import { styleReferenceFor } from './style-reference.js'
 import { variableUpdateFor } from './variable-update.js'
 import { replyProse } from './reply-prose.js'
 
@@ -454,7 +453,7 @@ export function createTurnOrchestrator(options) {
       chat.lastWorldBookRecall = clone(chat.preparedWorldBook)
       chat.worldBookError = foregroundWorldBook.error
     }
-    const plan = await planner.plan({ purpose: 'body', card, chat: templateWorldBook?.macroState ? { ...chat, macroState: templateWorldBook.macroState } : chat, userText: runtimeUserText, sessionId: input.sessionId, nativeTurn: turn, scriptReference, styleReference: mode === 'story' ? styleReferenceFor(chat) : null, variableUpdate: variableUpdateFor(chat), worldBookContext,
+    const plan = await planner.plan({ purpose: 'body', card, chat: templateWorldBook?.macroState ? { ...chat, macroState: templateWorldBook.macroState } : chat, userText: runtimeUserText, sessionId: input.sessionId, nativeTurn: turn, scriptReference, styleReference: null, variableUpdate: variableUpdateFor(chat), worldBookContext,
       dialogueSpeakers: typeof options.dialogueSpeakers === 'function' ? await options.dialogueSpeakers({ sessionId: input.sessionId, chat, card }) : null })
     // Seam to the plugin layer; it never throws and drops a failing plugin's part.
     const pluginSections = typeof options.pluginTurnContext === 'function'
@@ -905,7 +904,7 @@ export function createTurnOrchestrator(options) {
 
   async function visibleTools(sessionId) {
     // Every model call asks: mode, the web-search switch and the disabled tools live in the header.
-    const chat = store.headerForSession ? await store.headerForSession(sessionId, ['mode', 'webSearchEnabled', 'disabledForegroundTools', 'worldbookStrategy'])
+    const chat = store.headerForSession ? await store.headerForSession(sessionId, ['mode', 'webSearchEnabled', 'disabledForegroundTools', 'worldbookStrategy', 'backgroundTasks'])
       : await (store.stateForSession || store.chatForSession)(sessionId)
     if (chat === undefined || chat === null) return []
     const mode = chat.mode || 'story'
@@ -923,6 +922,7 @@ export function createTurnOrchestrator(options) {
     const names = mode === 'script'
       ? ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_read_script', 'tavern_recall_history', ...worldbookTools, ...webTools, ...storyTools]
       : ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_recall_history', ...worldbookTools, ...webTools, ...storyTools]
+    if (mode === 'story' && chat.backgroundTasks?.styleReference === true) names.push('style_reference_submit')
     const disabled = new Set(normalizeDisabledForegroundTools(chat.disabledForegroundTools))
     return names.filter(name => !disabled.has(name))
   }

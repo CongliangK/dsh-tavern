@@ -40,7 +40,7 @@ function createGlobalSettingsModule({ React, rpc, notifySettingsChanged, TavernD
             // Same names and order as 功能 in 本局设置, where each game changes them later.
             h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                 toggle("variables", "变量结算", "MVU 卡建议开启；普通卡不执行此任务。", true), toggle("posture", "人物姿势", "总结本轮结束时人物的位置、动作和姿势。", true),
-                toggle("styleReference", "文风联想", "仅自由模式。每轮后台凭记忆摘一段风格相近的小说原文，供下一轮正文借鉴笔调。多一次后台请求。", true),
+                toggle("styleReference", "文风联想", "仅自由模式。前台写正文前，结合本轮场景联想一段笔调参考；与写作共享上下文，不另开后台任务。", true),
                 toggle("webSearchEnabled", "联网搜索", "允许新游戏的前台和后台按需搜索。")),
             message ? h("p", { role: "status" }, message) : null);
     }
