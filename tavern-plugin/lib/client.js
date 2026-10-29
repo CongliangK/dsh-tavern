@@ -24765,8 +24765,6 @@ function createUpdateStatusController({ call, confirm, errors, browser, initial 
                 return h("div", { className: "dsh-tavern-settings-section dsh-local-settings dsh-tavern-global-defaults" },
                     h("section", { className: "dsh-local-section" }, h("h3", null, "游玩"),
                         h("label", { className: "dsh-local-field" }, "默认玩家称呼", h("input", { key: data?.playerName, defaultValue: data?.playerName || "", disabled, maxLength: 80, onBlur: event => { if (event.target.value !== data.playerName) save({ playerName: event.target.value }); } })),
-                        h("label", { className: "dsh-local-field" }, "默认世界书机制", h("select", { "aria-label": "默认世界书机制", disabled, value: data?.worldbookStrategy || "native-skills", onChange: event => save({ worldbookStrategy: event.target.value }) }, h("option", { value: "native-skills" }, "主动检索（推荐）"), h("option", { value: "legacy" }, "外部注入（旧机制）"))),
-                        h("p", { className: "dsh-local-help" }, "主动检索：模型按需查阅世界书资料。外部注入：系统按触发条件自动提供资料。常驻和动态条目仍按原规则处理。此设置只影响新游戏。"),
                         h("label", { className: "dsh-local-field" }, "默认状态栏位置", h("select", { disabled, value: data?.statusBarPlacement || "sidebar", onChange: event => save({ statusBarPlacement: event.target.value }) }, h("option", { value: "sidebar" }, "侧边栏"), h("option", { value: "body" }, "正文下方"))),
                         h("label", { className: "dsh-local-field" }, "默认预设", h("select", { disabled, value: data?.preset || "", onChange: event => save(null, "selectPreset", { path: event.target.value }) }, h("option", { value: "" }, "不使用酒馆预设"), (data?.presets || []).filter(item => item.valid && item.recognized).map(item => h("option", { key: item.path, value: item.path }, item.title)))),
                         h("label", { className: "dsh-local-field" }, "默认长期偏好", h("select", { disabled, value: data?.profile.defaultProfileId || "", onChange: event => save(null, "manageUserPreferenceProfile", { action: "default", profileId: event.target.value }) }, h("option", { value: "" }, "不启用"), (data?.profile.profiles || []).filter(item => item.hasConfirmed).map(item => h("option", { key: item.id, value: item.id }, item.name))))),
@@ -30005,7 +30003,7 @@ function createConversationSettingsModule({
             try {
                 const result = await rpc("getConversationBackgroundConfig", { sessionId: props.sessionId }, props.sessionId);
                 setCatalog(result.modelCatalog || []); setSelection(result.backgroundModel);
-                setTasks(result.backgroundTasks); setFeatures({ worldbookStrategy: result.worldbookStrategy || "legacy", worldbookStrategies: result.worldbookStrategies || [], webSearchEnabled: result.webSearchEnabled === true, mvuCard: result.mvuCard === true }); setLoaded(true);
+                setTasks(result.backgroundTasks); setFeatures({ webSearchEnabled: result.webSearchEnabled === true, mvuCard: result.mvuCard === true }); setLoaded(true);
             } catch (err) { setError(String(err.message || err)); }
         }
         React.useEffect(() => { void load(); }, []);
@@ -30021,7 +30019,7 @@ function createConversationSettingsModule({
             setBusy(true); setError(""); setNotice("");
             try {
                 const result = await rpc("setConversationBackgroundConfig", Object.assign({ sessionId: props.sessionId }, patch), props.sessionId);
-                setSelection(result.backgroundModel); setTasks(result.backgroundTasks); setFeatures({ ...features, worldbookStrategy: result.worldbookStrategy || "legacy", webSearchEnabled: result.webSearchEnabled });
+                setSelection(result.backgroundModel); setTasks(result.backgroundTasks); setFeatures({ ...features, webSearchEnabled: result.webSearchEnabled });
                 setNotice("已保存");
                 invalidateView(props.sessionId);
             } catch (err) { setError(String(err.message || err)); }
@@ -30042,12 +30040,6 @@ function createConversationSettingsModule({
                     modelOptions())),
                 h("label", null, "推理强度", h("select", { "aria-label": "本局后台推理强度", className: "dsh-tavern-settings-select", value: selection?.reasoningEffort || "", disabled: !key || !efforts.length || busy, onChange: event => { const next = { ...selection }; if (event.target.value) next.reasoningEffort = event.target.value; else delete next.reasoningEffort; return save({ backgroundModel: next }); } },
                     h("option", { value: "" }, key ? "模型默认" : "跟随前台"), efforts.map(item => h("option", { key: item.id, value: item.id }, item.name || item.id))))),
-            h("section", { className: "dsh-local-section" }, h("h3", null, "世界书"),
-                h("label", null, "读取方式", h("select", { "aria-label": "本局世界书策略", className: "dsh-tavern-settings-select", value: features.worldbookStrategy || "legacy", disabled: !loaded || busy,
-                    onChange: event => save({ worldbookStrategy: event.target.value }) },
-                    (features.worldbookStrategies?.length ? features.worldbookStrategies : [{ id: "legacy", label: "外部注入（旧机制）" }, { id: "native-skills", label: "主动检索（推荐）" }]).map(strategy => h("option", { key: strategy.id, value: strategy.id }, strategy.label)))),
-                h("p", { className: "dsh-tavern-settings-desc" }, "主动检索：模型按需查阅世界书资料。外部注入：系统按触发条件自动提供资料。常驻和动态条目仍按原规则处理。切换后从下一轮生效，已加载的历史内容保留。"),
-                ),
             h("section", { className: "dsh-local-section" }, h("h3", null, "功能"),
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,
                 toggle("posture", "人物姿势", "每轮总结人物的位置、动作和姿势，供前台保持一致。", tasks.posture, checked => ({ backgroundTasks: { posture: checked } })),

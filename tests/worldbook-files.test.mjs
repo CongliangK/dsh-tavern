@@ -62,7 +62,7 @@ test('edits revoke old paths, restart reuses generation, version reversal restor
   assert.equal(await provider.authorizeRead(first.files[0].path, lookup), false)
 })
 
-test('reads reject foreign scope, traversal, symlinks, cancellation and legacy mode', async t => {
+test('reads reject foreign scope, traversal, symlinks, cancellation and permits legacy saves', async t => {
   const { provider, lookup, state } = await fixture(t)
   const { files } = await provider.listFiles({}, lookup)
   assert.equal(await provider.authorizeRead(files[0].path, { scope: { session: { id: 'foreign' } } }), false)
@@ -72,7 +72,7 @@ test('reads reject foreign scope, traversal, symlinks, cancellation and legacy m
   const abort = new AbortController(); abort.abort()
   await assert.rejects(provider.listFiles({}, { ...lookup, signal: abort.signal }))
   state.chat.worldbookStrategy = 'legacy'
-  await assert.rejects(provider.listFiles({}, lookup), /没有可访问/)
+  assert.ok((await provider.listFiles({}, lookup)).files.length > 0)
 })
 
 test('preprocessing visibility remains authoritative and is never executed by file generation', async t => {

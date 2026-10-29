@@ -367,7 +367,7 @@ test('本局前台工具可逐项关闭，卡片模式不受影响', async () =>
   const submitOff = harness('story', { storyToolCall: true, chatFields: { disabledForegroundTools: ['submit_story'] } })
   assert.equal((await submitOff.orchestrator.visibleTools('session-1')).includes('submit_story'), false)
 
-  const disabled = ['tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_recall_history', 'worldbook_search', 'web_search', 'web_fetch', 'submit_story']
+  const disabled = ['read', 'worldbook_list', 'worldbook_grep', 'tavern_read_variables', 'skill', 'tavern_read_skill_reference', 'tavern_recall_history', 'worldbook_search', 'web_search', 'web_fetch', 'submit_story']
   const none = harness('story', { storyToolCall: true, webSearchEnabled: true, chatFields: { disabledForegroundTools: disabled } })
   assert.deepEqual(await none.orchestrator.visibleTools('session-1'), [])
 
@@ -400,7 +400,7 @@ test('native virtual snapshots persist with explicit request identity while stat
 })
 
 
-test('native gameplay advertises scoped read instead of legacy worldbook search; legacy and card tools stay unchanged', async () => {
+test('native gameplay advertises scoped read instead of legacy worldbook search; old saves also get retrieval tools', async () => {
   for (const mode of ['story', 'script']) {
     const native = harness(mode, { chatFields: { worldbookStrategy: 'native-skills' } })
     const names = await native.orchestrator.visibleTools('session-1')
@@ -410,7 +410,7 @@ test('native gameplay advertises scoped read instead of legacy worldbook search;
     const legacy = harness(mode)
     const oldNames = await legacy.orchestrator.visibleTools('session-1')
     assert.ok(!oldNames.includes('worldbook_search'))
-    for (const tool of ['read', 'worldbook_list', 'worldbook_grep']) assert.equal(oldNames.includes(tool), false)
+    for (const tool of ['read', 'worldbook_list', 'worldbook_grep']) assert.equal(oldNames.includes(tool), true)
   }
   assert.deepEqual(await harness('card', { chatFields: { worldbookStrategy: 'native-skills' } }).orchestrator.visibleTools('session-1'),
     await harness('card').orchestrator.visibleTools('session-1'))

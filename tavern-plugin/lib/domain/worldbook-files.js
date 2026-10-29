@@ -24,7 +24,7 @@ export function createWorldbookFiles({ directory, load, resourcesAvailable = () 
     const scope = lookup?.scope
     if (!scope?.session?.id || !resourcesAvailable(scope)) return null
     const state = await load(scope)
-    if (!state || (state.authorizedSessionId || state.chat?.sessionId) !== scope.session.id || state.chat.worldbookStrategy !== 'native-skills') return null
+    if (!state || (state.authorizedSessionId || state.chat?.sessionId) !== scope.session.id) return null
     const visible = eligibleVirtualSourceEntries(state.worldBook, state.chat)
     const snapshots = currentVirtualState(state.chat, visible)
     const entries = visible.flatMap(entry => {

@@ -73,7 +73,7 @@ test('前台工具逐项保存，默认全开并合并插件工具', async () =>
   assert.deepEqual(chat.disabledForegroundTools, ['worldbook_search', 'plugin_lookup'])
 })
 
-test('worldbook strategy is per-game, defaults to legacy and preserves screening, cooldowns and concurrent settings', async () => {
+test('worldbook strategy is per-game, migrates legacy to retrieval and preserves screening, cooldowns and concurrent settings', async () => {
   const reads = { 'book:7': { turn: 3, kind: 'screened', fingerprint: 'old' } }
   const chats = new Map(['one', 'two'].map(id => [id, { id, mode: 'story', worldBookReads: reads, backgroundTasks: { worldbookScreening: true, posture: false }, disabledWritingSkills: ['writing'] }]))
   const strategies = [{ id: 'legacy', label: 'Legacy' }, { id: 'native-skills', label: 'Skills' }, { id: 'plugin.example_strategy', label: 'Plugin' }]
@@ -83,11 +83,11 @@ test('worldbook strategy is per-game, defaults to legacy and preserves screening
     isPlayMode: mode => mode === 'story', modelCatalog: async () => [], modelReasoning: async () => null,
     worldbookStrategies: { list: () => strategies, has: id => strategies.some(item => item.id === id) }
   })
-  assert.equal((await settings.read('one')).worldbookStrategy, 'legacy')
+  assert.equal((await settings.read('one')).worldbookStrategy, 'native-skills')
   assert.deepEqual((await settings.read('one')).worldbookStrategies, strategies)
   await settings.save({ sessionId: 'one', worldbookStrategy: 'native-skills' })
   assert.equal((await settings.read('one')).worldbookStrategy, 'native-skills')
-  assert.equal((await settings.read('two')).worldbookStrategy, 'legacy')
+  assert.equal((await settings.read('two')).worldbookStrategy, 'native-skills')
   await settings.save({ sessionId: 'one', backgroundTasks: { styleReference: true } })
   assert.equal(chats.get('one').worldbookStrategy, 'native-skills')
   await settings.save({ sessionId: 'one', worldbookStrategy: 'legacy' })

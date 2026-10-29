@@ -261,7 +261,6 @@ import { createWorldbookFiles } from './domain/worldbook-files.js'
 import { registerWorldbookFileTools } from './tools/worldbook-files.js'
 import { projectVirtualWorldbookPrefix } from './domain/worldbook-virtual-state.js'
 import { installWorldbookSkillRead, nativeWorldbookReadAvailable } from './domain/worldbook-skill-read.js'
-import { prepareTemplateWorldbook, prepareWorldBookRecall, projectWorldBookTemplates } from './domain/worldbook-recall.js'
 import {
   createBackgroundTaskCoordinator,
   isOpeningAwaitingSettlement
@@ -1894,8 +1893,7 @@ export async function apply(ctx) {
   })
   ctx.effect(() => () => projectBuiltinWorldbook.dispose())
   const worldbookStrategies = createWorldbookStrategies({
-    legacy: input => projectBuiltinWorldbook({ ...input, strategy: 'legacy' }),
-    nativeSkills: input => projectBuiltinWorldbook({ ...input, strategy: 'native-skills' })
+    nativeSkills: projectBuiltinWorldbook
   })
   const projectForegroundWorldbook = async input => {
     const projected = await worldbookStrategies.project(input)
@@ -2094,7 +2092,7 @@ export async function apply(ctx) {
     systemAppend: () => runtimePrompt('system-append'),
     resolveModelSelection: async input => ['stage-director', 'polish'].includes(input.task) ? input.selection : backgroundModelSelection(await backgroundConfigForSession(input.sessionId)) || input.selection,
     resolveWebSearch: async input => input.task !== 'stage-director' && (await backgroundConfigForSession(input.sessionId))?.webSearchEnabled === true,
-    resolveWorldbookSkills: async input => (await backgroundConfigForSession(input.sessionId))?.worldbookStrategy === 'native-skills',
+    resolveWorldbookSkills: async () => true,
     backgroundTools: BACKGROUND_TOOLS,
     // Set up after the runner: plugin tools are read when a background Session is set up.
     settlementItems: () => settlementItems,
@@ -2605,7 +2603,7 @@ export async function apply(ctx) {
     worldbookStrategies,
     worldbookStrategyEntries: input => input.worldBook || playWorldBook(input.chat, input.card),
     projectWorldbookSelection: (input, refs) => projectBuiltinWorldbook({ ...input,
-      strategy: refs === null ? 'legacy' : 'native-skills', selectedRefs: refs || [] }),
+      selectedRefs: refs || [] }),
     readCardImage: async sessionId => {
       const header = await chatHeaderForSession(sessionId, ['cardPath'])
       const cardPath = str(header?.cardPath)
@@ -2845,25 +2843,7 @@ export async function apply(ctx) {
       return { context: '', refs: [], diagnostics: [{ kind: 'worldbook-template', code: 'worldbook-read-failed' }] }
     }
     if (!worldBook || !worldBook.view) return { context: '', refs: [], diagnostics: [] }
-    if (chat.worldbookStrategy === 'native-skills') return projectVirtualWorldbookPrefix(worldBook, chat, options)
-    try {
-      const runtime = await promptTemplateRuntime(chat.sessionId)
-      worldBook = await prepareTemplateWorldbook(worldBook, runtime, chat, await readPromptTemplateGlobalVariables())
-      return projectWorldBookTemplates({
-        includeConstants: true,
-        randomSeed: chat.worldBookRandomState?.seed,
-        randomOutputs: chat.worldBookRandomState?.outputs,
-        worldBook,
-        runtime,
-        globalVariables: await readPromptTemplateGlobalVariables(),
-        card,
-        chat
-      })
-    } catch (error) {
-      if (error.code === 'FULL_TEMPLATE_UNAVAILABLE') throw error
-      console.warn('dsh-tavern: 动态世界书解析失败，已跳过:', str(error && error.message || error))
-      return { context: '', refs: [], diagnostics: [{ kind: 'worldbook-template', code: 'projection-failed' }] }
-    }
+    return projectVirtualWorldbookPrefix(worldBook, chat, options)
   }
   const candidateContextReader = createCandidateContextReader({headerForSession:chatHeaderForSession,readWindow:chatPersistence.readWindow,readChat})
   candidateWorldbookPreparation=createCandidateWorldbookPreparation({
@@ -3144,12 +3124,6 @@ export async function apply(ctx) {
     projectWorldBookTemplates: input => nativeWorldBookTemplateContext(input.chat, input.card),
     projectForegroundWorldbook,
     recordWorldbookRecall: worldbookRecallLog.record,
-    projectScriptPromptWorldbook: async function ({ chat, card, turn }) {
-      const text = scriptPromptScanText(chat)
-      if (!text.trim()) return null
-      const worldBook = await playWorldBook(chat, card)
-      return prepareWorldBookRecall({ chat, card, turn, worldBook, latestBody: text, activationRequests: worldBook?.pluginActivationRequests })
-    },
     resolvePresetRegexScripts: async chat => presetRegexScripts(chat),
     now: Date.now,
     shellToolName: process.platform === 'win32' ? 'pwsh' : 'bash'

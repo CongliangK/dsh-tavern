@@ -97,8 +97,8 @@ test('native list, grep and read pipeline isolates files and background leases w
   assert.notEqual(updated, pa)
   assert.match(output(await read(a, updated)), /UPDATED BODY/)
   states.get(a).chat.worldbookStrategy = 'legacy'
-  failure(await read(a, updated))
-  failure(await execute(a, 'worldbook_list', {}))
+  assert.match(output(await read(a, updated)), /UPDATED BODY/)
+  assert.match(output(await execute(a, 'worldbook_list', {})), /测试书/)
   const aborted = new AbortController(); aborted.abort()
   failure(await execute(b, 'worldbook_grep', { query: 'SECRET' }, aborted.signal))
 })
